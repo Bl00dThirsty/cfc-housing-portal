@@ -41,9 +41,16 @@ export default function Hero() {
 
             <Link
               href="/portal"
-              className="w-full sm:w-auto px-8 py-3.5 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold uppercase tracking-wider rounded-xl border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-6 py-3.5 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold uppercase tracking-wider rounded-xl border border-slate-200 shadow-sm transition-all flex items-center justify-center gap-2"
             >
               <span>Accéder au Guichet Unique</span>
+            </Link>
+
+            <Link
+              href="/tracking"
+              className="w-full sm:w-auto px-6 py-3.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold uppercase tracking-wider rounded-xl border border-emerald-300 shadow-sm transition-all flex items-center justify-center gap-2"
+            >
+              <span>Suivre mon Prêt (DUC)</span>
             </Link>
           </div>
 
