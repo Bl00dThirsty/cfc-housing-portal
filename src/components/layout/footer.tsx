@@ -33,8 +33,8 @@ export default function Footer() {
             <ul className="space-y-1.5 text-[11px]">
               <li><Link href="/simulator" className="hover:text-white transition-colors">Simulateur Épargne Habitat</Link></li>
               <li><Link href="/onboarding" className="hover:text-white transition-colors">Création Dossier Unique (DUC)</Link></li>
-              <li><Link href="/portal" className="hover:text-white transition-colors">Guichet Unique Documentaire</Link></li>
-              <li><Link href="/portal" className="hover:text-white transition-colors">Suivi des 6 Phases de Crédit</Link></li>
+              <li><Link href="/tracking" className="hover:text-white transition-colors font-medium text-emerald-400">Suivi en Direct de Prêt (DUC)</Link></li>
+              <li><Link href="/verify/CFC-VERIF-78A9B2" className="hover:text-white transition-colors">Vérification d&apos;Actes (Sceau QR)</Link></li>
             </ul>
           </div>
 

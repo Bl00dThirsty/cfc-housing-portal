@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Calculator, FileText, UserCheck, Building2 } from "lucide-react";
+import { Calculator, FileText, UserCheck, Building2, ShieldCheck } from "lucide-react";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -77,6 +77,17 @@ export default function Navbar() {
           >
             <FileText className="w-3.5 h-3.5" />
             Guichet Unique
+          </Link>
+          <Link
+            href="/tracking"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+              pathname.startsWith("/tracking")
+                ? "bg-white text-cfc-brown shadow-sm font-semibold"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            Suivi Prêt DUC
           </Link>
         </nav>
 
