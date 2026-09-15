@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   FolderOpen,
   Kanban as KanbanIcon,
+  Landmark,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -40,6 +41,7 @@ export interface ClientsTableProps {
   onSelectClient?: (client: ClientItem) => void;
   onOpenKanban?: (client: ClientItem) => void;
   onOpenDuc?: (client: ClientItem) => void;
+  onOpenEpargne?: (client: ClientItem) => void;
 }
 
 const phaseBadgeColors: Record<ClientItem["phase"], string> = {
@@ -64,6 +66,7 @@ export function ClientsTable({
   onSelectClient,
   onOpenKanban,
   onOpenDuc,
+  onOpenEpargne,
 }: ClientsTableProps = {}) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
@@ -498,6 +501,15 @@ export function ClientsTable({
                               >
                                 <FolderOpen className="size-3.5 mr-2 text-primary" />
                                 Consulter son DUC (GED)
+                              </DropdownMenuItem>
+                            )}
+                            {onOpenEpargne && (
+                              <DropdownMenuItem
+                                onClick={() => onOpenEpargne(client)}
+                                className="cursor-pointer text-xs"
+                              >
+                                <Landmark className="size-3.5 mr-2 text-primary" />
+                                Carnet d&apos;Épargne
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
