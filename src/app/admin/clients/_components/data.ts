@@ -46,6 +46,44 @@ export interface ClientItem {
   completionPercent: number;
   documents: ClientDocument[];
   visas: ClientVisa[];
+  savingsPassbook?: SavingsPassbook;
+}
+
+export type SavingsChannel =
+  | "Guichet CFC"
+  | "Mobile Money MTN"
+  | "Mobile Money Orange"
+  | "Virement Bancaire"
+  | "SYSTAC"
+  | "Prélèvement Employeur"
+  | "Virement SWIFT (Diaspora)";
+
+export type SavingsTransactionType = "Dépôt" | "Retrait" | "Intérêts" | "Frais" | "Ajustement";
+
+export interface SavingsTransaction {
+  id: string;
+  date: string;
+  type: SavingsTransactionType;
+  description: string;
+  channel: SavingsChannel;
+  reference: string;
+  debit: number | null;
+  credit: number | null;
+  balance: number;
+  validatedBy?: string;
+  receiptRef?: string;
+}
+
+export interface SavingsPassbook {
+  accountNumber: string;
+  openDate: string;
+  savingsTarget: number;
+  currentBalance: number;
+  interestRate: string;
+  status: "Actif" | "Objectif Atteint" | "Suspendu" | "Clôturé";
+  nextDueDate?: string;
+  monthlyTarget?: number;
+  transactions: SavingsTransaction[];
 }
 
 export const clientsData: ClientItem[] = [
@@ -92,6 +130,22 @@ export const clientsData: ClientItem[] = [
       { stage: "G3 · Risques & BET", actor: "Ing. Tchounke (BET CIRA)", decision: "Favorable", date: "28/08/2026", comment: "Terrain stable, devis cohérent avec les ratios mercuriales CFC." },
       { stage: "G6 · Comité CGR", actor: "Secrétariat CGR CFC", decision: "En attente", date: "Programmée 15/09", comment: "Inscrit à l'ordre du jour du prochain comité de crédit." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2024-00481",
+      openDate: "15/01/2024",
+      savingsTarget: 4800000,
+      currentBalance: 4800000,
+      interestRate: "3.5%",
+      status: "Objectif Atteint",
+      monthlyTarget: 200000,
+      transactions: [
+        { id: "txn-cl1-001", date: "15/01/2024", type: "Dépôt", description: "Versement initial", channel: "Guichet CFC", reference: "DEP-001", debit: null, credit: 500000, balance: 500000, validatedBy: "Mme Mbezele", receiptRef: "REC-001" },
+        { id: "txn-cl1-002", date: "28/02/2024", type: "Dépôt", description: "Épargne mensuelle", channel: "Prélèvement Employeur", reference: "PREL-001", debit: null, credit: 1500000, balance: 2000000, validatedBy: "Mme Mbezele" },
+        { id: "txn-cl1-003", date: "28/03/2024", type: "Dépôt", description: "Épargne mensuelle", channel: "Prélèvement Employeur", reference: "PREL-002", debit: null, credit: 1500000, balance: 3500000, validatedBy: "Mme Mbezele" },
+        { id: "txn-cl1-004", date: "15/04/2024", type: "Dépôt", description: "Versement exceptionnel", channel: "Guichet CFC", reference: "DEP-002", debit: null, credit: 1305000, balance: 4805000, validatedBy: "Mme Mbezele", receiptRef: "REC-002" },
+        { id: "txn-cl1-005", date: "30/06/2024", type: "Frais", description: "Frais de tenue de compte", channel: "Guichet CFC", reference: "FR-001", debit: 5000, credit: null, balance: 4800000, validatedBy: "Système" }
+      ]
+    }
   },
   {
     id: "cl-2",
@@ -134,6 +188,24 @@ export const clientsData: ClientItem[] = [
     visas: [
       { stage: "G1 · Enrôlement & KYC", actor: "M. Tagne (Agence Bafoussam)", decision: "Réserves", date: "22/08/2026", comment: "Apport personnel en cours de constitution (23%). Relance pièces foncières." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2025-00112",
+      openDate: "10/02/2025",
+      savingsTarget: 3600000,
+      currentBalance: 8500000,
+      interestRate: "3.5%",
+      status: "Actif",
+      nextDueDate: "10/09/2026",
+      monthlyTarget: 150000,
+      transactions: [
+        { id: "txn-cl2-001", date: "10/02/2025", type: "Dépôt", description: "Ouverture compte", channel: "Guichet CFC", reference: "DEP-001", debit: null, credit: 200000, balance: 200000, validatedBy: "M. Tagne", receiptRef: "REC-010" },
+        { id: "txn-cl2-002", date: "15/03/2025", type: "Dépôt", description: "Versement", channel: "Mobile Money MTN", reference: "MOMO-001", debit: null, credit: 200000, balance: 400000, validatedBy: "Système" },
+        { id: "txn-cl2-003", date: "20/04/2025", type: "Dépôt", description: "Versement", channel: "Mobile Money Orange", reference: "OM-001", debit: null, credit: 150000, balance: 550000, validatedBy: "Système" },
+        { id: "txn-cl2-004", date: "30/06/2025", type: "Intérêts", description: "Intérêts créditeurs", channel: "Guichet CFC", reference: "INT-001", debit: null, credit: 5000, balance: 555000, validatedBy: "Système" },
+        { id: "txn-cl2-005", date: "10/07/2025", type: "Dépôt", description: "Versement", channel: "Guichet CFC", reference: "DEP-002", debit: null, credit: 300000, balance: 855000, validatedBy: "M. Tagne", receiptRef: "REC-011" },
+        { id: "txn-cl2-006", date: "31/12/2025", type: "Frais", description: "Frais annuels", channel: "Guichet CFC", reference: "FR-002", debit: 5000, credit: null, balance: 850000, validatedBy: "Système" }
+      ]
+    }
   },
   {
     id: "cl-3",
@@ -177,6 +249,21 @@ export const clientsData: ClientItem[] = [
       { stage: "G1 · Enrôlement & KYC", actor: "M. Ndi (Agence Olembé)", decision: "Favorable", date: "12/08/2026", comment: "Agent public titulaire, prélèvement à la source validé." },
       { stage: "G3 · Risques & BET", actor: "Labo Génie Civil Yaoundé", decision: "Favorable", date: "30/08/2026", comment: "Sondage géotechnique satisfaisant, portance du sol conforme." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2024-00714",
+      openDate: "05/03/2024",
+      savingsTarget: 3700000,
+      currentBalance: 3700000,
+      interestRate: "3.5%",
+      status: "Objectif Atteint",
+      monthlyTarget: 154166,
+      transactions: [
+        { id: "txn-cl3-001", date: "05/03/2024", type: "Dépôt", description: "Premier versement", channel: "Guichet CFC", reference: "DEP-001", debit: null, credit: 700000, balance: 700000, validatedBy: "M. Ndi" },
+        { id: "txn-cl3-002", date: "05/04/2024", type: "Dépôt", description: "Prélèvement source", channel: "Prélèvement Employeur", reference: "PREL-001", debit: null, credit: 1000000, balance: 1700000, validatedBy: "M. Ndi" },
+        { id: "txn-cl3-003", date: "05/05/2024", type: "Dépôt", description: "Prélèvement source", channel: "Prélèvement Employeur", reference: "PREL-002", debit: null, credit: 1000000, balance: 2700000, validatedBy: "M. Ndi" },
+        { id: "txn-cl3-004", date: "05/06/2024", type: "Dépôt", description: "Prélèvement source", channel: "Prélèvement Employeur", reference: "PREL-003", debit: null, credit: 1000000, balance: 3700000, validatedBy: "M. Ndi" }
+      ]
+    }
   },
   {
     id: "cl-4",
@@ -220,6 +307,20 @@ export const clientsData: ClientItem[] = [
       { stage: "G1 · Enrôlement & KYC", actor: "Mme Manga (Agence)", decision: "Favorable", date: "15/08/2026", comment: "Revenus élevés, solvabilité excellente, apport mobilisé." },
       { stage: "G3 · Risques & BET", actor: "BUREAU VERITAS Douala", decision: "Favorable", date: "28/08/2026", comment: "Dossier technique de très haute qualité, permis conforme." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2023-00332",
+      openDate: "10/11/2023",
+      savingsTarget: 7000000,
+      currentBalance: 7000000,
+      interestRate: "3.5%",
+      status: "Objectif Atteint",
+      monthlyTarget: 291666,
+      transactions: [
+        { id: "txn-cl4-001", date: "10/11/2023", type: "Dépôt", description: "Ouverture", channel: "Guichet CFC", reference: "DEP-001", debit: null, credit: 1000000, balance: 1000000, validatedBy: "Mme Manga" },
+        { id: "txn-cl4-002", date: "15/12/2023", type: "Dépôt", description: "Virement", channel: "Virement Bancaire", reference: "VIR-001", debit: null, credit: 3000000, balance: 4000000, validatedBy: "Mme Manga" },
+        { id: "txn-cl4-003", date: "20/01/2024", type: "Dépôt", description: "Virement", channel: "Virement Bancaire", reference: "VIR-002", debit: null, credit: 3000000, balance: 7000000, validatedBy: "Mme Manga" }
+      ]
+    }
   },
   {
     id: "cl-5",
@@ -264,6 +365,19 @@ export const clientsData: ClientItem[] = [
       { stage: "G3 · Risques & BET", actor: "BET BTP Cameroun", decision: "Favorable", date: "18/08/2026", comment: "Logement achevé, certificat de conformité disponible." },
       { stage: "G6 · Comité CGR", actor: "Comité CGR Siège", decision: "Favorable", date: "25/08/2026", comment: "Crédit accordé à l'unanimité (PV N° 2026/08/CGR-03)." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2024-00522",
+      openDate: "20/01/2024",
+      savingsTarget: 2880000,
+      currentBalance: 2880000,
+      interestRate: "3.5%",
+      status: "Objectif Atteint",
+      monthlyTarget: 120000,
+      transactions: [
+        { id: "txn-cl5-001", date: "20/01/2024", type: "Dépôt", description: "Versement", channel: "Prélèvement Employeur", reference: "PREL-001", debit: null, credit: 1440000, balance: 1440000, validatedBy: "M. Etoa" },
+        { id: "txn-cl5-002", date: "20/02/2024", type: "Dépôt", description: "Versement", channel: "Prélèvement Employeur", reference: "PREL-002", debit: null, credit: 1440000, balance: 2880000, validatedBy: "M. Etoa" }
+      ]
+    }
   },
   {
     id: "cl-6",
@@ -309,6 +423,19 @@ export const clientsData: ClientItem[] = [
       { stage: "G6 · Comité CGR", actor: "Comité CGR", decision: "Favorable", date: "12/08/2026", comment: "Accordé avec hypothèque conventionnelle de 1er rang." },
       { stage: "G8 · Notaire & Cadastre", actor: "Me Jacques Bisseck", decision: "En attente", date: "22/08/2026", comment: "Rédaction de l'acte d'affectation hypothécaire en cours." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2024-00639",
+      openDate: "12/02/2024",
+      savingsTarget: 5600000,
+      currentBalance: 5600000,
+      interestRate: "3.5%",
+      status: "Objectif Atteint",
+      monthlyTarget: 233333,
+      transactions: [
+        { id: "txn-cl6-001", date: "12/02/2024", type: "Dépôt", description: "Initial", channel: "Virement Bancaire", reference: "VIR-001", debit: null, credit: 2000000, balance: 2000000, validatedBy: "Mme Bilong" },
+        { id: "txn-cl6-002", date: "15/03/2024", type: "Dépôt", description: "Suite", channel: "Prélèvement Employeur", reference: "PREL-001", debit: null, credit: 3600000, balance: 5600000, validatedBy: "Mme Bilong" }
+      ]
+    }
   },
   {
     id: "cl-7",
@@ -352,6 +479,19 @@ export const clientsData: ClientItem[] = [
       { stage: "G8 · Notariat", actor: "Me Emmanuel Nkouendjin", decision: "Favorable", date: "25/07/2026", comment: "Hypothèque inscrite sans opposition, grosse déposée au CFC." },
       { stage: "G7 · Déblocages", actor: "Direction Déblocages CFC", decision: "Favorable", date: "20/08/2026", comment: "Tranche 1 décaissée (12,8M FCFA). Tranche 2 en attente élévation." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2023-00812",
+      openDate: "05/08/2023",
+      savingsTarget: 6400000,
+      currentBalance: 6400000,
+      interestRate: "3.5%",
+      status: "Objectif Atteint",
+      monthlyTarget: 266666,
+      transactions: [
+        { id: "txn-cl7-001", date: "05/08/2023", type: "Dépôt", description: "Apport", channel: "Guichet CFC", reference: "DEP-001", debit: null, credit: 3000000, balance: 3000000, validatedBy: "M. Abessolo" },
+        { id: "txn-cl7-002", date: "10/09/2023", type: "Dépôt", description: "Apport", channel: "Virement Bancaire", reference: "VIR-001", debit: null, credit: 3400000, balance: 6400000, validatedBy: "M. Abessolo" }
+      ]
+    }
   },
   {
     id: "cl-8",
@@ -396,6 +536,19 @@ export const clientsData: ClientItem[] = [
       { stage: "G6 · Comité CGR", actor: "Comité CGR Siège", decision: "Favorable", date: "14/07/2026", comment: "Accord favorable pour 45M FCFA. Projet valorisant." },
       { stage: "G8 · Notariat", actor: "Me Douala Manga Bell", decision: "En attente", date: "15/08/2026", comment: "Procuration consulaire reçue, signature prévue sous 10 jours." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2023-00045-DIA",
+      openDate: "10/02/2023",
+      savingsTarget: 9000000,
+      currentBalance: 9000000,
+      interestRate: "3.5%",
+      status: "Objectif Atteint",
+      monthlyTarget: 375000,
+      transactions: [
+        { id: "txn-cl8-001", date: "10/02/2023", type: "Dépôt", description: "Transfert SWIFT", channel: "Virement SWIFT (Diaspora)", reference: "SW-001", debit: null, credit: 4500000, balance: 4500000, validatedBy: "M. Zogo" },
+        { id: "txn-cl8-002", date: "15/06/2023", type: "Dépôt", description: "Transfert SWIFT", channel: "Virement SWIFT (Diaspora)", reference: "SW-002", debit: null, credit: 4500000, balance: 9000000, validatedBy: "M. Zogo" }
+      ]
+    }
   },
   {
     id: "cl-9",
@@ -436,5 +589,18 @@ export const clientsData: ClientItem[] = [
     visas: [
       { stage: "G4 · Clôture & Mainlevée", actor: "Direction Recouvrement CFC", decision: "Favorable", date: "10/08/2026", comment: "Prêt remboursé intégralement à terme. Mainlevée totale délivrée." },
     ],
+    savingsPassbook: {
+      accountNumber: "CPT-EH-2011-00219",
+      openDate: "01/01/2011",
+      savingsTarget: 3200000,
+      currentBalance: 0,
+      interestRate: "3.5%",
+      status: "Clôturé",
+      monthlyTarget: 0,
+      transactions: [
+        { id: "txn-cl9-001", date: "01/01/2011", type: "Dépôt", description: "Apport initial", channel: "Guichet CFC", reference: "DEP-001", debit: null, credit: 3200000, balance: 3200000, validatedBy: "Mme Mbezele" },
+        { id: "txn-cl9-002", date: "10/08/2026", type: "Retrait", description: "Clôture compte", channel: "Guichet CFC", reference: "RET-001", debit: 3200000, credit: null, balance: 0, validatedBy: "Mme Mbezele" }
+      ]
+    }
   },
 ];

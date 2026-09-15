@@ -8,6 +8,7 @@ import {
   FileText,
   FolderOpen,
   Kanban as KanbanIcon,
+  Landmark,
   User,
   Users,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { cn, getInitials } from "@/lib/utils";
 
 import { ClientDucManager } from "./client-duc-manager";
 import { ClientKanban } from "./client-kanban";
+import { ClientSavingsPassbook } from "./client-savings-passbook";
 import { ClientsTable } from "./clients-table";
 import { type ClientItem, clientsData } from "./data";
 
@@ -38,8 +40,8 @@ export function ClientWorkspaceHub() {
   const tabParam = searchParams.get("tab");
   const clientParam = searchParams.get("clientId");
 
-  const [activeTab, setActiveTab] = React.useState<"clients" | "kanban" | "duc">(
-    tabParam === "kanban" ? "kanban" : tabParam === "duc" ? "duc" : "clients"
+  const [activeTab, setActiveTab] = React.useState<"clients" | "kanban" | "duc" | "epargne">(
+    tabParam === "kanban" ? "kanban" : tabParam === "duc" ? "duc" : tabParam === "epargne" ? "epargne" : "clients"
   );
 
   const [selectedClientId, setSelectedClientId] = React.useState<string>(
@@ -48,7 +50,7 @@ export function ClientWorkspaceHub() {
 
   // Sync state if query params change
   React.useEffect(() => {
-    if (tabParam === "kanban" || tabParam === "duc" || tabParam === "clients") {
+    if (tabParam === "kanban" || tabParam === "duc" || tabParam === "clients" || tabParam === "epargne") {
       setActiveTab(tabParam);
     }
     if (clientParam) {
@@ -71,6 +73,11 @@ export function ClientWorkspaceHub() {
   const handleOpenDuc = (client: ClientItem) => {
     setSelectedClientId(client.id);
     setActiveTab("duc");
+  };
+
+  const handleOpenEpargne = (client: ClientItem) => {
+    setSelectedClientId(client.id);
+    setActiveTab("epargne");
   };
 
   return (
@@ -165,10 +172,10 @@ export function ClientWorkspaceHub() {
       {/* 2. 3 Main Tabs: Répertoire, Kanban, DUC */}
       <Tabs
         value={activeTab}
-        onValueChange={(val) => setActiveTab(val as "clients" | "kanban" | "duc")}
+        onValueChange={(val) => setActiveTab(val as "clients" | "kanban" | "duc" | "epargne")}
         className="space-y-4"
       >
-        <TabsList className="w-full sm:w-fit grid grid-cols-3 h-10 p-1 rounded-lg bg-muted/60">
+        <TabsList className="w-full sm:w-fit grid grid-cols-4 h-10 p-1 rounded-lg bg-muted/60">
           <TabsTrigger value="clients" className="gap-2 text-xs font-semibold rounded-md">
             <User className="size-3.5" />
             1. Répertoire Emprunteurs
@@ -184,6 +191,10 @@ export function ClientWorkspaceHub() {
             <FolderOpen className="size-3.5" />
             3. Dossier Unique (DUC)
           </TabsTrigger>
+          <TabsTrigger value="epargne" className="gap-2 text-xs font-semibold rounded-md">
+            <Landmark className="size-3.5" />
+            4. Carnet d&apos;Épargne
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab 1: Répertoire Emprunteurs */}
@@ -193,6 +204,7 @@ export function ClientWorkspaceHub() {
             onSelectClient={handleSelectClient}
             onOpenKanban={handleOpenKanban}
             onOpenDuc={handleOpenDuc}
+            onOpenEpargne={handleOpenEpargne}
           />
         </TabsContent>
 
@@ -211,6 +223,11 @@ export function ClientWorkspaceHub() {
             client={activeClient}
             onSelectClient={handleSelectClient}
           />
+        </TabsContent>
+
+        {/* Tab 4: Carnet d'Épargne du client sélectionné */}
+        <TabsContent value="epargne" className="space-y-4 focus-visible:outline-none">
+          <ClientSavingsPassbook client={activeClient} />
         </TabsContent>
       </Tabs>
     </div>
