@@ -106,7 +106,7 @@ const kpiItems: AnalyticsKpi[] = [
     isPositive: false,
     previous: "8.9%",
     period: "last 4 weeks",
-    description: "Proportion d'utilisateurs convertis en dossiers DUC ou ouverture effective de compte épargne.",
+    description: "Proportion d'utilisateurs convertis en Dossier Unique Client (DUC) ou ouverture effective de compte épargne.",
     monthlyBreakdown: [
       { month: "Août 2026", actual: "8.4%", target: "10.0%" },
       { month: "Juillet 2026", actual: "8.9%", target: "9.5%" },
@@ -115,7 +115,7 @@ const kpiItems: AnalyticsKpi[] = [
     ],
     agenciesPerformance: [
       { agency: "Comptes Épargne ouverts", contribution: "55%", trend: "+14.0%" },
-      { agency: "Dossiers DUC déposés", contribution: "35%", trend: "-2.4%" },
+      { agency: "Dossier Unique Client (DUC) déposés", contribution: "35%", trend: "-2.4%" },
       { agency: "Rendez-vous agence pris", contribution: "10%", trend: "+5.1%" },
     ],
   },

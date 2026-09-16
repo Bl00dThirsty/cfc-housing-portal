@@ -173,7 +173,7 @@ export default function SimulationDetailPage() {
             className="h-8 gap-1.5 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             <CheckCircle2 className="size-3.5" />
-            Convertir en Dossier DUC
+            Convertir en Dossier Unique Client (DUC)
           </Button>
         </div>
       </div>

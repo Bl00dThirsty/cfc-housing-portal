@@ -412,7 +412,7 @@ export function GlobalKanbanCardDialog({
                   onClick={() => router.push(`/admin/clients?tab=duc&clientId=${currentTask.clientId || "cl-1"}`)}
                 >
                   <ExternalLink className="size-3.5" />
-                  Ouvrir Dossier DUC (GED)
+                  Ouvrir Dossier Unique Client (DUC)
                 </Button>
 
                 <Button

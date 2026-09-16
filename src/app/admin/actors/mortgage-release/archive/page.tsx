@@ -11,7 +11,7 @@ import { getInitials } from "@/lib/utils";
 
 const archiveKpis: ActorKpiItem[] = [
   {
-    title: "Dossiers DUC Clôturés (Mois)",
+    title: "Dossier Unique Client (DUC) Clôturés (Mois)",
     value: "24",
     change: "20.0%",
     isPositive: true,

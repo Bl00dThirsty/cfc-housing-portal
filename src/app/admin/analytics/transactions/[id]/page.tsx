@@ -267,7 +267,7 @@ export default function TransactionDetailPage() {
             </Button>
             <Button variant="outline" className="w-full h-9 text-xs font-medium gap-2">
               <ExternalLink className="size-4" />
-              Accéder au Dossier DUC Client
+              Accéder au Dossier Unique Client (DUC)
             </Button>
             <Button variant="ghost" className="w-full h-9 text-xs text-muted-foreground hover:text-foreground">
               Transmettre Copie par Email

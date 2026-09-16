@@ -33,7 +33,7 @@ export default function Page() {
             <TabsTrigger value="audience">Épargnants</TabsTrigger>
             <TabsTrigger value="acquisition">Canaux de Collecte</TabsTrigger>
             <TabsTrigger value="engagement">Simulations</TabsTrigger>
-            <TabsTrigger value="conversions">Dossiers DUC</TabsTrigger>
+            <TabsTrigger value="conversions">Dossier Unique Client (DUC)</TabsTrigger>
           </TabsList>
 
           <AnalyticsToolbar />
