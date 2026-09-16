@@ -73,7 +73,7 @@ export default function ClientDetailPage() {
             Répertoire des Emprunteurs
           </Link>
           <ChevronRight className="size-3.5 text-muted-foreground/40" />
-          <span>Dossier DUC</span>
+          <span>Dossier Unique Client (DUC)</span>
           <ChevronRight className="size-3.5 text-muted-foreground/40" />
           <span className="text-foreground font-mono font-semibold">{client.ducId}</span>
           <Badge className={`${phaseBadgeColors[client.phase]} text-[11px] rounded-md font-medium`}>

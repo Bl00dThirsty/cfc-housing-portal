@@ -86,7 +86,7 @@ export function ClientWorkspaceHub() {
       <div className="flex flex-col gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Espace Emprunteurs &amp; Dossiers DUC
+            Espace Emprunteurs &amp; Dossier Unique Client (DUC)
           </h1>
           <p className="text-muted-foreground text-xs sm:text-sm">
             Gestion 360° du cycle de crédit : répertoire des clients, pipeline Kanban individuel par étapes et chemises numériques DUC (GED scellée).

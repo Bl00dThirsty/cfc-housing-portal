@@ -363,7 +363,7 @@ export function Kanban({ initialBoard }: KanbanProps) {
             <ButtonGroup className="w-full sm:w-fit">
               <Button className="flex-1 sm:flex-none rounded-md gap-1.5">
                 <Plus className="size-4" />
-                Nouveau Dossier DUC
+                Nouveau Dossier Unique Client (DUC)
               </Button>
               <ButtonGroupSeparator />
               <DropdownMenu>
@@ -588,7 +588,7 @@ export function Kanban({ initialBoard }: KanbanProps) {
                               {task.clientId && (
                                 <DropdownMenuItem onClick={() => router.push(`/admin/clients?selected=${task.clientId}&tab=duc`)}>
                                   <FileText className="size-3.5 mr-2" />
-                                  Dossier DUC du client
+                                  Dossier Unique Client (DUC)
                                 </DropdownMenuItem>
                               )}
                               {task.clientId && (
@@ -722,7 +722,7 @@ export function Kanban({ initialBoard }: KanbanProps) {
                             {task.clientId && (
                               <DropdownMenuItem onClick={() => router.push(`/admin/clients?selected=${task.clientId}&tab=duc`)}>
                                 <FileText className="size-3.5 mr-2" />
-                                Dossier DUC du client
+                                Dossier Unique Client (DUC)
                               </DropdownMenuItem>
                             )}
                             {task.clientId && (
