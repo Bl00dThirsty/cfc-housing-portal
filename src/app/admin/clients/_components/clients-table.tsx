@@ -93,7 +93,7 @@ export function ClientsTable({
       {/* 1. KPI Summary Cards Strip (Crisp rounded-lg, zero decorative icons) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
         <div className="rounded-lg border bg-card p-4 flex flex-col justify-between gap-3 shadow-xs">
-          <span className="text-xs text-muted-foreground font-medium">Total Emprunteurs DUC</span>
+          <span className="text-xs text-muted-foreground font-medium">Total Emprunteurs (DUC)</span>
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-2xl font-semibold tracking-tight font-mono text-foreground">1 240</span>
             <Badge

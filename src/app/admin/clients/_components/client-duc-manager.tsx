@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Download,
+  Eye,
   File,
   FileArchive,
   FileCheck,
@@ -35,6 +36,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
 import { type ClientItem, clientsData } from "./data";
+import { DucDocumentViewerDialog } from "./duc-document-viewer-dialog";
 
 export type DucFileKind = "document" | "spreadsheet" | "design" | "pdf" | "archive";
 
@@ -81,6 +83,7 @@ export const defaultDucFolders: DucFolder[] = [
   { id: "04-technique", name: "04 - Devis, Plans & Expertises BET", fileCount: 4, size: "32.0 MB", updatedAt: "28 Août" },
   { id: "05-comites", name: "05 - Décisions Comités (CGR, CRC)", fileCount: 1, size: "1.8 MB", updatedAt: "25 Août" },
   { id: "06-notaire", name: "06 - Notaires & Hypothèques", fileCount: 2, size: "8.1 MB", updatedAt: "20 Août" },
+  { id: "07-enquetes", name: "07 - Enquêtes & Audits Réglementaires (ANC/CFC)", fileCount: 4, size: "14.6 MB", updatedAt: "Audit Mai 2026" },
 ];
 
 function generateClientFiles(client: ClientItem): DucFile[] {
@@ -217,6 +220,50 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       starred: false,
       status: "Validé",
     },
+    {
+      id: `f-${client.id}-13`,
+      name: "Rapport_Enquete_Agence_Regionale_Centre_ANC_CFC.pdf",
+      kind: "pdf",
+      size: "3.8 MB",
+      folderId: "07-enquetes",
+      owner: "Archives Nationales (ANC)",
+      modifiedAt: "26 Mai 2026",
+      starred: true,
+      status: "Validé",
+    },
+    {
+      id: `f-${client.id}-14`,
+      name: "Fiche_Anomalie_Documentaire_ANO-001_Fragmentation_DUC.pdf",
+      kind: "document",
+      size: "1.4 MB",
+      folderId: "07-enquetes",
+      owner: "Équipe 4 Audit ANC/CFC",
+      modifiedAt: "18 Mai 2026",
+      starred: true,
+      status: "Validé",
+    },
+    {
+      id: `f-${client.id}-15`,
+      name: "Grille_Audit_Releve_Locaux_Conservation_Titres.pdf",
+      kind: "document",
+      size: "4.2 MB",
+      folderId: "07-enquetes",
+      owner: "Commission Sécurité ANC",
+      modifiedAt: "22 Mai 2026",
+      starred: false,
+      status: "Validé",
+    },
+    {
+      id: `f-${client.id}-16`,
+      name: "Cartographie_Flux_Production_Credits_G1.pdf",
+      kind: "pdf",
+      size: "5.2 MB",
+      folderId: "07-enquetes",
+      owner: "Sous-Direction Crédits CFC",
+      modifiedAt: "28 Mai 2026",
+      starred: true,
+      status: "Validé",
+    },
   ];
 }
 
@@ -230,6 +277,7 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
   const [selectedFolderId, setSelectedFolderId] = React.useState<string | "all">("all");
   const [search, setSearch] = React.useState("");
   const [selectedKind, setSelectedKind] = React.useState<string>("all");
+  const [previewFile, setPreviewFile] = React.useState<DucFile | null>(null);
 
   if (!client) {
     return (
@@ -238,7 +286,7 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
           <FolderOpen className="size-7" />
         </div>
         <div className="space-y-1 max-w-md">
-          <h3 className="text-lg font-bold text-foreground">Aucun Dossier DUC Sélectionné</h3>
+          <h3 className="text-lg font-bold text-foreground">Aucun Dossier Unique Client (DUC) Sélectionné</h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
             Pour accéder à l&apos;arborescence des pièces scellées et aux justificatifs GED, veuillez d&apos;abord sélectionner un emprunteur dans le répertoire.
           </p>
@@ -441,7 +489,12 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
           {filteredFiles.map((file) => {
             const Icon = ducFileIcons[file.kind];
             return (
-              <Card key={file.id} size="sm" className="group/file hover:border-primary/40 transition-all">
+              <Card
+                key={file.id}
+                size="sm"
+                className="group/file hover:border-primary/50 transition-all cursor-pointer hover:shadow-xs"
+                onClick={() => setPreviewFile(file)}
+              >
                 <CardContent className="p-3">
                   <div className="relative flex h-28 items-center justify-center rounded-md bg-muted/40 border border-border/40">
                     <Icon className="size-10 text-muted-foreground/80 group-hover/file:text-primary transition-colors" />
@@ -460,14 +513,33 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
                   <CardDescription className="truncate text-[10.5px]">
                     Modifié le {file.modifiedAt} · {file.owner}
                   </CardDescription>
-                  <div className="flex items-center justify-between pt-1">
-                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 text-[10px] rounded-md h-4 px-1.5 font-medium">
+                  <div className="flex items-center justify-between pt-1 gap-1">
+                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 text-[10px] rounded-md h-4 px-1.5 font-medium shrink-0">
                       <FileCheck className="size-2.5 mr-1" />
                       {file.status}
                     </Badge>
-                    <Button variant="ghost" size="icon" className="size-6 text-muted-foreground hover:text-foreground">
-                      <Download className="size-3" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 px-1.5 text-[10.5px] gap-1 rounded-md text-primary hover:bg-primary/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewFile(file);
+                        }}
+                      >
+                        <Eye className="size-3" />
+                        Visualiser
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Download className="size-3" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
               </Card>
@@ -481,7 +553,8 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
             return (
               <div
                 key={file.id}
-                className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors text-xs"
+                className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors text-xs cursor-pointer"
+                onClick={() => setPreviewFile(file)}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex size-8 items-center justify-center rounded-md bg-muted text-primary shrink-0">
@@ -495,14 +568,31 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px] text-muted-foreground font-mono hidden sm:inline">
                     {file.modifiedAt}
                   </span>
                   <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 text-[10px] rounded-md h-4.5 px-1.5 font-medium">
                     {file.status}
                   </Badge>
-                  <Button variant="ghost" size="icon" className="size-7 rounded-md">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs gap-1 rounded-md text-primary hover:bg-primary/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewFile(file);
+                    }}
+                  >
+                    <Eye className="size-3.5" />
+                    Visualiser
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 rounded-md"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Download className="size-3.5" />
                   </Button>
                 </div>
@@ -511,6 +601,14 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
           })}
         </div>
       )}
+
+      {/* 5. Document Viewer Modal */}
+      <DucDocumentViewerDialog
+        file={previewFile}
+        client={client}
+        open={Boolean(previewFile)}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+      />
     </div>
   );
 }

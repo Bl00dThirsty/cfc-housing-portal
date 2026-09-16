@@ -154,7 +154,7 @@ export default function DiasporaPage() {
             Guichet Diaspora &amp; Non-Résidents
           </h1>
           <p className="text-sm text-muted-foreground">
-            Enrôlement et suivi des dossiers DUC ouverts par la diaspora camerounaise (Europe, Amérique, Afrique) via le portail distant.
+            Enrôlement et suivi du Dossier Unique Client (DUC) ouvert par la diaspora camerounaise (Europe, Amérique, Afrique) via le portail distant.
           </p>
         </div>
 

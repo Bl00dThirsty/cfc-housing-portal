@@ -157,7 +157,7 @@ export default function VerifyCertificatePage() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
               <Link href={`/tracking?duc=${certificate.referenceNumber.split("/")[3] || "DUC-2026-04829"}`}>
                 <Button variant="outline" size="sm" className="w-full sm:w-auto text-xs gap-1.5 rounded-xl">
-                  Accéder au suivi complet du dossier DUC
+                  Accéder au suivi complet du Dossier Unique Client (DUC)
                   <ArrowRight className="size-3.5" />
                 </Button>
               </Link>

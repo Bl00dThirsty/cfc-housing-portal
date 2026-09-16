@@ -21,7 +21,7 @@ import { getInitials } from "@/lib/utils";
 
 const ducKpis: ActorKpiItem[] = [
   {
-    title: "Dossiers DUC en Pipeline",
+    title: "Dossier Unique Client (DUC) en Pipeline",
     value: "1 240",
     change: "15.8%",
     isPositive: true,
@@ -328,8 +328,8 @@ export function DossiersDucTab() {
                           <MoreHorizontal className="size-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
-                        <DropdownMenuLabel className="text-xs font-semibold">Actions Dossier DUC</DropdownMenuLabel>
+                      <DropdownMenuContent align="end" className="w-64 p-1.5 rounded-xl">
+                        <DropdownMenuLabel className="text-xs font-semibold">Actions Dossier Unique Client (DUC)</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => router.push(`/admin/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs">
                           <FileText className="size-3.5 mr-2 text-muted-foreground" />

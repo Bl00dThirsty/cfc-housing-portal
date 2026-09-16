@@ -325,7 +325,7 @@ export function SimulationsTab() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => router.push("/admin/actors/agency")} className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                           <ArrowRight className="size-3.5 mr-2" />
-                          Convertir en Dossier DUC
+                          Convertir en Dossier Unique Client (DUC)
                         </DropdownMenuItem>
                         <DropdownMenuItem className="cursor-pointer text-xs">
                           <Download className="size-3.5 mr-2 text-muted-foreground" />

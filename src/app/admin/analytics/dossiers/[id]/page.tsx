@@ -130,7 +130,7 @@ export default function DucDetailPage() {
             Retour aux Analytics
           </Link>
           <ChevronRight className="size-3.5 text-muted-foreground/40" />
-          <span>Dossiers DUC</span>
+          <span>Dossier Unique Client (DUC)</span>
           <ChevronRight className="size-3.5 text-muted-foreground/40" />
           <span className="text-foreground font-mono font-semibold">{duc.ducId}</span>
         </div>

@@ -55,7 +55,7 @@ const navSections: NavSection[] = [
       },
       {
         id: "clients",
-        title: "Emprunteurs & Dossiers DUC",
+        title: "Emprunteurs & Dossier Unique Client (DUC)",
         href: "/admin/clients",
         badge: "Hub",
         groupCode: "Portefeuille, Kanban & DUC",

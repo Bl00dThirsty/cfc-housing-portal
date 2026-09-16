@@ -116,10 +116,10 @@ export default function AnalyticsDashboard() {
           </div>
         </Card>
 
-        {/* KPI 3 : Dossiers DUC Créés */}
+        {/* KPI 3 : Dossier Unique Client (DUC) Créés */}
         <Card className="p-4 space-y-2.5 shadow-xs">
           <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
-            <span>Dossiers DUC Créés</span>
+            <span>Dossier Unique Client (DUC) Créés</span>
             <div className="flex size-7 items-center justify-center rounded-lg border bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
               <FileCheck2 className="size-4" />
             </div>
