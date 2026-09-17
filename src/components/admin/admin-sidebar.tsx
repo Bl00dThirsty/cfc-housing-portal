@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { MoreHorizontal, Layers, ArrowLeft, Sparkles, CheckCircle2, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -16,163 +16,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-
-interface NavSubItem {
-  id: string;
-  title: string;
-  href?: string;
-  badge?: "soon" | "live" | "new" | string;
-}
-
-interface NavItem {
-  id: string;
-  title: string;
-  href: string;
-  badge?: string;
-  groupCode?: string;
-  subItems?: NavSubItem[];
-}
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
-const navSections: NavSection[] = [
-  {
-    title: "Vue Globale",
-    items: [
-      {
-        id: "analytics",
-        title: "Analytics & Pilotage",
-        href: "/admin/analytics",
-        badge: "Live",
-        groupCode: "Supervision Stratégique",
-        subItems: [
-          { id: "analytics-overview", title: "Synthèse Indicateurs & KPI", href: "/admin/analytics" },
-          { id: "analytics-core-banking", title: "Supervision Core Banking Carthago", badge: "soon" },
-          { id: "analytics-audit", title: "Journal d'Audit & Conformité", badge: "soon" },
-        ],
-      },
-      {
-        id: "clients",
-        title: "Emprunteurs & Dossier Unique Client (DUC)",
-        href: "/admin/clients",
-        badge: "Hub",
-        groupCode: "Portefeuille, Kanban & DUC",
-        subItems: [
-          { id: "clients-table", title: "1. Répertoire Emprunteurs", href: "/admin/clients" },
-          { id: "clients-kanban", title: "2. Kanban par Client", href: "/admin/clients?tab=kanban" },
-          { id: "clients-duc", title: "3. Dossier Numérique DUC", href: "/admin/clients?tab=duc" },
-        ],
-      },
-      {
-        id: "kanban",
-        title: "Pipeline Global (Multi-Clients)",
-        href: "/admin/kanban",
-        badge: "Global",
-        groupCode: "Instruction & Délais",
-        subItems: [
-          { id: "kanban-board", title: "Tableau Kanban Global", href: "/admin/kanban" },
-          { id: "kanban-list", title: "Vue Liste Chronologique", href: "/admin/kanban" },
-        ],
-      },
-    ],
-  },
-  {
-    title: "Acteurs Guichet Unique",
-    items: [
-      {
-        id: "agency",
-        title: "Agence Commerciale",
-        href: "/admin/actors/agency",
-        badge: "G1",
-        groupCode: "Groupe G1 · Production des Crédits",
-        subItems: [
-          { id: "agency-main", title: "Enrôlement & Épargne Habitat", href: "/admin/actors/agency" },
-          { id: "agency-momo", title: "Collecte Mobile Money (MoMo)", href: "/admin/actors/agency/mobile-money" },
-          { id: "agency-simulator", title: "Simulateur d'Apport & Scoring", href: "/admin/actors/agency/simulator" },
-          { id: "agency-promoters", title: "Partenariats Promoteurs & SIC", href: "/admin/actors/agency/promoters" },
-          { id: "agency-diaspora", title: "Guichet Diaspora & Étranger", href: "/admin/actors/agency/diaspora" },
-        ],
-      },
-      {
-        id: "risk-engineering",
-        title: "Risques & BET",
-        href: "/admin/actors/risk-engineering",
-        badge: "G3",
-        groupCode: "Groupe G3 · Expertise Technique & Risques",
-        subItems: [
-          { id: "risk-main", title: "Contre-Expertise Devis & Plans", href: "/admin/actors/risk-engineering" },
-          { id: "risk-reports", title: "Rapports de Visite Chantier", href: "/admin/actors/risk-engineering/site-reports" },
-          { id: "risk-solvency", title: "Centrale des Risques & Solvabilité", href: "/admin/actors/risk-engineering/solvency" },
-          { id: "risk-directory", title: "Annuaire BET & Experts Agréés", href: "/admin/actors/risk-engineering/directory" },
-          { id: "risk-environment", title: "Scoring Géotechnique & Urbain", href: "/admin/actors/risk-engineering/geotech-urban" },
-        ],
-      },
-      {
-        id: "credit-committees",
-        title: "Comités CGR / CRC",
-        href: "/admin/actors/credit-committees",
-        badge: "G6",
-        groupCode: "Groupe G6 · Comités Décisionnels & Gouvernance",
-        subItems: [
-          { id: "committees-main", title: "Arbitrages & Délibérations Octroi", href: "/admin/actors/credit-committees" },
-          { id: "committees-cgr", title: "Comité Gestion des Risques (CGR)", href: "/admin/actors/credit-committees/cgr" },
-          { id: "committees-crc", title: "Comité Règlement Créances (CRC)", href: "/admin/actors/credit-committees/crc" },
-          { id: "committees-offers", title: "Génération Accords & Offres de Prêt", href: "/admin/actors/credit-committees/loan-offers" },
-          { id: "committees-board", title: "Dossiers Institutionnels Attaché PCA", href: "/admin/actors/credit-committees/board-institutional" },
-        ],
-      },
-      {
-        id: "notary-cadastre",
-        title: "Notaires & Cadastre",
-        href: "/admin/actors/notary-cadastre",
-        badge: "G8",
-        groupCode: "Groupe G8 · Notariat & Affaires Juridiques",
-        subItems: [
-          { id: "notary-main", title: "Conventions & Hypothèque 1er Rang", href: "/admin/actors/notary-cadastre" },
-          { id: "notary-cadastre-docs", title: "Liaison Cadastre & Certificats MINDCAF", href: "/admin/actors/notary-cadastre/cadastre-docs" },
-          { id: "notary-directory", title: "Études Notariales & Suivi Minutes", href: "/admin/actors/notary-cadastre/directory" },
-          { id: "notary-insurances", title: "Assurances Décès, Incendie & TRC", href: "/admin/actors/notary-cadastre/insurances" },
-          { id: "notary-oppositions", title: "Contrôle Pré-notations Foncier", href: "/admin/actors/notary-cadastre/oppositions" },
-        ],
-      },
-      {
-        id: "disbursements",
-        title: "DFBC Décaissements",
-        href: "/admin/actors/disbursements",
-        badge: "G7",
-        groupCode: "Groupe G7 · Finances, Budget & Comptabilité",
-        subItems: [
-          { id: "disbursements-main", title: "Déblocages par Tranche (VD)", href: "/admin/actors/disbursements" },
-          { id: "disbursements-systac", title: "Ordres de Virement SYSTAC", href: "/admin/actors/disbursements/systac" },
-          { id: "disbursements-schedules", title: "Tableaux d'Amortissement", href: "/admin/actors/disbursements/schedules" },
-          { id: "disbursements-subsidies", title: "Comptabilité Prêts Bonifiés", href: "/admin/actors/disbursements/subsidies" },
-          { id: "disbursements-recovery", title: "Recouvrement & Pré-Contentieux", href: "/admin/actors/disbursements/recovery" },
-        ],
-      },
-      {
-        id: "mortgage-release",
-        title: "Clôture & Mainlevée",
-        href: "/admin/actors/mortgage-release",
-        badge: "G4",
-        groupCode: "Groupe G4 · Clôture, Mainlevée & Conservation",
-        subItems: [
-          { id: "release-main", title: "Décompte Extinction à Solde Nul", href: "/admin/actors/mortgage-release" },
-          { id: "release-deeds", title: "Actes de Mainlevée Notariée", href: "/admin/actors/mortgage-release/deeds" },
-          { id: "release-registry", title: "Radiation Hypothèque Cadastre", href: "/admin/actors/mortgage-release/registry" },
-          { id: "release-titles", title: "Restitution Titres Fonciers Originaux", href: "/admin/actors/mortgage-release/titles" },
-          { id: "release-archive", title: "Clôture Définitive & Archivage DUC", href: "/admin/actors/mortgage-release/archive" },
-        ],
-      },
-    ],
-  },
-];
+import { getSidebarSectionsForRole, landingPathForRole } from "@/config/rbac/sidebar-by-role";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { currentUser, allUsers, loginAsUser, logout } = useAuth();
+  const navSections = React.useMemo(() => getSidebarSectionsForRole(currentUser.role), [currentUser.role]);
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r bg-card text-card-foreground">
@@ -363,7 +213,10 @@ export default function AdminSidebar() {
             {allUsers.map((u) => (
               <DropdownMenuItem
                 key={u.id}
-                onClick={() => loginAsUser(u.id)}
+                onClick={() => {
+                  loginAsUser(u.id);
+                  router.push(landingPathForRole(u.role));
+                }}
                 className="cursor-pointer text-xs flex items-center justify-between py-1.5"
               >
                 <div className="flex items-center gap-2 min-w-0">
