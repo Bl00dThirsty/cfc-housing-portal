@@ -18,12 +18,12 @@ import {
   FolderOpen,
   Kanban as KanbanIcon,
   Landmark,
+  UserPlus,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +35,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn, getInitials } from "@/lib/utils";
 import { type ClientItem, clientsData } from "./data";
+import { ClientCreationDialog } from "./client-creation-dialog";
 
 export interface ClientsTableProps {
   selectedClientId?: string;
@@ -69,12 +70,20 @@ export function ClientsTable({
   onOpenEpargne,
 }: ClientsTableProps = {}) {
   const router = useRouter();
+  const [allClients, setAllClients] = React.useState<ClientItem[]>(clientsData);
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
   const [selectedPhase, setSelectedPhase] = React.useState<string>("all");
   const [selectedStatus, setSelectedStatus] = React.useState<string>("all");
   const [viewMode, setViewMode] = React.useState<"cards" | "table">("table");
 
-  const filteredClients = clientsData.filter((client) => {
+  const handleClientCreated = (newClient: ClientItem) => {
+    setAllClients((prev) => [newClient, ...prev]);
+    onSelectClient?.(newClient);
+    onOpenDuc?.(newClient);
+  };
+
+  const filteredClients = allClients.filter((client) => {
     const matchesSearch =
       client.name.toLowerCase().includes(search.toLowerCase()) ||
       client.ducId.toLowerCase().includes(search.toLowerCase()) ||
@@ -206,7 +215,16 @@ export function ClientsTable({
               </Button>
             </div>
 
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium rounded-md ml-1">
+            <Button
+              size="sm"
+              onClick={() => setIsCreateOpen(true)}
+              className="h-8 gap-1.5 px-3 text-xs font-semibold rounded-md bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 ml-1"
+            >
+              <UserPlus className="size-3.5" />
+              Nouvelle Entrée en Relation
+            </Button>
+
+            <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium rounded-md">
               <Download className="size-3.5" />
               Exporter
             </Button>
@@ -294,22 +312,31 @@ export function ClientsTable({
                   </Badge>
                 </div>
 
-                {/* Financial Gauge Box */}
-                <div className="rounded-md border bg-muted/25 p-3 space-y-2">
+                {/* Financial Balance Summary (Épuré sans surcharge de jauge) */}
+                <div className="rounded-md border bg-muted/20 p-2.5 space-y-2">
                   <div className="flex items-baseline justify-between">
                     <div>
-                      <span className="text-[10px] text-muted-foreground block">Crédit Sollicité</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider block font-medium">Crédit Sollicité</span>
                       <span className="text-sm font-bold font-mono text-foreground">{client.loanAmount}</span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-muted-foreground block">Apport Mobilisé</span>
-                      <span className="text-xs font-semibold font-mono text-foreground">{client.savingsCurrent}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider block font-medium">Épargne Mobilisée</span>
+                      <div className="flex items-baseline justify-end gap-1 font-mono">
+                        <span className="text-xs font-bold text-primary">{client.savingsCurrent}</span>
+                        <span className="text-[10px] text-muted-foreground">/ {client.savingsTarget}</span>
+                      </div>
                     </div>
                   </div>
-                  <Progress value={client.savingsPercent} className="h-1.5 rounded-xs" />
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
-                    <span>Objectif 20% : <strong>{client.savingsTarget}</strong></span>
-                    <span className="font-semibold text-foreground">{client.savingsPercent}%</span>
+                  <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border/50">
+                    <span className="text-muted-foreground text-[10px]">Couverture Apport Personnel</span>
+                    <span className={cn(
+                      "font-mono font-bold text-xs px-2 py-0.5 rounded-md",
+                      client.savingsPercent >= 100 
+                        ? "bg-emerald-500/10 text-emerald-700" 
+                        : "bg-primary/10 text-primary"
+                    )}>
+                      {client.savingsPercent}% atteint
+                    </span>
                   </div>
                 </div>
 
@@ -441,14 +468,21 @@ export function ClientsTable({
                         </span>
                       </TableCell>
 
-                      {/* Savings Progress */}
+                      {/* Savings & Apport Personnel (Épuré sans jauge) */}
                       <TableCell className="px-3 py-2.5">
-                        <div className="flex flex-col gap-1 min-w-[90px]">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-semibold text-foreground">{client.savingsPercent}%</span>
-                            <span className="text-muted-foreground font-mono text-[10px]">{client.savingsCurrent}</span>
+                        <div className="flex flex-col gap-0.5 min-w-[100px]">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                              "font-mono font-bold text-xs px-1.5 py-0.5 rounded",
+                              client.savingsPercent >= 100
+                                ? "bg-emerald-500/10 text-emerald-700"
+                                : "bg-muted text-foreground"
+                            )}>
+                              {client.savingsPercent}%
+                            </span>
+                            <span className="text-muted-foreground font-mono text-[11px] font-medium">{client.savingsCurrent}</span>
                           </div>
-                          <Progress value={client.savingsPercent} className="h-1.5 rounded-xs" />
+                          <span className="text-[10px] text-muted-foreground font-mono">Cible: {client.savingsTarget}</span>
                         </div>
                       </TableCell>
 
@@ -539,7 +573,7 @@ export function ClientsTable({
           {/* Table Footer */}
           <div className="flex items-center justify-between border-t bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
             <span>
-              Affichage de <strong>{filteredClients.length}</strong> sur <strong>{clientsData.length}</strong> emprunteurs répertoriés
+              Affichage de <strong>{filteredClients.length}</strong> sur <strong>{allClients.length}</strong> emprunteurs répertoriés
             </span>
             <span className="font-medium">
               Crédit Foncier du Cameroun · Direction du Crédit &amp; Recouvrement
@@ -547,6 +581,13 @@ export function ClientsTable({
           </div>
         </div>
       )}
+
+      {/* Dialog d'Enrôlement & Ouverture de Compte Client (CFC-02) */}
+      <ClientCreationDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onClientCreated={handleClientCreated}
+      />
     </div>
   );
 }
