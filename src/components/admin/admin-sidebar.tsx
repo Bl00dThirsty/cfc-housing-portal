@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MoreHorizontal, Layers, ArrowLeft, Sparkles, CheckCircle2 } from "lucide-react";
+import { MoreHorizontal, Layers, ArrowLeft, Sparkles, CheckCircle2, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 interface NavSubItem {
   id: string;
@@ -171,6 +172,7 @@ const navSections: NavSection[] = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const { currentUser, allUsers, loginAsUser, logout } = useAuth();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r bg-card text-card-foreground">
@@ -330,23 +332,59 @@ export default function AdminSidebar() {
       <div className="border-t p-3 space-y-2">
         <Link
           href="/"
-          className="flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border bg-background px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-xs"
+          className="flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border bg-background px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-2xs"
         >
           <ArrowLeft className="size-3.5" />
-          <span>Back to Citizen Portal</span>
+          <span>Portail Citoyen</span>
         </Link>
 
-        <div className="flex items-center gap-2.5 rounded-lg p-1.5 hover:bg-secondary/50 transition-colors">
-          <Avatar className="size-8 rounded-lg">
-            <AvatarFallback className="rounded-lg text-xs font-semibold bg-primary text-primary-foreground">
-              AD
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-1 flex-col min-w-0">
-            <span className="text-xs font-medium truncate leading-tight">Admin Officer</span>
-            <span className="text-[11px] text-muted-foreground truncate">admin@cfc.cm</span>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="flex items-center gap-2.5 rounded-lg p-1.5 hover:bg-muted/50 transition-colors cursor-pointer text-left">
+              <Avatar className="size-8 rounded-lg shrink-0">
+                <AvatarFallback className={`rounded-lg text-xs font-bold ${currentUser.avatarTone}`}>
+                  {currentUser.initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-1 flex-col min-w-0">
+                <span className="text-xs font-semibold truncate leading-tight text-foreground">
+                  {currentUser.name}
+                </span>
+                <span className="text-[10.5px] text-muted-foreground truncate">
+                  {currentUser.roleLabel}
+                </span>
+              </div>
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="w-56 p-1.5 rounded-xl text-xs">
+            <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Changer de compte métier
+            </DropdownMenuLabel>
+            {allUsers.map((u) => (
+              <DropdownMenuItem
+                key={u.id}
+                onClick={() => loginAsUser(u.id)}
+                className="cursor-pointer text-xs flex items-center justify-between py-1.5"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`size-2 rounded-full shrink-0 ${u.id === currentUser.id ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
+                  <span className="truncate">{u.name}</span>
+                </div>
+                <span className="text-[9.5px] text-muted-foreground font-mono shrink-0">{u.role}</span>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/admin/login" className="cursor-pointer text-xs">
+                Page de connexion
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={logout} className="cursor-pointer text-xs text-destructive focus:text-destructive">
+              <LogOut className="size-3.5 mr-2" />
+              Déconnexion
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );

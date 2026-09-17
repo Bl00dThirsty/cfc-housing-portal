@@ -16,6 +16,7 @@ import {
   Grid2X2,
   List,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Upload,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import { cn } from "@/lib/utils";
 
 import { type ClientItem, clientsData } from "./data";
 import { DucDocumentViewerDialog } from "./duc-document-viewer-dialog";
+import { DucUploadDialog, type DucAuditLogEntry } from "./duc-upload-dialog";
 
 export type DucFileKind = "document" | "spreadsheet" | "design" | "pdf" | "archive";
 
@@ -77,13 +79,13 @@ const ducFileLabels: Record<DucFileKind, string> = {
 };
 
 export const defaultDucFolders: DucFolder[] = [
-  { id: "01-kyc", name: "01 - Identité & KYC (DUC)", fileCount: 2, size: "4.5 MB", updatedAt: "Il y a 10 min" },
-  { id: "02-revenus", name: "02 - Revenus & Solvabilité", fileCount: 3, size: "6.2 MB", updatedAt: "Hier" },
-  { id: "03-foncier", name: "03 - Foncier & Titre Foncier (MINDCAF)", fileCount: 2, size: "18.4 MB", updatedAt: "01 Sept" },
-  { id: "04-technique", name: "04 - Devis, Plans & Expertises BET", fileCount: 4, size: "32.0 MB", updatedAt: "28 Août" },
-  { id: "05-comites", name: "05 - Décisions Comités (CGR, CRC)", fileCount: 1, size: "1.8 MB", updatedAt: "25 Août" },
-  { id: "06-notaire", name: "06 - Notaires & Hypothèques", fileCount: 2, size: "8.1 MB", updatedAt: "20 Août" },
-  { id: "07-enquetes", name: "07 - Enquêtes & Audits Réglementaires (ANC/CFC)", fileCount: 4, size: "14.6 MB", updatedAt: "Audit Mai 2026" },
+  { id: "c1-id", name: "C1 · Identification : KYC & Demande", fileCount: 2, size: "4.2 MB", updatedAt: "Il y a 10 min" },
+  { id: "c2-instruction", name: "C2 · Instruction : Analyses & Décision", fileCount: 6, size: "32.7 MB", updatedAt: "Hier" },
+  { id: "c3-garanties", name: "C3 · Garanties : Hypothèque & Assurances", fileCount: 4, size: "25.4 MB", updatedAt: "01 Sept" },
+  { id: "c4-vie", name: "C4 · Vie du prêt : Déblocages & Quittances", fileCount: 0, size: "0 MB", updatedAt: "En cours" },
+  { id: "c5-contentieux", name: "C5 · Contentieux : Actes & Recouvrement", fileCount: 0, size: "0 MB", updatedAt: "N/A" },
+  { id: "c6-cloture", name: "C6 · Clôture : Solde & Mainlevée", fileCount: 0, size: "0 MB", updatedAt: "N/A" },
+  { id: "07-enquetes", name: "C7 · Enquêtes & Audits (ANC/CFC)", fileCount: 4, size: "14.6 MB", updatedAt: "Audit Mai 2026" },
 ];
 
 function generateClientFiles(client: ClientItem): DucFile[] {
@@ -93,7 +95,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: `CNI_Certifiee_${client.ducId}.pdf`,
       kind: "pdf",
       size: "2.4 MB",
-      folderId: "01-kyc",
+      folderId: "c1-id",
       owner: client.officer,
       modifiedAt: "12 Août 2026",
       starred: true,
@@ -104,7 +106,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: "Acte_Mariage_Regime_Legal.pdf",
       kind: "document",
       size: "1.8 MB",
-      folderId: "01-kyc",
+      folderId: "c1-id",
       owner: client.officer,
       modifiedAt: "14 Août 2026",
       starred: false,
@@ -115,7 +117,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: "3_Derniers_Bulletins_Paie_Signes.pdf",
       kind: "pdf",
       size: "3.2 MB",
-      folderId: "02-revenus",
+      folderId: "c2-instruction",
       owner: client.employer,
       modifiedAt: "16 Août 2026",
       starred: true,
@@ -126,7 +128,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: `Attestation_Solde_Carthago_${client.accountNumber}.pdf`,
       kind: "pdf",
       size: "1.1 MB",
-      folderId: "02-revenus",
+      folderId: "c2-instruction",
       owner: "Core Banking Carthago",
       modifiedAt: "20 Août 2026",
       starred: true,
@@ -137,7 +139,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: `Certificat_Propriete_${client.landTitle.replace(/\s+/g, "_")}.pdf`,
       kind: "pdf",
       size: "8.5 MB",
-      folderId: "03-foncier",
+      folderId: "c3-garanties",
       owner: "Conservation Foncière MINDCAF",
       modifiedAt: "18 Août 2026",
       starred: true,
@@ -148,7 +150,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: "Plan_Bornage_Geometre_Assermente.dwg",
       kind: "design",
       size: "9.9 MB",
-      folderId: "03-foncier",
+      folderId: "c3-garanties",
       owner: "Ordre des Géomètres",
       modifiedAt: "19 Août 2026",
       starred: false,
@@ -159,7 +161,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: `Devis_Quantitatif_Estimatif_${client.betAssigned.replace(/\s+/g, "_")}.xlsx`,
       kind: "spreadsheet",
       size: "4.8 MB",
-      folderId: "04-technique",
+      folderId: "c2-instruction",
       owner: client.betAssigned,
       modifiedAt: "24 Août 2026",
       starred: true,
@@ -170,7 +172,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: "Permis_de_Batir_Vise_CUY.pdf",
       kind: "pdf",
       size: "5.6 MB",
-      folderId: "04-technique",
+      folderId: "c2-instruction",
       owner: "Communauté Urbaine",
       modifiedAt: "26 Août 2026",
       starred: false,
@@ -181,7 +183,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: "Plans_Architecturaux_R+1.pdf",
       kind: "design",
       size: "18.2 MB",
-      folderId: "04-technique",
+      folderId: "c2-instruction",
       owner: "Cabinet Architecte",
       modifiedAt: "25 Août 2026",
       starred: false,
@@ -192,7 +194,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: "PV_Decision_Comite_Credit_CRC.pdf",
       kind: "pdf",
       size: "1.8 MB",
-      folderId: "05-comites",
+      folderId: "c2-instruction",
       owner: "Secrétariat CRC",
       modifiedAt: "02 Sept 2026",
       starred: true,
@@ -203,7 +205,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: `Projet_Acte_Notarie_${client.notaryAssigned.replace(/\s+/g, "_")}.pdf`,
       kind: "document",
       size: "4.1 MB",
-      folderId: "06-notaire",
+      folderId: "c3-garanties",
       owner: client.notaryAssigned,
       modifiedAt: "05 Sept 2026",
       starred: false,
@@ -214,7 +216,7 @@ function generateClientFiles(client: ClientItem): DucFile[] {
       name: "Police_Assurance_Incendie_AXA.pdf",
       kind: "pdf",
       size: "2.9 MB",
-      folderId: "06-notaire",
+      folderId: "c3-garanties",
       owner: "Compagnie Assurance CIMA",
       modifiedAt: "06 Sept 2026",
       starred: false,
@@ -267,6 +269,54 @@ function generateClientFiles(client: ClientItem): DucFile[] {
   ];
 }
 
+const initialAuditLogs: DucAuditLogEntry[] = [
+  {
+    id: "log-1",
+    date: "12/08/2026 10:14",
+    docName: "CNI_Certifiee.pdf",
+    folderId: "c1-id",
+    action: "Visa Favorable",
+    author: "M. Eko (Guichet)",
+    role: "Chargé d'Accueil",
+    version: "v1.0",
+    status: "Validé",
+  },
+  {
+    id: "log-2",
+    date: "16/08/2026 14:30",
+    docName: "3_Derniers_Bulletins_Paie_Signes.pdf",
+    folderId: "c2-instruction",
+    action: "Visa Favorable",
+    author: "Mme Atangana (Risques)",
+    role: "Analyste Risques / Crédit",
+    version: "v1.0",
+    status: "Validé",
+  },
+  {
+    id: "log-3",
+    date: "19/08/2026 11:22",
+    docName: "Plan_Bornage_Geometre_Assermente.dwg",
+    folderId: "c3-garanties",
+    action: "Rejet Documentaire",
+    author: "BET BTP Cameroun",
+    role: "Expert Foncier / BET",
+    version: "v0.9",
+    comment: "Signature de l'Ordre des Géomètres manquante au verso.",
+    status: "Rejeté",
+  },
+  {
+    id: "log-4",
+    date: "02/09/2026 16:45",
+    docName: "PV_Decision_Comite_Credit_CRC.pdf",
+    folderId: "c2-instruction",
+    action: "Visa Favorable",
+    author: "Comité CRC",
+    role: "Direction Générale",
+    version: "v1.0",
+    status: "Validé",
+  },
+];
+
 interface ClientDucManagerProps {
   client: ClientItem | null;
   onSelectClient?: (client: ClientItem) => void;
@@ -278,6 +328,31 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
   const [search, setSearch] = React.useState("");
   const [selectedKind, setSelectedKind] = React.useState<string>("all");
   const [previewFile, setPreviewFile] = React.useState<DucFile | null>(null);
+  const [isUploadOpen, setIsUploadOpen] = React.useState(false);
+  const [customFiles, setCustomFiles] = React.useState<Record<string, DucFile[]>>({});
+  const [auditLogs, setAuditLogs] = React.useState<DucAuditLogEntry[]>(initialAuditLogs);
+
+  const baseFiles = React.useMemo(() => (client ? generateClientFiles(client) : []), [client]);
+  const clientFiles = React.useMemo(() => {
+    if (!client) return [];
+    return [...(customFiles[client.id] || []), ...baseFiles];
+  }, [client, customFiles, baseFiles]);
+
+  const foldersWithCounts = React.useMemo(() => {
+    return defaultDucFolders.map((f) => ({
+      ...f,
+      fileCount: clientFiles.filter((doc) => doc.folderId === f.id).length,
+    }));
+  }, [clientFiles]);
+
+  const handleDocumentUploaded = (newFile: DucFile, auditEntry: DucAuditLogEntry) => {
+    if (!client) return;
+    setCustomFiles((prev) => ({
+      ...prev,
+      [client.id]: [newFile, ...(prev[client.id] || [])],
+    }));
+    setAuditLogs((prev) => [auditEntry, ...prev]);
+  };
 
   if (!client) {
     return (
@@ -307,8 +382,6 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
       </div>
     );
   }
-
-  const clientFiles = generateClientFiles(client);
 
   const filteredFiles = clientFiles.filter((file) => {
     const matchesSearch =
@@ -357,9 +430,7 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
           <Button
             size="sm"
             className="gap-1.5 rounded-md text-xs font-semibold"
-            onClick={() => {
-              alert("Module d'import sécurisé de pièce justificative GED.");
-            }}
+            onClick={() => setIsUploadOpen(true)}
           >
             <Upload className="size-3.5" />
             Téléverser une pièce
@@ -367,12 +438,12 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
         </div>
       </div>
 
-      {/* 2. Folders Section (6 Regulatory DUC Folders) */}
+      {/* 2. Folders Section (Official Regulatory DUC Folders CFC-09) */}
       <section className="space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground">
-              Chemises Réglementaires DUC
+              Chemises Réglementaires DUC (CFC-09)
             </h3>
             {selectedFolderId !== "all" && (
               <Button
@@ -385,11 +456,11 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
               </Button>
             )}
           </div>
-          <span className="text-xs text-muted-foreground font-mono">{defaultDucFolders.length} dossiers</span>
+          <span className="text-xs text-muted-foreground font-mono">{foldersWithCounts.length} chemises</span>
         </div>
 
-        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
-          {defaultDucFolders.map((folder) => {
+        <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+          {foldersWithCounts.map((folder) => {
             const isSelected = selectedFolderId === folder.id;
             return (
               <div
@@ -602,12 +673,101 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
         </div>
       )}
 
-      {/* 5. Document Viewer Modal */}
+      {/* 5. Journal d'Audit Documentaire du DUC (Conforme Workflow CFC-03) */}
+      <div className="rounded-lg border bg-card p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b">
+          <div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-primary" />
+              <h3 className="font-bold text-xs uppercase tracking-wider text-foreground">
+                Journal d&apos;Audit Documentaire du DUC (Workflow CFC-03)
+              </h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Traçabilité certifiée des visas, conformités réglementaires et motifs obligatoires de rejet.
+            </p>
+          </div>
+          <Badge variant="outline" className="font-mono text-xs w-fit">
+            {auditLogs.length} événements scellés
+          </Badge>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b text-muted-foreground font-medium text-[11px]">
+                <th className="py-2 px-2 font-mono">Horodatage</th>
+                <th className="py-2 px-2">Document</th>
+                <th className="py-2 px-2">Chemise DUC</th>
+                <th className="py-2 px-2">Action / Visa</th>
+                <th className="py-2 px-2">Intervenant &amp; Rôle</th>
+                <th className="py-2 px-2">Observations / Motif</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {auditLogs.map((log) => (
+                <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                  <td className="py-2 px-2 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                    {log.date}
+                  </td>
+                  <td className="py-2 px-2 font-semibold text-foreground max-w-[200px] truncate">
+                    {log.docName}
+                    {log.version && (
+                      <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">({log.version})</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                    {defaultDucFolders.find((f) => f.id === log.folderId)?.name.split(" : ")[0] || log.folderId}
+                  </td>
+                  <td className="py-2 px-2 whitespace-nowrap">
+                    {log.action === "Visa Favorable" ? (
+                      <Badge className="bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 text-[10px] rounded-md font-medium border-emerald-200">
+                        Visa Favorable
+                      </Badge>
+                    ) : log.action === "Rejet Documentaire" ? (
+                      <Badge variant="destructive" className="text-[10px] rounded-md font-medium">
+                        Rejet Documentaire
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-[10px] rounded-md font-medium">
+                        {log.action}
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="py-2 px-2">
+                    <span className="font-semibold block text-foreground">{log.author}</span>
+                    <span className="text-[10px] text-muted-foreground">{log.role}</span>
+                  </td>
+                  <td className="py-2 px-2 max-w-[260px]">
+                    {log.comment ? (
+                      <span className="text-destructive font-medium text-[11px] block italic leading-tight">
+                        {log.comment}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-[11px]">Conforme aux critères d&apos;éligibilité CFC</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 6. Document Viewer Modal */}
       <DucDocumentViewerDialog
         file={previewFile}
         client={client}
         open={Boolean(previewFile)}
         onOpenChange={(open) => !open && setPreviewFile(null)}
+      />
+
+      {/* 7. Document Upload & Indexing Dialog (CFC-03) */}
+      <DucUploadDialog
+        open={isUploadOpen}
+        onOpenChange={setIsUploadOpen}
+        client={client}
+        onDocumentUploaded={handleDocumentUploaded}
       />
     </div>
   );
