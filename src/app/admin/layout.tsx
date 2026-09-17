@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { landingPathForRole } from "@/config/rbac/sidebar-by-role";
 
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -105,7 +106,10 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                 {allUsers.map((u) => (
                   <DropdownMenuItem
                     key={u.id}
-                    onClick={() => loginAsUser(u.id)}
+                    onClick={() => {
+                      loginAsUser(u.id);
+                      router.push(landingPathForRole(u.role));
+                    }}
                     className="flex items-center justify-between cursor-pointer py-1.5 rounded-md"
                   >
                     <div className="flex items-center gap-2 min-w-0">
