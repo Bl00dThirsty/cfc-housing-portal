@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import { DiasporaDetailsSheet, type DiasporaItem } from "@/components/admin/diaspora-details-sheet";
 
 const diasporaKpis: ActorKpiItem[] = [
   {
@@ -130,11 +130,10 @@ const kycStyles: Record<string, string> = {
 };
 
 export default function DiasporaPage() {
+  const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [selectedCountries, setSelectedCountries] = React.useState<string[]>([]);
   const [selectedKyc, setSelectedKyc] = React.useState<string[]>([]);
-  const [selectedDossier, setSelectedDossier] = React.useState<DiasporaItem | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
 
   const countryOptions = React.useMemo(() => {
     const counts: Record<string, number> = {};
@@ -264,10 +263,7 @@ export default function DiasporaPage() {
                 filtered.map((item) => (
                   <TableRow
                     key={item.id}
-                    onClick={() => {
-                      setSelectedDossier(item);
-                      setIsDetailsOpen(true);
-                    }}
+                    onClick={() => router.push("/admin/clients/cl-8")}
                     className="hover:bg-muted/30 transition-colors cursor-pointer"
                   >
                     <TableCell className="px-3 py-2.5">
@@ -310,10 +306,7 @@ export default function DiasporaPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          setSelectedDossier(item);
-                          setIsDetailsOpen(true);
-                        }}
+                        onClick={() => router.push("/admin/clients/cl-8")}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >
                         <Eye className="size-4" />
@@ -326,13 +319,6 @@ export default function DiasporaPage() {
           </Table>
         </div>
       </div>
-
-      {/* Dedicated Diaspora Details Sheet */}
-      <DiasporaDetailsSheet
-        dossier={selectedDossier}
-        open={isDetailsOpen}
-        onOpenChange={setIsDetailsOpen}
-      />
     </div>
   );
 }
