@@ -215,6 +215,7 @@ export default function ClientDetailPage() {
         <ClientDraggableDocs
           initialDocuments={client.documents}
           onDocumentsChange={handleDocsChange}
+          clientName={client.name}
         />
       )}
 

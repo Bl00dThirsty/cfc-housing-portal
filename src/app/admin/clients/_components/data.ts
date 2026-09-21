@@ -4,6 +4,44 @@ export interface ClientDocument {
   status: "Validé" | "En attente" | "En cours" | "Rejeté";
   date: string;
   ref?: string;
+  fileUrl?: string;
+  fileSize?: string;
+}
+
+export function getDocumentPdf(doc: {
+  name?: string;
+  category?: string;
+  fileUrl?: string;
+  fileSize?: string;
+}): { url: string; size: string } {
+  if (doc.fileUrl) {
+    return {
+      url: doc.fileUrl,
+      size: doc.fileSize || "250 Ko",
+    };
+  }
+  const name = (doc.name || "").toLowerCase();
+  const cat = doc.category || "";
+
+  if (cat === "Identité" || name.includes("cni") || name.includes("identit")) {
+    return { url: "/documents/cni-etat-civil.pdf", size: "199 Ko" };
+  }
+  if (cat === "Foncier" || name.includes("titre") || name.includes("propri") || name.includes("foncier")) {
+    return { url: "/documents/titre-foncier-cfc.pdf", size: "297 Ko" };
+  }
+  if (name.includes("permis") || name.includes("bâtir") || name.includes("batir") || name.includes("urbanisme")) {
+    return { url: "/documents/permis-de-batir-urbanisme.pdf", size: "178 Ko" };
+  }
+  if (cat === "Technique" || name.includes("bet") || name.includes("devis") || name.includes("dqe") || name.includes("expertise")) {
+    return { url: "/documents/expertise-technique-bet.pdf", size: "321 Ko" };
+  }
+  if (cat === "Finances" || name.includes("bulletin") || name.includes("salaire") || name.includes("relev")) {
+    return { url: "/documents/bulletin-paie-salaire.pdf", size: "181 Ko" };
+  }
+  if (cat === "Assurance" || name.includes("assurance") || name.includes("convention") || name.includes("hypothèque") || name.includes("hypotheque")) {
+    return { url: "/documents/police-assurance-convention.pdf", size: "503 Ko" };
+  }
+  return { url: "/documents/titre-foncier-cfc.pdf", size: "297 Ko" };
 }
 
 export interface ClientVisa {

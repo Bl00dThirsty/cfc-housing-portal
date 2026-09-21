@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import type { ClientItem } from "./data";
+import { type ClientItem, getDocumentPdf } from "./data";
 import { INVESTIGATION_DOCUMENTS, type InvestigationDocumentData } from "./duc-investigation-data";
 
 export interface DucViewerFile {
@@ -54,6 +54,7 @@ export function DucDocumentViewerDialog({
 
   const isInvestigation = Boolean(INVESTIGATION_DOCUMENTS[file.name]);
   const invData: InvestigationDocumentData | undefined = INVESTIGATION_DOCUMENTS[file.name];
+  const pdfInfo = getDocumentPdf({ name: file.name, category: file.kind });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -92,11 +93,13 @@ export function DucDocumentViewerDialog({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => {}}
+                  asChild
                   className="h-7 text-xs gap-1 rounded-md font-medium"
                 >
-                  <Download className="size-3" />
-                  Télécharger
+                  <a href={pdfInfo.url} download={file.name.endsWith(".pdf") ? file.name : `${file.name}.pdf`}>
+                    <Download className="size-3" />
+                    Télécharger
+                  </a>
                 </Button>
               </div>
             </div>
@@ -335,6 +338,15 @@ export function DucDocumentViewerDialog({
                     <span className="text-muted-foreground">Gestionnaire &amp; Agence :</span>
                     <span className="font-semibold text-foreground">{client?.officer} ({client?.agency})</span>
                   </div>
+                </div>
+
+                {/* Real PDF Viewer Frame */}
+                <div className="rounded-xl border border-border/40 overflow-hidden bg-background h-[480px]">
+                  <iframe
+                    src={`${pdfInfo.url}#toolbar=1&navpanes=0`}
+                    title={file.name}
+                    className="w-full h-full border-0"
+                  />
                 </div>
 
                 {/* Seal Stamp */}
