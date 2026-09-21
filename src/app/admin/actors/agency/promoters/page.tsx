@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
@@ -8,10 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import {
-  PromoterDetailsSheet,
-  type PromoterItem,
-} from "@/components/admin/promoter-details-sheet";
+import { promotersData as promoters } from "./data";
 
 const promotersKpis: ActorKpiItem[] = [
   {
@@ -56,81 +54,11 @@ const promotersKpis: ActorKpiItem[] = [
   },
 ];
 
-const promoters = [
-  {
-    id: "p1",
-    name: "SIC (Société Immobilière du Cameroun)",
-    programme: "Résidence Les Palmiers – Phase 3",
-    city: "Yaoundé",
-    available: 45,
-    total: 120,
-    priceRange: "18 – 35 M FCFA",
-    status: "Active",
-    updated: "Aujourd'hui",
-  },
-  {
-    id: "p2",
-    name: "MAETUR",
-    programme: "Lotissement Mendong Extension",
-    city: "Yaoundé",
-    available: 180,
-    total: 350,
-    priceRange: "8 – 15 M FCFA",
-    status: "Active",
-    updated: "Hier",
-  },
-  {
-    id: "p3",
-    name: "SIPIM SA",
-    programme: "Cité des Cadres – Bonamoussadi",
-    city: "Douala",
-    available: 22,
-    total: 80,
-    priceRange: "25 – 55 M FCFA",
-    status: "Active",
-    updated: "02 Sept 2026",
-  },
-  {
-    id: "p4",
-    name: "Groupe Ngo & Fils",
-    programme: "Green Villas Bastos",
-    city: "Yaoundé",
-    available: 8,
-    total: 30,
-    priceRange: "45 – 120 M FCFA",
-    status: "Active",
-    updated: "01 Sept 2026",
-  },
-  {
-    id: "p5",
-    name: "CFC Habitat (Interne)",
-    programme: "Résidence CFC Nsimeyong",
-    city: "Yaoundé",
-    available: 0,
-    total: 60,
-    priceRange: "22 – 38 M FCFA",
-    status: "Complet",
-    updated: "30 Août 2026",
-  },
-  {
-    id: "p6",
-    name: "PROMETAL Cameroun",
-    programme: "Cité Eco – Logbessou",
-    city: "Douala",
-    available: 95,
-    total: 200,
-    priceRange: "12 – 22 M FCFA",
-    status: "Active",
-    updated: "28 Août 2026",
-  },
-];
-
 export default function PromotersPage() {
+  const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
   const [selectedCities, setSelectedCities] = React.useState<string[]>([]);
-  const [selectedPromoter, setSelectedPromoter] = React.useState<PromoterItem | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
 
   const statusOptions = React.useMemo(() => [
     { label: "Active", value: "Active", count: promoters.filter((p) => p.status === "Active").length },
@@ -248,10 +176,7 @@ export default function PromotersPage() {
                   return (
                     <TableRow
                       key={item.id}
-                      onClick={() => {
-                        setSelectedPromoter(item);
-                        setIsDetailsOpen(true);
-                      }}
+                      onClick={() => router.push(`/admin/actors/agency/promoters/${item.id}`)}
                       className="hover:bg-muted/30 transition-colors cursor-pointer"
                     >
                       <TableCell className="px-3 py-2.5">
@@ -293,10 +218,7 @@ export default function PromotersPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => {
-                            setSelectedPromoter(item);
-                            setIsDetailsOpen(true);
-                          }}
+                          onClick={() => router.push(`/admin/actors/agency/promoters/${item.id}`)}
                           className="size-8 text-muted-foreground hover:text-foreground"
                         >
                           <Eye className="size-4" />
@@ -310,13 +232,6 @@ export default function PromotersPage() {
           </Table>
         </div>
       </div>
-
-      {/* Dedicated Promoter Details Sheet */}
-      <PromoterDetailsSheet
-        promoter={selectedPromoter}
-        open={isDetailsOpen}
-        onOpenChange={setIsDetailsOpen}
-      />
     </div>
   );
 }

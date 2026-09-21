@@ -1,16 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import {
-  MomoTransactionDetailsSheet,
-  type MomoTransactionItem,
-} from "@/components/admin/momo-transaction-details-sheet";
+import { momoTransactions as transactions } from "./data";
 
 const momoKpis: ActorKpiItem[] = [
   {
@@ -55,81 +53,6 @@ const momoKpis: ActorKpiItem[] = [
   },
 ];
 
-const transactions: MomoTransactionItem[] = [
-  {
-    id: "t1",
-    ref: "MOMO-2026-09-04829",
-    client: "ABANDA Eric",
-    canal: "MTN MoMo",
-    amount: "250 000 FCFA",
-    status: "Rapproché",
-    date: "Aujourd'hui, 16:42",
-  },
-  {
-    id: "t2",
-    ref: "OM-2026-09-03217",
-    client: "NKOULOU Sandrine",
-    canal: "Orange Money",
-    amount: "150 000 FCFA",
-    status: "Rapproché",
-    date: "Aujourd'hui, 14:18",
-  },
-  {
-    id: "t3",
-    ref: "MOMO-2026-09-04831",
-    client: "FOKAM Emmanuel",
-    canal: "MTN MoMo",
-    amount: "300 000 FCFA",
-    status: "En attente",
-    date: "Aujourd'hui, 11:05",
-  },
-  {
-    id: "t4",
-    ref: "OM-2026-09-03220",
-    client: "EBALE Marthe",
-    canal: "Orange Money",
-    amount: "100 000 FCFA",
-    status: "En attente",
-    date: "Hier, 18:30",
-  },
-  {
-    id: "t5",
-    ref: "MOMO-2026-09-04825",
-    client: "TCHINDA Raoul",
-    canal: "MTN MoMo",
-    amount: "500 000 FCFA",
-    status: "Rapproché",
-    date: "Hier, 09:12",
-  },
-  {
-    id: "t6",
-    ref: "OM-2026-09-03198",
-    client: "MBASSI Paul",
-    canal: "Orange Money",
-    amount: "75 000 FCFA",
-    status: "Échoué",
-    date: "03 Sept 2026",
-  },
-  {
-    id: "t7",
-    ref: "MOMO-2026-09-04810",
-    client: "TCHOUNGUI Alain",
-    canal: "MTN MoMo",
-    amount: "400 000 FCFA",
-    status: "Rapproché",
-    date: "02 Sept 2026, 17:20",
-  },
-  {
-    id: "t8",
-    ref: "OM-2026-09-03190",
-    client: "EBAH Rodrigue",
-    canal: "Orange Money",
-    amount: "350 000 FCFA",
-    status: "Rapproché",
-    date: "02 Sept 2026, 12:45",
-  },
-];
-
 const statusStyles: Record<string, string> = {
   "Rapproché": "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   "En attente": "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
@@ -137,11 +60,10 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function MobileMoneyPage() {
+  const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
   const [selectedCanals, setSelectedCanals] = React.useState<string[]>([]);
-  const [selectedTransaction, setSelectedTransaction] = React.useState<MomoTransactionItem | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
 
   const statusOptions = React.useMemo(() => [
     {
@@ -277,10 +199,7 @@ export default function MobileMoneyPage() {
                 filtered.map((item) => (
                   <TableRow
                     key={item.id}
-                    onClick={() => {
-                      setSelectedTransaction(item);
-                      setIsDetailsOpen(true);
-                    }}
+                    onClick={() => router.push(`/admin/actors/agency/mobile-money/${item.id}`)}
                     className="hover:bg-muted/30 transition-colors cursor-pointer"
                   >
                     <TableCell className="px-3 py-2.5">
@@ -319,10 +238,7 @@ export default function MobileMoneyPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          setSelectedTransaction(item);
-                          setIsDetailsOpen(true);
-                        }}
+                        onClick={() => router.push(`/admin/actors/agency/mobile-money/${item.id}`)}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >
                         <Eye className="size-4" />
@@ -335,13 +251,6 @@ export default function MobileMoneyPage() {
           </Table>
         </div>
       </div>
-
-      {/* Dedicated Transaction Details Sheet */}
-      <MomoTransactionDetailsSheet
-        transaction={selectedTransaction}
-        open={isDetailsOpen}
-        onOpenChange={setIsDetailsOpen}
-      />
     </div>
   );
 }
