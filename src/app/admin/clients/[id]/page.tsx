@@ -2,28 +2,22 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
-  Download,
-  CheckCircle2,
-  FileText,
-  CreditCard,
-  Building,
   ChevronRight,
-  Printer,
-  Phone,
-  Mail,
-  MapPin,
-  Briefcase,
-  Layers,
-  ShieldCheck,
+  Edit,
+  Eye,
+  CreditCard,
+  History,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { getInitials } from "@/lib/utils";
-import { clientsData, type ClientItem } from "../_components/data";
+import { clientsData, type ClientItem, type ClientDocument } from "../_components/data";
+import { ClientBarcodeWidget } from "./_components/client-barcode-widget";
+import { ClientInfoTable } from "./_components/client-info-table";
+import { ClientDraggableDocs } from "./_components/client-draggable-docs";
+import { ClientEditForm } from "./_components/client-edit-form";
 
 const phaseBadgeColors: Record<ClientItem["phase"], string> = {
   "Épargne & KYC": "bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 border-transparent",
@@ -44,364 +38,293 @@ const statusBadgeColors: Record<ClientItem["status"], string> = {
 
 export default function ClientDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const id = (params?.id as string) || "cl-1";
 
-  const client = clientsData.find((c) => c.id === id) || clientsData[0];
+  const initialClient = clientsData.find((c) => c.id === id) || clientsData[0];
+  const [client, setClient] = React.useState<ClientItem>(initialClient);
+  const [activeTab, setActiveTab] = React.useState<"info" | "docs" | "finance" | "history">("info");
+  const [isEditing, setIsEditing] = React.useState(false);
 
-  const workflowSteps = [
-    { code: "Épargne & KYC", label: "1. Épargne & KYC" },
-    { code: "Risques & BET", label: "2. Risques & BET" },
-    { code: "Comités CGR/CRC", label: "3. Comités CGR/CRC" },
-    { code: "Notaire & Hypothèque", label: "4. Notariat & Hypothèque" },
-    { code: "Déblocages Travaux", label: "5. Déblocages Travaux" },
-    { code: "Clôture & Mainlevée", label: "6. Clôture & Mainlevée" },
-  ];
+  const handleSaveClient = (updated: ClientItem) => {
+    setClient(updated);
+    setIsEditing(false);
+  };
 
-  const currentStepIndex = workflowSteps.findIndex((s) => s.code === client.phase);
+  const handleDocsChange = (updatedDocs: ClientDocument[]) => {
+    setClient((prev) => ({ ...prev, documents: updatedDocs }));
+  };
 
   return (
-    <div className="flex flex-col gap-6 pb-12">
-      {/* 1. Top Breadcrumbs & Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Link
-            href="/admin/clients"
-            className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
-          >
-            <ArrowLeft className="size-3.5" />
-            Répertoire des Emprunteurs
-          </Link>
-          <ChevronRight className="size-3.5 text-muted-foreground/40" />
-          <span>Dossier Unique Client (DUC)</span>
-          <ChevronRight className="size-3.5 text-muted-foreground/40" />
-          <span className="text-foreground font-mono font-semibold">{client.ducId}</span>
-          <Badge className={`${phaseBadgeColors[client.phase]} text-[11px] rounded-md font-medium`}>
-            {client.phase}
-          </Badge>
-          <Badge className={`${statusBadgeColors[client.status]} text-[11px] rounded-md font-medium`}>
-            {client.status}
-          </Badge>
+    <div className="flex flex-col gap-6 pb-16 max-w-7xl mx-auto w-full">
+      {/* 1. Breadcrumb Bar */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Link
+          href="/admin/clients"
+          className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
+        >
+          <ArrowLeft className="size-3.5" />
+          Répertoire des Emprunteurs
+        </Link>
+        <ChevronRight className="size-3 text-muted-foreground/40" />
+        <span>Dossier Unique Client</span>
+        <ChevronRight className="size-3 text-muted-foreground/40" />
+        <span className="text-foreground font-mono font-semibold">{client.ducId}</span>
+      </div>
+
+      {/* 2. Top Header Section (Style Nike Air Max: Title, Reference, Status, Price + Barcode Widget) */}
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+              {client.name}
+            </h1>
+            <Badge className={`${statusBadgeColors[client.status]} text-xs rounded-md font-medium`}>
+              {client.status}
+            </Badge>
+            <Badge className={`${phaseBadgeColors[client.phase]} text-xs rounded-md font-medium`}>
+              {client.phase}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+            <span>#{client.ducId}</span>
+            <span>·</span>
+            <span className="font-sans font-medium">{client.projectType}</span>
+            <span>·</span>
+            <span>{client.agency}</span>
+          </div>
+
+          <div className="flex items-baseline gap-2 pt-1 text-sm">
+            <span className="text-xs text-muted-foreground">Crédit Sollicité :</span>
+            <span className="text-lg font-bold font-mono text-foreground">{client.loanAmount}</span>
+            <span className="text-xs text-muted-foreground font-mono">
+              ({client.durationYears} ans à {client.rate})
+            </span>
+            <span className="text-muted-foreground/40 mx-1">·</span>
+            <span className="text-xs text-muted-foreground">Apport Mobilisé :</span>
+            <span className="font-semibold text-emerald-600 font-mono">
+              {client.savingsCurrent} ({client.savingsPercent}%)
+            </span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-3 text-xs font-medium rounded-md">
-            <Printer className="size-3.5" />
-            Imprimer Fiche
-          </Button>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-3 text-xs font-medium rounded-md">
-            <Download className="size-3.5" />
-            Dossier PDF
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => router.push("/admin/file-manager")}
-            className="h-8 gap-1.5 px-3 text-xs font-medium rounded-md"
-          >
-            <FileText className="size-3.5" />
-            GED Numérique
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => router.push("/admin/actors/credit-committees")}
-            className="h-8 gap-1.5 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-md"
-          >
-            <CheckCircle2 className="size-3.5" />
-            Transmettre Comité
-          </Button>
+        {/* Right Barcode Widget (Style Nike Air Max Barcode / Print) */}
+        <div className="shrink-0">
+          <ClientBarcodeWidget ducId={client.ducId} clientName={client.name} />
         </div>
       </div>
 
-      {/* 2. Top Metric Strip: 4 Sharp Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="rounded-lg border bg-card p-4 flex flex-col justify-between gap-3 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Montant Crédit Sollicité</span>
-            <Badge variant="outline" className="font-mono text-[10px] rounded-md">
-              {client.rate}
-            </Badge>
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-foreground">
-              {client.loanAmount}
+      {/* 3. Underlined Horizontal Tabs & Edit Button (Style Nike Air Max) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-px">
+        <div className="flex items-center gap-6 overflow-x-auto">
+          <button
+            onClick={() => {
+              setActiveTab("info");
+              setIsEditing(false);
+            }}
+            className={`text-xs font-semibold pb-3 border-b-2 transition-all whitespace-nowrap ${
+              activeTab === "info"
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Informations Générales
+          </button>
+
+          <button
+            onClick={() => setActiveTab("docs")}
+            className={`flex items-center gap-1.5 text-xs font-semibold pb-3 border-b-2 transition-all whitespace-nowrap ${
+              activeTab === "docs"
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span>Documents DUC</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-muted/60 text-muted-foreground">
+              {client.documents.length}
             </span>
-            <span className="text-xs text-muted-foreground font-mono">
-              {client.durationYears} ans
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>Remboursement :</span>
-            <strong className="text-foreground">{client.monthlyPayment}</strong>
-          </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("finance")}
+            className={`text-xs font-semibold pb-3 border-b-2 transition-all whitespace-nowrap ${
+              activeTab === "finance"
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Plan Financier &amp; Épargne
+          </button>
+
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`text-xs font-semibold pb-3 border-b-2 transition-all whitespace-nowrap ${
+              activeTab === "history"
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Historique &amp; Visas
+          </button>
         </div>
 
-        <div className="rounded-lg border bg-card p-4 flex flex-col justify-between gap-3 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Apport Personnel Constitué</span>
-            <Badge
-              variant="secondary"
-              className={
-                client.savingsPercent >= 100
-                  ? "bg-emerald-500/10 text-emerald-700 text-[10px] rounded-md font-semibold border-transparent"
-                  : "bg-amber-500/10 text-amber-700 text-[10px] rounded-md font-semibold border-transparent"
-              }
-            >
-              {client.savingsPercent}% mobilisé
-            </Badge>
+        {/* Edit Button (Style Nike Air Max Edit button) */}
+        {activeTab === "info" && (
+          <div>
+            {isEditing ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+                className="text-xs h-8 px-3 gap-1.5 font-medium"
+              >
+                <Eye className="size-3.5" />
+                Mode Lecture
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(true)}
+                className="text-xs h-8 px-3.5 gap-1.5 font-medium border-border/60 hover:bg-muted/30"
+              >
+                <Edit className="size-3.5" />
+                Modifier le Dossier
+              </Button>
+            )}
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-foreground">
-              {client.savingsCurrent}
-            </span>
-            <span className="text-xs text-muted-foreground font-mono">
-              Cible : {client.savingsTarget}
-            </span>
-          </div>
-          <Progress value={client.savingsPercent} className="h-1.5 rounded-xs" />
-        </div>
-
-        <div className="rounded-lg border bg-card p-4 flex flex-col justify-between gap-3 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Revenus & Capacité de Remboursement</span>
-            <Badge variant="outline" className="text-[10px] rounded-md text-emerald-700 bg-emerald-500/5">
-              Vérifié
-            </Badge>
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-foreground">
-              {client.monthlyIncome}
-            </span>
-            <span className="text-xs text-muted-foreground">Net mensuel</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>Employeur :</span>
-            <strong className="text-foreground truncate">{client.employer}</strong>
-          </div>
-        </div>
-
-        <div className="rounded-lg border bg-card p-4 flex flex-col justify-between gap-3 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Ratio d&apos;Endettement Calculé</span>
-            <Badge
-              variant="secondary"
-              className="bg-emerald-500/10 text-emerald-700 text-[10px] rounded-md font-semibold border-transparent"
-            >
-              BEAC ≤ 33.3%
-            </Badge>
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold font-mono text-foreground">
-              {client.debtRatio}
-            </span>
-            <span className="text-xs text-emerald-600 font-medium">Solvable & Conforme</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span>Garantie :</span>
-            <strong className="text-foreground font-mono truncate">{client.landTitle}</strong>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* 3. Two-Column Dashboard: Left Profile & Project, Right Workflow & GED */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
-          {/* A. Identity & Bank Profile */}
-          <div className="rounded-lg border bg-card p-5 shadow-xs space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b">
-              <div className="size-11 rounded-md flex items-center justify-center font-bold text-sm bg-primary/10 text-primary">
-                {getInitials(client.name)}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <h3 className="font-semibold text-sm text-foreground truncate">{client.name}</h3>
-                <span className="text-xs text-muted-foreground truncate">{client.profession}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 text-xs">
-              <div className="p-3 rounded-md bg-muted/30 flex items-start gap-2.5">
-                <Briefcase className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground text-[11px]">Employeur & Statut</span>
-                  <span className="font-semibold text-foreground">{client.employer}</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-md bg-muted/30 flex items-start gap-2.5">
-                <Phone className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground text-[11px]">Téléphone & Paiement Mobile</span>
-                  <span className="font-semibold text-foreground font-mono">{client.phone}</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-md bg-muted/30 flex items-start gap-2.5">
-                <Mail className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground text-[11px]">Adresse Email</span>
-                  <span className="font-semibold text-foreground truncate">{client.email}</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-md bg-muted/30 flex items-start gap-2.5">
-                <MapPin className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground text-[11px]">Agence CFC de Gestion</span>
-                  <span className="font-semibold text-foreground">{client.agency} ({client.region})</span>
-                  <span className="text-[11px] text-muted-foreground">Conseiller référent : {client.officer}</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-md bg-muted/30 flex items-start gap-2.5">
-                <CreditCard className="size-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground text-[11px]">Compte Épargne Habitat (Carthago)</span>
-                  <span className="font-semibold text-foreground font-mono">{client.accountNumber}</span>
-                  <span className="text-[11px] text-emerald-600 font-medium">Solde disponible : {client.savingsCurrent}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* B. Project & Guarantees */}
-          <div className="rounded-lg border bg-card p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <div className="flex items-center gap-2">
-                <Building className="size-4 text-primary" />
-                <h3 className="font-semibold text-sm text-foreground">Projet Immobilier & Garanties</h3>
-              </div>
-              <Badge variant="outline" className="text-[11px] font-mono rounded-md">
-                {client.projectType}
-              </Badge>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="p-3 rounded-md border bg-background space-y-1">
-                <span className="text-muted-foreground text-[11px] block">Garantie Hypothécaire Principale</span>
-                <span className="font-semibold text-foreground font-mono text-xs">{client.landTitle}</span>
-                <span className="text-[11px] text-muted-foreground block">Affectation hypothécaire de 1er rang au profit du CFC</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-md border bg-background space-y-1">
-                  <span className="text-muted-foreground text-[11px] block">Bureau d&apos;Études (BET)</span>
-                  <span className="font-medium text-foreground block truncate">{client.betAssigned}</span>
-                </div>
-                <div className="p-3 rounded-md border bg-background space-y-1">
-                  <span className="text-muted-foreground text-[11px] block">Notaire Instrumentaire</span>
-                  <span className="font-medium text-foreground block truncate">{client.notaryAssigned}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* 4. Tab Content Area */}
+      {activeTab === "info" && (
+        <div>
+          {isEditing ? (
+            <ClientEditForm
+              client={client}
+              onSave={handleSaveClient}
+              onCancel={() => setIsEditing(false)}
+            />
+          ) : (
+            <ClientInfoTable client={client} />
+          )}
         </div>
+      )}
 
-        {/* Right Column (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
-          {/* A. Workflow Pipeline Tracker (6 Phases) */}
-          <div className="rounded-lg border bg-card p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
+      {activeTab === "docs" && (
+        <ClientDraggableDocs
+          initialDocuments={client.documents}
+          onDocumentsChange={handleDocsChange}
+        />
+      )}
+
+      {activeTab === "finance" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-border/30 bg-card/40 p-5 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between border-b border-border/20 pb-3">
               <div className="flex items-center gap-2">
-                <Layers className="size-4 text-primary" />
-                <h3 className="font-semibold text-sm text-foreground">Circuit d&apos;Instruction DUC</h3>
-              </div>
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                Complétude : {client.completionPercent}%
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-              {workflowSteps.map((step, idx) => {
-                const isCurrent = step.code === client.phase;
-                const isPassed = idx < currentStepIndex;
-
-                return (
-                  <div
-                    key={step.code}
-                    className={`p-3 rounded-md border flex flex-col gap-1 transition-all ${
-                      isCurrent
-                        ? "border-primary bg-primary/5 text-foreground font-semibold shadow-2xs ring-1 ring-primary/20"
-                        : isPassed
-                        ? "border-emerald-500/30 bg-emerald-500/5 text-muted-foreground"
-                        : "border-border/60 bg-muted/10 text-muted-foreground/70"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono">
-                        {isPassed ? "✓ Validé" : isCurrent ? "● En cours" : `Étape ${idx + 1}`}
-                      </span>
-                      {isPassed && <CheckCircle2 className="size-3 text-emerald-600" />}
-                    </div>
-                    <span className="text-xs truncate">{step.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* B. Regulatory 6 Documents Checklist (GED) */}
-          <div className="rounded-lg border bg-card p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <div className="flex items-center gap-2">
-                <FileText className="size-4 text-primary" />
-                <h3 className="font-semibold text-sm text-foreground">
-                  Checklist Réglementaire des Pièces Justificatives (GED)
+                <CreditCard className="size-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  Carnet d&apos;Épargne Numérisé &amp; Flux Carthago
                 </h3>
               </div>
-              <span className="text-xs text-muted-foreground">
-                6 documents obligatoires
+              <span className="font-mono text-xs font-semibold text-foreground">
+                Compte N° {client.accountNumber}
               </span>
             </div>
 
-            <div className="rounded-md border divide-y overflow-hidden text-xs">
-              {client.documents.map((doc) => (
-                <div key={doc.name} className="flex items-center justify-between p-3 bg-card hover:bg-muted/20 transition-colors">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <FileText className="size-4 text-muted-foreground shrink-0" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-medium text-foreground truncate">{doc.name}</span>
-                      <span className="text-[11px] text-muted-foreground font-mono">
-                        {doc.category} {doc.ref ? `· ${doc.ref}` : ""}
-                      </span>
-                    </div>
-                  </div>
+            {/* Financial summary 3 numbers */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="p-3.5 rounded-lg border border-border/30 bg-background/70 space-y-1">
+                <span className="text-[11px] text-muted-foreground">Apport Cible (20%)</span>
+                <span className="text-base font-bold font-mono text-foreground block">
+                  {client.savingsTarget}
+                </span>
+                <span className="text-[10px] text-muted-foreground">Condition d&apos;octroi préalable</span>
+              </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-[11px] text-muted-foreground">{doc.date}</span>
-                    <Badge
-                      variant="secondary"
-                      className={`text-[10px] rounded-md font-medium h-5 px-2 border-transparent ${
-                        doc.status === "Validé"
-                          ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                          : doc.status === "En cours"
-                          ? "bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
-                          : "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                      }`}
-                    >
-                      {doc.status}
-                    </Badge>
+              <div className="p-3.5 rounded-lg border border-border/30 bg-background/70 space-y-1">
+                <span className="text-[11px] text-muted-foreground">Solde Mobilisé</span>
+                <span className="text-base font-bold font-mono text-emerald-600 block">
+                  {client.savingsCurrent}
+                </span>
+                <span className="text-[10px] text-emerald-600 font-medium">
+                  {client.savingsPercent}% de l&apos;objectif atteint
+                </span>
+              </div>
+
+              <div className="p-3.5 rounded-lg border border-border/30 bg-background/70 space-y-1">
+                <span className="text-[11px] text-muted-foreground">Capacité d&apos;Endettement</span>
+                <span className="text-base font-bold font-mono text-foreground block">
+                  {client.debtRatio}
+                </span>
+                <span className="text-[10px] text-muted-foreground">Plafond BEAC ≤ 33.3%</span>
+              </div>
+            </div>
+
+            {/* Passbook Transactions Table */}
+            {client.savingsPassbook && client.savingsPassbook.transactions.length > 0 ? (
+              <div className="space-y-2 pt-2">
+                <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider text-[11px]">
+                  Derniers Mouvements du Carnet d&apos;Épargne
+                </h4>
+                <div className="rounded-lg border border-border/30 overflow-hidden text-xs">
+                  <div className="grid grid-cols-12 p-2.5 bg-muted/20 font-medium text-muted-foreground text-[11px]">
+                    <span className="col-span-2">Date</span>
+                    <span className="col-span-2">Canal</span>
+                    <span className="col-span-4">Libellé / Référence</span>
+                    <span className="col-span-2 text-right">Crédit</span>
+                    <span className="col-span-2 text-right pr-2">Solde</span>
+                  </div>
+                  <div className="divide-y divide-border/20">
+                    {client.savingsPassbook.transactions.slice(0, 6).map((txn) => (
+                      <div
+                        key={txn.id}
+                        className="grid grid-cols-12 p-2.5 hover:bg-muted/15 transition-colors items-center text-xs"
+                      >
+                        <span className="col-span-2 font-mono text-muted-foreground">{txn.date}</span>
+                        <span className="col-span-2 text-foreground font-medium truncate">{txn.channel}</span>
+                        <span className="col-span-4 text-muted-foreground truncate">{txn.description}</span>
+                        <span className="col-span-2 text-right font-mono font-semibold text-emerald-600">
+                          {txn.credit ? `+${txn.credit.toLocaleString("fr-FR")} F` : "-"}
+                        </span>
+                        <span className="col-span-2 text-right font-mono font-semibold text-foreground pr-2">
+                          {txn.balance.toLocaleString("fr-FR")} F
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* C. Visas Trail & Audit Log */}
-          <div className="rounded-lg border bg-card p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="size-4 text-primary" />
-                <h3 className="font-semibold text-sm text-foreground">Traçabilité & Visas des Acteurs</h3>
               </div>
-              <span className="text-xs text-muted-foreground font-mono">Dernière maj : {client.lastActivity}</span>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "history" && (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-border/30 bg-card/40 p-5 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between border-b border-border/20 pb-3">
+              <div className="flex items-center gap-2">
+                <History className="size-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  Piste d&apos;Audit &amp; Visas des Pôles Métiers
+                </h3>
+              </div>
+              <span className="text-xs text-muted-foreground font-mono">
+                Dernière activité : {client.lastActivity}
+              </span>
             </div>
 
             <div className="space-y-3">
               {client.visas.map((v, i) => (
-                <div key={i} className="rounded-md border p-3.5 bg-muted/20 space-y-1.5 text-xs">
+                <div
+                  key={i}
+                  className="rounded-lg border border-border/30 p-3.5 bg-background/60 space-y-1.5 text-xs"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">{v.stage}</span>
+                      <span className="font-bold text-foreground">{v.stage}</span>
                       <span className="text-muted-foreground">· {v.actor}</span>
                     </div>
                     <Badge
@@ -424,7 +347,7 @@ export default function ClientDetailPage() {
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

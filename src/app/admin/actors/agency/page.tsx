@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +10,18 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import {
-  AgencyDossierDetailsSheet,
-  type AgencyDossierItem,
-} from "@/components/admin/agency-dossier-details-sheet";
+
+export interface AgencyDossierItem {
+  id: string;
+  ducId: string;
+  client: string;
+  profession: string;
+  agency: string;
+  savingsAmount: string;
+  savingsProgress: string;
+  status: string;
+  date: string;
+}
 
 const agenceKpis: ActorKpiItem[] = [
   {
@@ -149,11 +158,10 @@ const agenceDossiers: AgencyDossierItem[] = [
 ];
 
 export default function AgenceActorPage() {
+  const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
   const [selectedAgencies, setSelectedAgencies] = React.useState<string[]>([]);
-  const [selectedDossier, setSelectedDossier] = React.useState<AgencyDossierItem | null>(null);
-  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
 
   const statusOptions = React.useMemo(() => [
     {
@@ -301,10 +309,7 @@ export default function AgenceActorPage() {
                 filtered.map((item) => (
                   <TableRow
                     key={item.id}
-                    onClick={() => {
-                      setSelectedDossier(item);
-                      setIsDetailsOpen(true);
-                    }}
+                    onClick={() => router.push(`/admin/clients/${item.id.replace('d', 'cl-')}`)}
                     className="hover:bg-muted/30 transition-colors cursor-pointer"
                   >
                     <TableCell className="px-3 py-2.5">
@@ -346,10 +351,7 @@ export default function AgenceActorPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          setSelectedDossier(item);
-                          setIsDetailsOpen(true);
-                        }}
+                        onClick={() => router.push(`/admin/clients/${item.id.replace('d', 'cl-')}`)}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >
                         <Eye className="size-4" />
@@ -362,13 +364,6 @@ export default function AgenceActorPage() {
           </Table>
         </div>
       </div>
-
-      {/* Dedicated Details Sheet */}
-      <AgencyDossierDetailsSheet
-        dossier={selectedDossier}
-        open={isDetailsOpen}
-        onOpenChange={setIsDetailsOpen}
-      />
     </div>
   );
 }
