@@ -57,21 +57,21 @@ export function DucDocumentViewerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-2xl">
-        {/* Top Official Banner Header */}
-        <div className="bg-slate-900 text-slate-100 p-5 rounded-t-2xl space-y-3">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-xl bg-background border border-border/50 shadow-lg">
+        {/* Uniform White Header */}
+        <div className="bg-background text-foreground p-5 border-b border-border/40 space-y-3">
           <DialogHeader className="text-left space-y-1">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/40 pb-3">
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">
+                  <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                     {isInvestigation ? "Audit & Enquête Officielle" : "Dossier Unique Client (DUC) — GED Scellée"}
                   </span>
-                  <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-300 font-mono">
+                  <Badge variant="outline" className="text-[9.5px] font-mono text-muted-foreground">
                     {invData?.docRef || `GED-${file.id.toUpperCase()}`}
                   </Badge>
                 </div>
-                <DialogTitle className="text-base font-bold text-white leading-tight">
+                <DialogTitle className="text-base font-semibold text-foreground leading-tight">
                   {invData?.title || file.name}
                 </DialogTitle>
                 <DialogDescription className="sr-only">
@@ -84,16 +84,16 @@ export function DucDocumentViewerDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => window.print()}
-                  className="h-7 text-xs bg-slate-800/80 hover:bg-slate-750 text-slate-200 border-slate-700 gap-1 rounded-lg"
+                  className="h-7 text-xs gap-1 rounded-md"
                 >
                   <Printer className="size-3" />
                   Imprimer
                 </Button>
                 <Button
-                  variant="default"
+                  variant="secondary"
                   size="sm"
                   onClick={() => {}}
-                  className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1 rounded-lg"
+                  className="h-7 text-xs gap-1 rounded-md font-medium"
                 >
                   <Download className="size-3" />
                   Télécharger
@@ -103,31 +103,31 @@ export function DucDocumentViewerDialog({
           </DialogHeader>
 
           {/* Sub-Header Metadata Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-slate-300">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-muted-foreground">
             <div>
-              <span className="text-slate-500 block text-[9.5px]">Émetteur / Auditeur</span>
-              <span className="font-medium text-slate-200 truncate block">{invData?.organization || file.owner}</span>
+              <span className="text-muted-foreground/70 block text-[9.5px]">Émetteur / Auditeur</span>
+              <span className="font-medium text-foreground truncate block">{invData?.organization || file.owner}</span>
             </div>
             <div>
-              <span className="text-slate-500 block text-[9.5px]">Date d&apos;enregistrement</span>
-              <span className="font-medium text-slate-200 block">{invData?.date || file.modifiedAt}</span>
+              <span className="text-muted-foreground/70 block text-[9.5px]">Date d&apos;enregistrement</span>
+              <span className="font-medium text-foreground block">{invData?.date || file.modifiedAt}</span>
             </div>
             <div>
-              <span className="text-slate-500 block text-[9.5px]">Statut Réglementaire</span>
-              <span className="inline-flex items-center gap-1 text-emerald-400 font-semibold">
+              <span className="text-muted-foreground/70 block text-[9.5px]">Statut Réglementaire</span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
                 <CheckCircle2 className="size-3" />
                 {invData?.status || file.status}
               </span>
             </div>
             <div>
-              <span className="text-slate-500 block text-[9.5px]">Taille &amp; Scellement</span>
-              <span className="font-mono text-slate-300 block">{file.size} · SHA-256</span>
+              <span className="text-muted-foreground/70 block text-[9.5px]">Taille &amp; Scellement</span>
+              <span className="font-mono text-foreground block">{file.size} · SHA-256</span>
             </div>
           </div>
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="p-6 space-y-6 bg-slate-50/50 dark:bg-slate-950/50">
+        <div className="p-6 space-y-6 bg-background">
           {/* A. If It's an Investigation Document */}
           {invData ? (
             <div className="space-y-6">
