@@ -181,25 +181,25 @@ export function ClientCreationDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-2xl">
-        {/* Header */}
-        <div className="bg-slate-900 text-slate-100 p-5 rounded-t-2xl space-y-2">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-xl bg-background border border-border/50 shadow-lg">
+        {/* Uniform White Header */}
+        <div className="bg-background text-foreground p-5 border-b border-border/40 space-y-2.5">
           <DialogHeader className="text-left space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                 Workflow CFC-02 · Entrée en relation
               </span>
-              <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-300 font-mono">
+              <Badge variant="outline" className="text-[9.5px] font-mono text-muted-foreground">
                 Étape {step} / 4
               </Badge>
             </div>
-            <DialogTitle className="text-base font-bold text-white">
+            <DialogTitle className="text-base font-semibold text-foreground">
               {step === 1 && "1. Recherche Préalable dans le Référentiel CFC"}
               {step === 2 && "2. Identité & Situation de l'Emprunteur"}
               {step === 3 && "3. Projet Immobilier & Capacité Financière"}
               {step === 4 && "4. Validation KYC & Ouverture du DUC"}
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-300">
+            <DialogDescription className="text-xs text-muted-foreground">
               {step === 1 && "Vérification systématique anti-doublon avant constitution d'un nouveau dossier."}
               {step === 2 && "Saisie des données civiles, professionnelles et coordonnées du client."}
               {step === 3 && "Montant du prêt sollicité, apport personnel cible et gestionnaire assigné."}
@@ -208,16 +208,16 @@ export function ClientCreationDialog({
           </DialogHeader>
 
           {/* Stepper Dots */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-1.5 pt-1">
             {[1, 2, 3, 4].map((s) => (
               <div
                 key={s}
                 className={`h-1.5 rounded-full transition-all ${
                   s === step
-                    ? "w-8 bg-emerald-400"
+                    ? "w-8 bg-primary"
                     : s < step
-                    ? "w-4 bg-emerald-600/70"
-                    : "w-4 bg-slate-700"
+                    ? "w-4 bg-primary/40"
+                    : "w-4 bg-muted"
                 }`}
               />
             ))}

@@ -1,13 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import {
+  AgencyDossierDetailsSheet,
+  type AgencyDossierItem,
+} from "@/components/admin/agency-dossier-details-sheet";
 
 const agenceKpis: ActorKpiItem[] = [
   {
@@ -52,7 +57,7 @@ const agenceKpis: ActorKpiItem[] = [
   },
 ];
 
-const agenceDossiers = [
+const agenceDossiers: AgencyDossierItem[] = [
   {
     id: "d1",
     ducId: "CFC-2026-DUC-04829",
@@ -97,17 +102,116 @@ const agenceDossiers = [
     status: "Prêt pour BET",
     date: "31 Août 2026",
   },
+  {
+    id: "d5",
+    ducId: "CFC-2026-DUC-04940",
+    client: "NGO NSOA Marie",
+    profession: "Médecin Généraliste",
+    agency: "Agence Yaoundé Centre",
+    savingsAmount: "2 880 000 FCFA",
+    savingsProgress: "100%",
+    status: "Prêt pour BET",
+    date: "30 Août 2026",
+  },
+  {
+    id: "d6",
+    ducId: "CFC-2026-DUC-04948",
+    client: "TCHOUNGUI Alain",
+    profession: "Pharmacien Titulaire",
+    agency: "Agence Douala Bonanjo",
+    savingsAmount: "4 200 000 FCFA",
+    savingsProgress: "75%",
+    status: "Épargne en cours",
+    date: "29 Août 2026",
+  },
+  {
+    id: "d7",
+    ducId: "CFC-2026-DUC-04952",
+    client: "EBAH Rodrigue",
+    profession: "Architecte DPLG",
+    agency: "Agence Yaoundé Centre",
+    savingsAmount: "5 100 000 FCFA",
+    savingsProgress: "80%",
+    status: "Pièces KYC en validation",
+    date: "28 Août 2026",
+  },
+  {
+    id: "d8",
+    ducId: "CFC-2026-DUC-04959",
+    client: "NDONGO Valérie",
+    profession: "Directrice Financière (Diaspora)",
+    agency: "Guichet Diaspora / Centre",
+    savingsAmount: "9 000 000 FCFA",
+    savingsProgress: "100%",
+    status: "Prêt pour BET",
+    date: "27 Août 2026",
+  },
 ];
 
 export default function AgenceActorPage() {
   const [search, setSearch] = React.useState("");
+  const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = React.useState<string[]>([]);
+  const [selectedDossier, setSelectedDossier] = React.useState<AgencyDossierItem | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
 
-  const filtered = agenceDossiers.filter(
-    (d) =>
-      d.client.toLowerCase().includes(search.toLowerCase()) ||
-      d.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      d.agency.toLowerCase().includes(search.toLowerCase())
-  );
+  const statusOptions = React.useMemo(() => [
+    {
+      label: "Prêt pour BET",
+      value: "Prêt pour BET",
+      count: agenceDossiers.filter((d) => d.status === "Prêt pour BET").length,
+    },
+    {
+      label: "Épargne en cours",
+      value: "Épargne en cours",
+      count: agenceDossiers.filter((d) => d.status === "Épargne en cours").length,
+    },
+    {
+      label: "Pièces KYC en validation",
+      value: "Pièces KYC en validation",
+      count: agenceDossiers.filter((d) => d.status === "Pièces KYC en validation").length,
+    },
+  ], []);
+
+  const agencyOptions = React.useMemo(() => [
+    {
+      label: "Yaoundé Centre",
+      value: "Agence Yaoundé Centre",
+      count: agenceDossiers.filter((d) => d.agency === "Agence Yaoundé Centre").length,
+    },
+    {
+      label: "Douala Bonanjo",
+      value: "Agence Douala Bonanjo",
+      count: agenceDossiers.filter((d) => d.agency === "Agence Douala Bonanjo").length,
+    },
+    {
+      label: "Bafoussam",
+      value: "Agence Bafoussam",
+      count: agenceDossiers.filter((d) => d.agency === "Agence Bafoussam").length,
+    },
+    {
+      label: "Guichet Diaspora",
+      value: "Guichet Diaspora / Centre",
+      count: agenceDossiers.filter((d) => d.agency === "Guichet Diaspora / Centre").length,
+    },
+  ], []);
+
+  const filtered = agenceDossiers.filter((d) => {
+    const q = search.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      d.client.toLowerCase().includes(q) ||
+      d.ducId.toLowerCase().includes(q) ||
+      d.profession.toLowerCase().includes(q) ||
+      d.agency.toLowerCase().includes(q);
+
+    const matchesStatus =
+      selectedStatuses.length === 0 || selectedStatuses.includes(d.status);
+    const matchesAgency =
+      selectedAgencies.length === 0 || selectedAgencies.includes(d.agency);
+
+    return matchesSearch && matchesStatus && matchesAgency;
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -142,28 +246,40 @@ export default function AgenceActorPage() {
       <ActorKpiStrip items={agenceKpis} />
 
       {/* Main Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par emprunteur, N° DUC ou agence..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Phase 1 du Circuit CFC · Enrôlement & Épargne</span>
-          </div>
-        </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <DataTableToolbar
+          searchQuery={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Rechercher par emprunteur, N° DUC ou agence..."
+          totalCount={agenceDossiers.length}
+          filteredCount={filtered.length}
+          unitName="dossiers"
+          filters={[
+            {
+              id: "status",
+              title: "Statut",
+              options: statusOptions,
+              selectedValues: selectedStatuses,
+              onSelect: setSelectedStatuses,
+            },
+            {
+              id: "agency",
+              title: "Agence",
+              options: agencyOptions,
+              selectedValues: selectedAgencies,
+              onSelect: setSelectedAgencies,
+            },
+          ]}
+          onResetAll={() => {
+            setSelectedStatuses([]);
+            setSelectedAgencies([]);
+          }}
+        />
 
         {/* Table */}
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border border-border/40 overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/40">
+            <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur</TableHead>
                 <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
@@ -175,54 +291,84 @@ export default function AgenceActorPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-blue-500/15 text-blue-700">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{item.profession}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ducId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">{item.agency}</TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.savingsAmount}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={
-                        item.status === "Prêt pour BET"
-                          ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
-                          : "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 h-5 px-2 text-xs font-medium"
-                      }
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-xs text-muted-foreground">
+                    Aucun dossier ne correspond aux filtres sélectionnés.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filtered.map((item) => (
+                  <TableRow
+                    key={item.id}
+                    onClick={() => {
+                      setSelectedDossier(item);
+                      setIsDetailsOpen(true);
+                    }}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
+                    <TableCell className="px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="size-8 rounded-lg">
+                          <AvatarFallback className="rounded-lg text-xs font-semibold bg-blue-500/15 text-blue-700">
+                            {getInitials(item.client)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
+                          <span className="text-[11px] text-muted-foreground truncate">{item.profession}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
+                        {item.ducId}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-xs text-foreground">{item.agency}</TableCell>
+                    <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+                      {item.savingsAmount}
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      <Badge
+                        variant="secondary"
+                        className={
+                          item.status === "Prêt pour BET"
+                            ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
+                            : "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 h-5 px-2 text-xs font-medium"
+                        }
+                      >
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
+                    <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedDossier(item);
+                          setIsDetailsOpen(true);
+                        }}
+                        className="size-8 text-muted-foreground hover:text-foreground"
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
+
+      {/* Dedicated Details Sheet */}
+      <AgencyDossierDetailsSheet
+        dossier={selectedDossier}
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }

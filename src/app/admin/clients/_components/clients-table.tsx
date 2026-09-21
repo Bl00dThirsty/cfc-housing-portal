@@ -3,7 +3,6 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search,
   MoreHorizontal,
   Download,
   FileText,
@@ -36,6 +35,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn, getInitials } from "@/lib/utils";
 import { type ClientItem, clientsData } from "./data";
 import { ClientCreationDialog } from "./client-creation-dialog";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 
 export interface ClientsTableProps {
   selectedClientId?: string;
@@ -73,9 +73,51 @@ export function ClientsTable({
   const [allClients, setAllClients] = React.useState<ClientItem[]>(clientsData);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
-  const [selectedPhase, setSelectedPhase] = React.useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = React.useState<string>("all");
+  const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
+  const [selectedPhases, setSelectedPhases] = React.useState<string[]>([]);
+  const [selectedAgencies, setSelectedAgencies] = React.useState<string[]>([]);
   const [viewMode, setViewMode] = React.useState<"cards" | "table">("table");
+
+  const statusOptions = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    allClients.forEach((c) => {
+      counts[c.status] = (counts[c.status] || 0) + 1;
+    });
+    return [
+      { label: "Conforme", value: "Conforme", count: counts["Conforme"] || 0 },
+      { label: "Accordé", value: "Accordé", count: counts["Accordé"] || 0 },
+      { label: "En Examen", value: "En Examen", count: counts["En Examen"] || 0 },
+      { label: "Pièces Manquantes", value: "Pièces Manquantes", count: counts["Pièces Manquantes"] || 0 },
+      { label: "Mainlevée", value: "Mainlevée", count: counts["Mainlevée"] || 0 },
+    ];
+  }, [allClients]);
+
+  const phaseOptions = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    allClients.forEach((c) => {
+      counts[c.phase] = (counts[c.phase] || 0) + 1;
+    });
+    return [
+      { label: "1. Épargne & KYC", value: "Épargne & KYC", count: counts["Épargne & KYC"] || 0 },
+      { label: "2. Risques & BET", value: "Risques & BET", count: counts["Risques & BET"] || 0 },
+      { label: "3. Comités CGR/CRC", value: "Comités CGR/CRC", count: counts["Comités CGR/CRC"] || 0 },
+      { label: "4. Notaire & Hypothèque", value: "Notaire & Hypothèque", count: counts["Notaire & Hypothèque"] || 0 },
+      { label: "5. Déblocages Travaux", value: "Déblocages Travaux", count: counts["Déblocages Travaux"] || 0 },
+      { label: "6. Clôture & Mainlevée", value: "Clôture & Mainlevée", count: counts["Clôture & Mainlevée"] || 0 },
+    ];
+  }, [allClients]);
+
+  const agencyOptions = React.useMemo(() => {
+    const map = new Map<string, number>();
+    allClients.forEach((c) => {
+      map.set(c.agency, (map.get(c.agency) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([agency, count]) => ({
+      label: agency.replace("Agence ", ""),
+      value: agency,
+      count,
+    }));
+  }, [allClients]);
 
   const handleClientCreated = (newClient: ClientItem) => {
     setAllClients((prev) => [newClient, ...prev]);
@@ -84,17 +126,23 @@ export function ClientsTable({
   };
 
   const filteredClients = allClients.filter((client) => {
+    const q = search.toLowerCase().trim();
     const matchesSearch =
-      client.name.toLowerCase().includes(search.toLowerCase()) ||
-      client.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      client.email.toLowerCase().includes(search.toLowerCase()) ||
-      client.profession.toLowerCase().includes(search.toLowerCase()) ||
-      client.agency.toLowerCase().includes(search.toLowerCase());
+      !q ||
+      client.name.toLowerCase().includes(q) ||
+      client.ducId.toLowerCase().includes(q) ||
+      client.email.toLowerCase().includes(q) ||
+      client.profession.toLowerCase().includes(q) ||
+      client.agency.toLowerCase().includes(q);
 
-    const matchesPhase = selectedPhase === "all" || client.phase === selectedPhase;
-    const matchesStatus = selectedStatus === "all" || client.status === selectedStatus;
+    const matchesPhase =
+      selectedPhases.length === 0 || selectedPhases.includes(client.phase);
+    const matchesStatus =
+      selectedStatuses.length === 0 || selectedStatuses.includes(client.status);
+    const matchesAgency =
+      selectedAgencies.length === 0 || selectedAgencies.includes(client.agency);
 
-    return matchesSearch && matchesPhase && matchesStatus;
+    return matchesSearch && matchesPhase && matchesStatus && matchesAgency;
   });
 
   return (
@@ -149,52 +197,47 @@ export function ClientsTable({
         </div>
       </div>
 
-      {/* 2. Search, Filters & View Mode Switcher */}
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-3.5 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par nom, N° DUC, profession, email ou agence..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-md border bg-background pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Filter by phase */}
-            <select
-              value={selectedPhase}
-              onChange={(e) => setSelectedPhase(e.target.value)}
-              className="h-8 rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-            >
-              <option value="all">Toutes les phases</option>
-              <option value="Épargne & KYC">1. Épargne &amp; KYC</option>
-              <option value="Risques & BET">2. Risques &amp; BET</option>
-              <option value="Comités CGR/CRC">3. Comités CGR/CRC</option>
-              <option value="Notaire & Hypothèque">4. Notaire &amp; Hypothèque</option>
-              <option value="Déblocages Travaux">5. Déblocages Travaux</option>
-              <option value="Clôture & Mainlevée">6. Clôture &amp; Mainlevée</option>
-            </select>
-
-            {/* Filter by status */}
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="h-8 rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring cursor-pointer"
-            >
-              <option value="all">Tous les statuts</option>
-              <option value="Conforme">Conforme</option>
-              <option value="Accordé">Accordé</option>
-              <option value="En Examen">En Examen</option>
-              <option value="Pièces Manquantes">Pièces Manquantes</option>
-              <option value="Mainlevée">Mainlevée</option>
-            </select>
-
+      {/* 2. Search, Faceted Filters & Actions Toolbar */}
+      <div className="p-3.5 rounded-xl border border-border/40 bg-card/60 shadow-2xs">
+        <DataTableToolbar
+          searchQuery={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Rechercher par nom, N° DUC, profession, agence..."
+          totalCount={allClients.length}
+          filteredCount={filteredClients.length}
+          unitName="emprunteurs"
+          filters={[
+            {
+              id: "status",
+              title: "Statut",
+              options: statusOptions,
+              selectedValues: selectedStatuses,
+              onSelect: setSelectedStatuses,
+            },
+            {
+              id: "phase",
+              title: "Circuit",
+              options: phaseOptions,
+              selectedValues: selectedPhases,
+              onSelect: setSelectedPhases,
+            },
+            {
+              id: "agency",
+              title: "Agence",
+              options: agencyOptions,
+              selectedValues: selectedAgencies,
+              onSelect: setSelectedAgencies,
+            },
+          ]}
+          onResetAll={() => {
+            setSelectedStatuses([]);
+            setSelectedPhases([]);
+            setSelectedAgencies([]);
+          }}
+        >
+          <div className="flex items-center gap-2">
             {/* View Mode Toggle */}
-            <div className="flex items-center border rounded-md p-0.5 bg-muted/20">
+            <div className="flex items-center border border-border/40 rounded-md p-0.5 bg-muted/20">
               <Button
                 variant={viewMode === "cards" ? "secondary" : "ghost"}
                 size="sm"
@@ -223,13 +266,8 @@ export function ClientsTable({
               <UserPlus className="size-3.5" />
               Nouvelle Entrée en Relation
             </Button>
-
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium rounded-md">
-              <Download className="size-3.5" />
-              Exporter
-            </Button>
           </div>
-        </div>
+        </DataTableToolbar>
       </div>
 
       {/* 3. Content Display based on View Mode */}

@@ -104,23 +104,23 @@ export function DucUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-2xl">
-        {/* Header */}
-        <div className="bg-slate-900 text-slate-100 p-5 rounded-t-2xl space-y-1.5">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-0 gap-0 rounded-xl bg-background border border-border/50 shadow-lg">
+        {/* Uniform White Header */}
+        <div className="bg-background text-foreground p-5 border-b border-border/40 space-y-1.5">
           <DialogHeader className="text-left space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
                 Workflow CFC-03 · Gestion Documentaire DUC
               </span>
-              <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-300 font-mono">
+              <Badge variant="outline" className="text-[9.5px] font-mono text-muted-foreground">
                 {client.ducId}
               </Badge>
             </div>
-            <DialogTitle className="text-base font-bold text-white">
+            <DialogTitle className="text-base font-semibold text-foreground">
               Téléverser, Indexer &amp; Viser une Pièce GED
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-300">
-              Rattachement scellé au Dossier Unique de <strong>{client.name}</strong> avec traçabilité et visa métier.
+            <DialogDescription className="text-xs text-muted-foreground">
+              Rattachement scellé au Dossier Unique de <strong className="text-foreground">{client.name}</strong> avec traçabilité et visa métier.
             </DialogDescription>
           </DialogHeader>
         </div>

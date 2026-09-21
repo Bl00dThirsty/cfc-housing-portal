@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { DiasporaDetailsSheet, type DiasporaItem } from "@/components/admin/diaspora-details-sheet";
 
 const diasporaKpis: ActorKpiItem[] = [
   {
@@ -129,13 +131,50 @@ const kycStyles: Record<string, string> = {
 
 export default function DiasporaPage() {
   const [search, setSearch] = React.useState("");
+  const [selectedCountries, setSelectedCountries] = React.useState<string[]>([]);
+  const [selectedKyc, setSelectedKyc] = React.useState<string[]>([]);
+  const [selectedDossier, setSelectedDossier] = React.useState<DiasporaItem | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
 
-  const filtered = diasporaDossiers.filter(
-    (d) =>
-      d.client.toLowerCase().includes(search.toLowerCase()) ||
-      d.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      d.country.toLowerCase().includes(search.toLowerCase())
-  );
+  const countryOptions = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    diasporaDossiers.forEach((d) => {
+      counts[d.country] = (counts[d.country] || 0) + 1;
+    });
+    return Object.entries(counts).map(([country, count]) => ({
+      label: country,
+      value: country,
+      count,
+    }));
+  }, []);
+
+  const kycOptions = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    diasporaDossiers.forEach((d) => {
+      counts[d.kyc] = (counts[d.kyc] || 0) + 1;
+    });
+    return Object.entries(counts).map(([kyc, count]) => ({
+      label: kyc,
+      value: kyc,
+      count,
+    }));
+  }, []);
+
+  const filtered = diasporaDossiers.filter((d) => {
+    const q = search.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      d.client.toLowerCase().includes(q) ||
+      d.ducId.toLowerCase().includes(q) ||
+      d.country.toLowerCase().includes(q);
+
+    const matchesCountry =
+      selectedCountries.length === 0 || selectedCountries.includes(d.country);
+    const matchesKyc =
+      selectedKyc.length === 0 || selectedKyc.includes(d.kyc);
+
+    return matchesSearch && matchesCountry && matchesKyc;
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -170,27 +209,39 @@ export default function DiasporaPage() {
       <ActorKpiStrip items={diasporaKpis} />
 
       {/* Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par emprunteur, N° DUC ou pays..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <DataTableToolbar
+          searchQuery={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Rechercher par emprunteur, N° DUC ou pays..."
+          totalCount={diasporaDossiers.length}
+          filteredCount={filtered.length}
+          unitName="dossiers"
+          filters={[
+            {
+              id: "country",
+              title: "Pays",
+              options: countryOptions,
+              selectedValues: selectedCountries,
+              onSelect: setSelectedCountries,
+            },
+            {
+              id: "kyc",
+              title: "KYC",
+              options: kycOptions,
+              selectedValues: selectedKyc,
+              onSelect: setSelectedKyc,
+            },
+          ]}
+          onResetAll={() => {
+            setSelectedCountries([]);
+            setSelectedKyc([]);
+          }}
+        />
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Portail Diaspora · Enrôlement à distance & KYC dématérialisé</span>
-          </div>
-        </div>
-
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border border-border/40 overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/40">
+            <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur</TableHead>
                 <TableHead className="text-xs font-medium text-foreground px-3">Pays de Résidence</TableHead>
@@ -203,55 +254,85 @@ export default function DiasporaPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-700">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-xs font-semibold text-foreground">{item.client}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5 text-xs text-foreground">
-                      <span>{item.flag}</span>
-                      <span>{item.country}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ducId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.savings}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">
-                    {item.channel}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${kycStyles[item.kyc] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.kyc}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-28 text-center text-xs text-muted-foreground">
+                    Aucun dossier diaspora ne correspond aux critères de recherche.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filtered.map((item) => (
+                  <TableRow
+                    key={item.id}
+                    onClick={() => {
+                      setSelectedDossier(item);
+                      setIsDetailsOpen(true);
+                    }}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
+                    <TableCell className="px-3 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar className="size-8 rounded-lg">
+                          <AvatarFallback className="rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-700">
+                            {getInitials(item.client)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs font-semibold text-foreground">{item.client}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5 text-xs text-foreground">
+                        <span>{item.flag}</span>
+                        <span>{item.country}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
+                        {item.ducId}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+                      {item.savings}
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-xs text-foreground">
+                      {item.channel}
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      <Badge
+                        variant="secondary"
+                        className={`${kycStyles[item.kyc] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+                      >
+                        {item.kyc}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
+                    <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedDossier(item);
+                          setIsDetailsOpen(true);
+                        }}
+                        className="size-8 text-muted-foreground hover:text-foreground"
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
+
+      {/* Dedicated Diaspora Details Sheet */}
+      <DiasporaDetailsSheet
+        dossier={selectedDossier}
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }
