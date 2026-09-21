@@ -1,11 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import {
+  MomoTransactionDetailsSheet,
+  type MomoTransactionItem,
+} from "@/components/admin/momo-transaction-details-sheet";
 
 const momoKpis: ActorKpiItem[] = [
   {
@@ -50,7 +55,7 @@ const momoKpis: ActorKpiItem[] = [
   },
 ];
 
-const transactions = [
+const transactions: MomoTransactionItem[] = [
   {
     id: "t1",
     ref: "MOMO-2026-09-04829",
@@ -105,6 +110,24 @@ const transactions = [
     status: "Échoué",
     date: "03 Sept 2026",
   },
+  {
+    id: "t7",
+    ref: "MOMO-2026-09-04810",
+    client: "TCHOUNGUI Alain",
+    canal: "MTN MoMo",
+    amount: "400 000 FCFA",
+    status: "Rapproché",
+    date: "02 Sept 2026, 17:20",
+  },
+  {
+    id: "t8",
+    ref: "OM-2026-09-03190",
+    client: "EBAH Rodrigue",
+    canal: "Orange Money",
+    amount: "350 000 FCFA",
+    status: "Rapproché",
+    date: "02 Sept 2026, 12:45",
+  },
 ];
 
 const statusStyles: Record<string, string> = {
@@ -115,13 +138,57 @@ const statusStyles: Record<string, string> = {
 
 export default function MobileMoneyPage() {
   const [search, setSearch] = React.useState("");
+  const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
+  const [selectedCanals, setSelectedCanals] = React.useState<string[]>([]);
+  const [selectedTransaction, setSelectedTransaction] = React.useState<MomoTransactionItem | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
 
-  const filtered = transactions.filter(
-    (t) =>
-      t.client.toLowerCase().includes(search.toLowerCase()) ||
-      t.ref.toLowerCase().includes(search.toLowerCase()) ||
-      t.canal.toLowerCase().includes(search.toLowerCase())
-  );
+  const statusOptions = React.useMemo(() => [
+    {
+      label: "Rapproché",
+      value: "Rapproché",
+      count: transactions.filter((t) => t.status === "Rapproché").length,
+    },
+    {
+      label: "En attente",
+      value: "En attente",
+      count: transactions.filter((t) => t.status === "En attente").length,
+    },
+    {
+      label: "Échoué",
+      value: "Échoué",
+      count: transactions.filter((t) => t.status === "Échoué").length,
+    },
+  ], []);
+
+  const canalOptions = React.useMemo(() => [
+    {
+      label: "MTN MoMo",
+      value: "MTN MoMo",
+      count: transactions.filter((t) => t.canal === "MTN MoMo").length,
+    },
+    {
+      label: "Orange Money",
+      value: "Orange Money",
+      count: transactions.filter((t) => t.canal === "Orange Money").length,
+    },
+  ], []);
+
+  const filtered = transactions.filter((t) => {
+    const q = search.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      t.client.toLowerCase().includes(q) ||
+      t.ref.toLowerCase().includes(q) ||
+      t.canal.toLowerCase().includes(q);
+
+    const matchesStatus =
+      selectedStatuses.length === 0 || selectedStatuses.includes(t.status);
+    const matchesCanal =
+      selectedCanals.length === 0 || selectedCanals.includes(t.canal);
+
+    return matchesSearch && matchesStatus && matchesCanal;
+  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -156,83 +223,125 @@ export default function MobileMoneyPage() {
       <ActorKpiStrip items={momoKpis} />
 
       {/* Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par emprunteur, réf. ou canal..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <DataTableToolbar
+          searchQuery={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Rechercher par emprunteur, réf. ou canal..."
+          totalCount={transactions.length}
+          filteredCount={filtered.length}
+          unitName="transactions"
+          filters={[
+            {
+              id: "status",
+              title: "Statut",
+              options: statusOptions,
+              selectedValues: selectedStatuses,
+              onSelect: setSelectedStatuses,
+            },
+            {
+              id: "canal",
+              title: "Opérateur",
+              options: canalOptions,
+              selectedValues: selectedCanals,
+              onSelect: setSelectedCanals,
+            },
+          ]}
+          onResetAll={() => {
+            setSelectedStatuses([]);
+            setSelectedCanals([]);
+          }}
+        />
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Rapprochement automatisé SYSTAC · MTN MoMo & Orange Money</span>
-          </div>
-        </div>
-
-        <div className="rounded-lg border overflow-hidden">
+        <div className="rounded-lg border border-border/40 overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/40">
+            <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-xs font-medium text-foreground px-3">Réf. Transaction</TableHead>
                 <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur</TableHead>
                 <TableHead className="text-xs font-medium text-foreground px-3">Canal</TableHead>
                 <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant</TableHead>
                 <TableHead className="text-xs font-medium text-foreground px-3">Statut</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date & Heure</TableHead>
+                <TableHead className="text-xs font-medium text-foreground px-3">Date &amp; Heure</TableHead>
                 <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ref}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs font-medium text-foreground">
-                    {item.client}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={
-                        item.canal === "MTN MoMo"
-                          ? "bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300 h-5 px-2 text-xs font-medium border-transparent"
-                          : "bg-orange-500/10 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300 h-5 px-2 text-xs font-medium border-transparent"
-                      }
-                    >
-                      {item.canal}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.amount}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${statusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
+              {filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-xs text-muted-foreground">
+                    Aucune transaction ne correspond aux critères de filtre.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filtered.map((item) => (
+                  <TableRow
+                    key={item.id}
+                    onClick={() => {
+                      setSelectedTransaction(item);
+                      setIsDetailsOpen(true);
+                    }}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
+                    <TableCell className="px-3 py-2.5">
+                      <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
+                        {item.ref}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-xs font-medium text-foreground">
+                      {item.client}
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      <Badge
+                        variant="secondary"
+                        className={
+                          item.canal === "MTN MoMo"
+                            ? "bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300 h-5 px-2 text-xs font-medium border-transparent"
+                            : "bg-orange-500/10 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300 h-5 px-2 text-xs font-medium border-transparent"
+                        }
+                      >
+                        {item.canal}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+                      {item.amount}
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      <Badge
+                        variant="secondary"
+                        className={`${statusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+                      >
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
+                    <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedTransaction(item);
+                          setIsDetailsOpen(true);
+                        }}
+                        className="size-8 text-muted-foreground hover:text-foreground"
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
+
+      {/* Dedicated Transaction Details Sheet */}
+      <MomoTransactionDetailsSheet
+        transaction={selectedTransaction}
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+      />
     </div>
   );
 }
