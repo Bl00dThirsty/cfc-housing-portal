@@ -1,4 +1,4 @@
-import { initialBoard } from "./_components/data";
+import { initialBoard } from "@/domain/data/kanban-board";
 import { Kanban } from "./_components/kanban";
 
 export default function Page() {

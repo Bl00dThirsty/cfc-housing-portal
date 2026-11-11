@@ -30,8 +30,11 @@ import { cn, getInitials } from "@/lib/utils";
 import { ClientDucManager } from "./client-duc-manager";
 import { ClientKanban } from "./client-kanban";
 import { ClientSavingsPassbook } from "./client-savings-passbook";
-import { ClientsTable } from "./clients-table";
-import { type ClientItem, clientsData } from "./data";
+import { ClientsCommandMenu } from "@/components/clients/command-menu/clients-command-menu";
+import { ClientDetailSheet } from "@/components/clients/detail/client-detail-sheet";
+import { ClientsTable } from "@/components/clients/table/clients-table";
+import { ClientsToolbar } from "@/components/clients/toolbar/clients-toolbar";
+import { type ClientItem, clientsData } from "@/domain/entities/client";
 
 export function ClientWorkspaceHub() {
   const router = useRouter();
@@ -198,8 +201,10 @@ export function ClientWorkspaceHub() {
         </TabsList>
 
         {/* Tab 1: Répertoire Emprunteurs */}
-        <TabsContent value="clients" className="space-y-4 focus-visible:outline-none">
+        <TabsContent value="clients" className="space-y-3 focus-visible:outline-none">
+          <ClientsToolbar clients={clientsData} />
           <ClientsTable
+            clients={clientsData}
             selectedClientId={selectedClientId}
             onSelectClient={handleSelectClient}
             onOpenKanban={handleOpenKanban}
@@ -230,6 +235,15 @@ export function ClientWorkspaceHub() {
           <ClientSavingsPassbook client={activeClient} />
         </TabsContent>
       </Tabs>
+
+      <ClientDetailSheet
+        clients={clientsData}
+        onOpenKanban={handleOpenKanban}
+        onOpenDuc={handleOpenDuc}
+        onOpenEpargne={handleOpenEpargne}
+      />
+
+      <ClientsCommandMenu clients={clientsData} onSelect={handleSelectClient} />
     </div>
   );
 }

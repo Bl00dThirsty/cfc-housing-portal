@@ -23,8 +23,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import { type ClientItem, getDocumentPdf } from "./data";
-import { INVESTIGATION_DOCUMENTS, type InvestigationDocumentData } from "./duc-investigation-data";
+import { type ClientItem, getDocumentPdf } from "@/domain/entities/client";
+import { INVESTIGATION_DOCUMENTS, type InvestigationDocumentData } from "@/domain/data/investigation-documents";
 
 export interface DucViewerFile {
   id: string;

@@ -1,23 +1,31 @@
-import KycForm from "@/components/onboarding/kyc-form";
+import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
+import { loadOnboardingDraft } from "@/server/actions/onboarding";
+import { getPublicEnv } from "@/server/env";
+import { listServices } from "@/server/queries/services";
+import { createServerSupabaseClient } from "@/server/supabase/server";
+import { EMPTY_DRAFT } from "@/domain/entities/onboarding";
 
-export default function OnboardingPage() {
+export default async function OnboardingPage() {
+  const configured = getPublicEnv() !== null;
+
+  const [services, draft] = configured
+    ? await Promise.all([listServices(), loadOnboardingDraft()])
+    : [[], EMPTY_DRAFT];
+
+  let signedIn = false;
+  if (configured) {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    signedIn = user !== null;
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      
-      <div className="text-center max-w-xl mx-auto">
-        <span className="text-xs font-bold uppercase tracking-widest text-cfc-brown bg-cfc-lightgold px-3 py-1 rounded-full">
-          Étape 2 / 4 · Onboarding
-        </span>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
-          Identification & Dossier Unique Client (DUC)
-        </h1>
-        <p className="text-xs text-slate-500 mt-1">
-          Création de votre fiche fédératrice pour l&apos;épargne et les démarches au Guichet Unique.
-        </p>
-      </div>
-
-      <KycForm />
-
-    </div>
+    <OnboardingWizard
+      services={services}
+      initialDraft={draft}
+      signedIn={signedIn}
+    />
   );
 }

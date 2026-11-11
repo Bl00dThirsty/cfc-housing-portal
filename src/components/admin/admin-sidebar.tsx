@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { MoreHorizontal, Layers, ArrowLeft, Sparkles, CheckCircle2, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -16,12 +16,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { getSidebarSectionsForRole, landingPathForRole } from "@/config/rbac/sidebar-by-role";
+import { getSidebarSectionsForRole } from "@/config/rbac/sidebar-by-role";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { currentUser, allUsers, loginAsUser, logout } = useAuth();
+  const { currentUser, signOut } = useAuth();
   const navSections = React.useMemo(() => getSidebarSectionsForRole(currentUser.role), [currentUser.role]);
 
   return (
@@ -181,7 +180,7 @@ export default function AdminSidebar() {
       {/* Footer / User Profile */}
       <div className="border-t p-3 space-y-2">
         <Link
-          href="/"
+          href="/portal"
           className="flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border bg-background px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-2xs"
         >
           <ArrowLeft className="size-3.5" />
@@ -206,34 +205,19 @@ export default function AdminSidebar() {
               </div>
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="top" className="w-56 p-1.5 rounded-xl text-xs">
-            <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Changer de compte métier
-            </DropdownMenuLabel>
-            {allUsers.map((u) => (
-              <DropdownMenuItem
-                key={u.id}
-                onClick={() => {
-                  loginAsUser(u.id);
-                  router.push(landingPathForRole(u.role));
-                }}
-                className="cursor-pointer text-xs flex items-center justify-between py-1.5"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`size-2 rounded-full shrink-0 ${u.id === currentUser.id ? "bg-emerald-500" : "bg-muted-foreground/30"}`} />
-                  <span className="truncate">{u.name}</span>
-                </div>
-                <span className="text-[9.5px] text-muted-foreground font-mono shrink-0">{u.role}</span>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
+          <DropdownMenuContent align="end" side="top" className="w-56 rounded-xl p-1.5 text-xs">
             <DropdownMenuItem asChild>
-              <Link href="/admin/login" className="cursor-pointer text-xs">
+              <Link href="/login" className="cursor-pointer text-xs">
                 Page de connexion
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={logout} className="cursor-pointer text-xs text-destructive focus:text-destructive">
-              <LogOut className="size-3.5 mr-2" />
+            <DropdownMenuItem
+              onClick={() => {
+                void signOut();
+              }}
+              className="cursor-pointer text-xs text-destructive focus:text-destructive"
+            >
+              <LogOut className="mr-2 size-3.5" />
               Déconnexion
             </DropdownMenuItem>
           </DropdownMenuContent>

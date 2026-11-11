@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { type ClientItem, clientsData } from "./data";
+import { type ClientItem, clientsData } from "@/domain/entities/client";
 
 interface ClientCreationDialogProps {
   open: boolean;
@@ -230,13 +230,14 @@ export function ClientCreationDialog({
           {step === 1 && (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
+                <label htmlFor="client-create-search" className="text-xs font-semibold text-foreground">
                   Recherche du client dans la base nationale CFC
                 </label>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                     <Input
+                      id="client-create-search"
                       placeholder="Nom, numéro CNI, téléphone ou DUC..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
@@ -334,10 +335,11 @@ export function ClientCreationDialog({
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-name" className="text-xs font-semibold text-foreground">
                     Nom et Prénom complets *
                   </label>
                   <Input
+                    id="client-create-name"
                     required
                     placeholder="Ex: TCHANA Paul Bertrand"
                     value={name}
@@ -346,10 +348,11 @@ export function ClientCreationDialog({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-phone" className="text-xs font-semibold text-foreground">
                     Numéro de Téléphone (MoMo / Orange) *
                   </label>
                   <Input
+                    id="client-create-phone"
                     required
                     placeholder="+237 6XX XX XX XX"
                     value={phone}
@@ -361,10 +364,11 @@ export function ClientCreationDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-email" className="text-xs font-semibold text-foreground">
                     Adresse Email
                   </label>
                   <Input
+                    id="client-create-email"
                     type="email"
                     placeholder="emprunteur@gmail.com"
                     value={email}
@@ -373,10 +377,11 @@ export function ClientCreationDialog({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-profession" className="text-xs font-semibold text-foreground">
                     Profession exercée
                   </label>
                   <Input
+                    id="client-create-profession"
                     placeholder="Ex: Ingénieur des Travaux Publics"
                     value={profession}
                     onChange={(e) => setProfession(e.target.value)}
@@ -387,10 +392,11 @@ export function ClientCreationDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-employer" className="text-xs font-semibold text-foreground">
                     Employeur ou Organisme de tutelle
                   </label>
                   <Input
+                    id="client-create-employer"
                     placeholder="Ex: MINTP / Société Privée"
                     value={employer}
                     onChange={(e) => setEmployer(e.target.value)}
@@ -398,10 +404,11 @@ export function ClientCreationDialog({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-agency" className="text-xs font-semibold text-foreground">
                     Agence de rattachement CFC
                   </label>
                   <select
+                    id="client-create-agency"
                     value={agency}
                     onChange={(e) => setAgency(e.target.value)}
                     className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
@@ -422,10 +429,11 @@ export function ClientCreationDialog({
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-project-type" className="text-xs font-semibold text-foreground">
                     Type de Projet Immobilier
                   </label>
                   <select
+                    id="client-create-project-type"
                     value={projectType}
                     onChange={(e) => setProjectType(e.target.value)}
                     className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
@@ -438,10 +446,11 @@ export function ClientCreationDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-land-title" className="text-xs font-semibold text-foreground">
                     Référence Titre Foncier (Garantie)
                   </label>
                   <Input
+                    id="client-create-land-title"
                     placeholder="Ex: TF N° 34120 / Mfoundi"
                     value={landTitle}
                     onChange={(e) => setLandTitle(e.target.value)}
@@ -452,10 +461,11 @@ export function ClientCreationDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-loan-amount" className="text-xs font-semibold text-foreground">
                     Montant du Prêt Sollicité (FCFA)
                   </label>
                   <Input
+                    id="client-create-loan-amount"
                     type="number"
                     value={loanAmountNum}
                     onChange={(e) => setLoanAmountNum(e.target.value)}
@@ -467,10 +477,11 @@ export function ClientCreationDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-monthly-income" className="text-xs font-semibold text-foreground">
                     Revenu Mensuel Net Justifié (FCFA)
                   </label>
                   <Input
+                    id="client-create-monthly-income"
                     type="number"
                     value={monthlyIncomeNum}
                     onChange={(e) => setMonthlyIncomeNum(e.target.value)}
@@ -484,10 +495,11 @@ export function ClientCreationDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 border-t">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-officer" className="text-xs font-semibold text-foreground">
                     Conseiller / Gestionnaire Assigné
                   </label>
                   <select
+                    id="client-create-officer"
                     value={officer}
                     onChange={(e) => setOfficer(e.target.value)}
                     className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
@@ -500,10 +512,11 @@ export function ClientCreationDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-bet" className="text-xs font-semibold text-foreground">
                     Bureau d&apos;Études Techniques (BET)
                   </label>
                   <select
+                    id="client-create-bet"
                     value={bet}
                     onChange={(e) => setBet(e.target.value)}
                     className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
@@ -515,10 +528,11 @@ export function ClientCreationDialog({
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-foreground">
+                  <label htmlFor="client-create-notary" className="text-xs font-semibold text-foreground">
                     Étude Notariale Partenaire
                   </label>
                   <select
+                    id="client-create-notary"
                     value={notary}
                     onChange={(e) => setNotary(e.target.value)}
                     className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"

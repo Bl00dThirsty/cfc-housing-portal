@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { type ClientDocument, getDocumentPdf } from "../../_components/data";
+import { type ClientDocument, getDocumentPdf } from "@/domain/entities/client";
 
 interface DucAddDocumentDialogProps {
   open: boolean;
@@ -253,6 +253,9 @@ export function DucAddDocumentDialog({
               <SelectContent>
                 <SelectItem value="Identité" className="text-xs">
                   Identité &amp; État Civil
+                </SelectItem>
+                <SelectItem value="Revenus" className="text-xs">
+                  Revenus &amp; Justificatifs de Salaire
                 </SelectItem>
                 <SelectItem value="Foncier" className="text-xs">
                   Foncier &amp; Propriété

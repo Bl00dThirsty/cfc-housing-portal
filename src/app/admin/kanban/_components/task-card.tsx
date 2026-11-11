@@ -33,8 +33,8 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { cn, getInitials } from "@/lib/utils";
 
-import { tagTones } from "./data";
-import type { ColumnId, Task, TaskInsightLabel, TaskPriority } from "./types";
+import { tagTones } from "@/domain/data/kanban-board";
+import type { ColumnId, Task, TaskInsightLabel, TaskPriority } from "@/domain/entities/kanban";
 
 const taskInsightIcons: Record<TaskInsightLabel, LucideIcon> = {
   Attachments: Paperclip,

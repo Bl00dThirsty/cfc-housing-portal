@@ -36,7 +36,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
-import { type ClientItem, clientsData } from "./data";
+import { type ClientItem, clientsData } from "@/domain/entities/client";
 import { DucDocumentViewerDialog } from "./duc-document-viewer-dialog";
 import { DucUploadDialog, type DucAuditLogEntry } from "./duc-upload-dialog";
 

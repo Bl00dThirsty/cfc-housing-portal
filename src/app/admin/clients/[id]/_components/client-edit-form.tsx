@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { type ClientItem } from "../../_components/data";
+import { type ClientItem } from "@/domain/entities/client";
 
 interface ClientEditFormProps {
   client: ClientItem;
@@ -69,9 +69,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
 
       {/* 1. Client Card (Style Image 3 - Bill to Client) */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-foreground">
+        <span className="text-xs font-semibold text-foreground">
           Titulaire du Compte &amp; Emprunteur (Client DUC)
-        </label>
+        </span>
         <div className="flex items-center justify-between p-3 rounded-lg border border-border/40 bg-card/40">
           <div className="flex items-center gap-3">
             <Avatar className="size-10 rounded-lg">
@@ -103,8 +103,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Nom complet</label>
+            <label htmlFor="client-form-name" className="text-[11px] text-muted-foreground font-medium">Nom complet</label>
             <input
+              id="client-form-name"
               type="text"
               disabled={!canEditIdentity}
               value={formData.name}
@@ -114,8 +115,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Téléphone mobile</label>
+            <label htmlFor="client-form-phone" className="text-[11px] text-muted-foreground font-medium">Téléphone mobile</label>
             <input
+              id="client-form-phone"
               type="text"
               disabled={!canEditIdentity}
               value={formData.phone}
@@ -125,8 +127,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Adresse email</label>
+            <label htmlFor="client-form-email" className="text-[11px] text-muted-foreground font-medium">Adresse email</label>
             <input
+              id="client-form-email"
               type="email"
               disabled={!canEditIdentity}
               value={formData.email}
@@ -136,8 +139,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Profession</label>
+            <label htmlFor="client-form-profession" className="text-[11px] text-muted-foreground font-medium">Profession</label>
             <input
+              id="client-form-profession"
               type="text"
               disabled={!canEditIdentity}
               value={formData.profession}
@@ -147,8 +151,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Employeur principal</label>
+            <label htmlFor="client-form-employer" className="text-[11px] text-muted-foreground font-medium">Employeur principal</label>
             <input
+              id="client-form-employer"
               type="text"
               disabled={!canEditIdentity}
               value={formData.employer}
@@ -158,8 +163,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Revenu net mensuel</label>
+            <label htmlFor="client-form-monthly-income" className="text-[11px] text-muted-foreground font-medium">Revenu net mensuel</label>
             <input
+              id="client-form-monthly-income"
               type="text"
               disabled={!canEditIdentity}
               value={formData.monthlyIncome}
@@ -183,8 +189,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Numéro de Dossier DUC</label>
+            <label htmlFor="client-form-duc-id" className="text-[11px] text-muted-foreground font-medium">Numéro de Dossier DUC</label>
             <input
+              id="client-form-duc-id"
               type="text"
               disabled
               value={formData.ducId}
@@ -193,9 +200,10 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Date d&apos;enrôlement initial</label>
+            <label htmlFor="client-form-enrollment-date" className="text-[11px] text-muted-foreground font-medium">Date d&apos;enrôlement initial</label>
             <div className="relative">
               <input
+                id="client-form-enrollment-date"
                 type="text"
                 disabled={!canEditFinancials}
                 value="15/05/2026"
@@ -207,9 +215,10 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Date prévisionnelle passage comité</label>
+            <label htmlFor="client-form-committee-date" className="text-[11px] text-muted-foreground font-medium">Date prévisionnelle passage comité</label>
             <div className="relative">
               <input
+                id="client-form-committee-date"
                 type="text"
                 disabled={!canEditFinancials}
                 value="28/09/2026"
@@ -224,8 +233,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
         {/* Project Selector (Image 3: Project dropdown) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs pt-1">
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Type de Projet Immobilier</label>
+            <label htmlFor="client-form-project-type" className="text-[11px] text-muted-foreground font-medium">Type de Projet Immobilier</label>
             <select
+              id="client-form-project-type"
               disabled={!canEditTechnical}
               value={formData.projectType}
               onChange={(e) => handleChange("projectType", e.target.value)}
@@ -240,8 +250,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Agence CFC de Rattachement</label>
+            <label htmlFor="client-form-agency" className="text-[11px] text-muted-foreground font-medium">Agence CFC de Rattachement</label>
             <select
+              id="client-form-agency"
               disabled={!canEditIdentity}
               value={formData.agency}
               onChange={(e) => handleChange("agency", e.target.value)}
@@ -271,8 +282,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Montant Sollicité (FCFA)</label>
+            <label htmlFor="client-form-loan-amount" className="text-[11px] text-muted-foreground font-medium">Montant Sollicité (FCFA)</label>
             <input
+              id="client-form-loan-amount"
               type="text"
               disabled={!canEditFinancials}
               value={formData.loanAmount}
@@ -282,8 +294,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Durée de Remboursement</label>
+            <label htmlFor="client-form-duration-years" className="text-[11px] text-muted-foreground font-medium">Durée de Remboursement</label>
             <input
+              id="client-form-duration-years"
               type="number"
               disabled={!canEditFinancials}
               value={formData.durationYears}
@@ -293,8 +306,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Taux d&apos;Intérêt Nominale</label>
+            <label htmlFor="client-form-rate" className="text-[11px] text-muted-foreground font-medium">Taux d&apos;Intérêt Nominale</label>
             <input
+              id="client-form-rate"
               type="text"
               disabled={!canEditFinancials}
               value={formData.rate}
@@ -304,8 +318,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Conseiller Référent</label>
+            <label htmlFor="client-form-officer" className="text-[11px] text-muted-foreground font-medium">Conseiller Référent</label>
             <input
+              id="client-form-officer"
               type="text"
               disabled={!canEditIdentity}
               value={formData.officer}
@@ -329,8 +344,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Titre Foncier (Garantie)</label>
+            <label htmlFor="client-form-land-title" className="text-[11px] text-muted-foreground font-medium">Titre Foncier (Garantie)</label>
             <input
+              id="client-form-land-title"
               type="text"
               disabled={!canEditLegal}
               value={formData.landTitle}
@@ -340,8 +356,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Notaire Instrumentaire</label>
+            <label htmlFor="client-form-notary" className="text-[11px] text-muted-foreground font-medium">Notaire Instrumentaire</label>
             <input
+              id="client-form-notary"
               type="text"
               disabled={!canEditLegal}
               value={formData.notaryAssigned}
@@ -351,8 +368,9 @@ export function ClientEditForm({ client, onSave, onCancel }: ClientEditFormProps
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] text-muted-foreground font-medium">Bureau d&apos;Études (BET)</label>
+            <label htmlFor="client-form-bet" className="text-[11px] text-muted-foreground font-medium">Bureau d&apos;Études (BET)</label>
             <input
+              id="client-form-bet"
               type="text"
               disabled={!canEditTechnical}
               value={formData.betAssigned}

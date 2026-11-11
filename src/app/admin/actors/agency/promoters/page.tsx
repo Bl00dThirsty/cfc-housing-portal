@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import { promotersData as promoters } from "./data";
+import { promotersData as promoters } from "@/domain/entities/promoters";
 
 const promotersKpis: ActorKpiItem[] = [
   {
@@ -177,10 +177,30 @@ export default function PromotersPage() {
                     <TableRow
                       key={item.id}
                       onClick={() => router.push(`/admin/actors/agency/promoters/${item.id}`)}
-                      className="hover:bg-muted/30 transition-colors cursor-pointer"
+                      onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/admin/actors/agency/promoters/${item.id}`);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Ouvrir le programme ${item.name}`}
+                      className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                     >
                       <TableCell className="px-3 py-2.5">
-                        <span className="text-xs font-semibold text-foreground">{item.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/admin/actors/agency/promoters/${item.id}`);
+                          }}
+                          aria-label={`Ouvrir le programme ${item.name}`}
+                          className="text-left font-medium hover:underline text-xs text-foreground"
+                        >
+                          {item.name}
+                        </button>
                       </TableCell>
                       <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[200px]">
                         <span className="truncate block font-medium">{item.programme}</span>
@@ -219,6 +239,7 @@ export default function PromotersPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => router.push(`/admin/actors/agency/promoters/${item.id}`)}
+                          aria-label={`Ouvrir le programme ${item.name}`}
                           className="size-8 text-muted-foreground hover:text-foreground"
                         >
                           <Eye className="size-4" />

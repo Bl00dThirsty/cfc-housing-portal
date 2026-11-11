@@ -1,36 +1,155 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CFC Housing Portal
 
-## Getting Started
+Application web de gestion du crédit logement et du Guichet Unique CFC, construite avec Next.js et Supabase.
 
-First, run the development server:
+## Vue d'ensemble
+
+Le projet vise à fournir une plateforme CFC complète pour :
+
+- la vitrine publique et le simulateur de financement,
+- l'onboarding citoyen et la gestion des dossiers,
+- la connexion des agents et la gestion des rôles,
+- le suivi documentaire et la conformité des dossiers,
+- le pilotage administratif et la supervision des dossiers.
+
+Le code est structuré autour d'une app Next.js 15, d'un schéma Supabase/Postgres et d'une logique d'authentification et de droits (RBAC) orientée métier.
+
+## Stack
+
+- Next.js 15.5.25
+- React 19
+- TypeScript
+- Tailwind CSS
+- Supabase (Auth, Postgres, Storage)
+- Vitest
+- ESLint
+
+## Projets et environnement
+
+Le projet attendu est le projet Supabase CFC :
+
+- project ref : `yyqfqsmsfaccsstwlpog`
+
+Le fichier `.env.example` décrit les variables minimales à renseigner pour le démarrage local.
+
+## Démarrage rapide
+
+### 1) Installer les dépendances
+
+```bash
+npm install
+```
+
+### 2) Configurer les variables d'environnement
+
+Copiez le modèle :
+
+```bash
+cp .env.example .env.local
+```
+
+Puis renseignez :
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SITE_URL` (en dev : `http://localhost:3000`)
+
+### 3) Démarrer le projet
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrez ensuite :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- http://localhost:3000
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Supabase
 
-## Learn More
+### Authentification / liaison du projet
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+supabase login
+supabase link --project-ref yyqfqsmsfaccsstwlpog
+supabase db push
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Réinitialiser et recharger la base locale
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run db:reset
+```
 
-## Deploy on Vercel
+### Peupler les utilisateurs de dev
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run db:seed:users
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scripts disponibles
+
+```bash
+npm run dev          # démarre le serveur de développement
+npm run build        # build de production
+npm run start        # serveur de production
+npm run lint         # vérification ESLint
+npm run typecheck    # vérification TypeScript
+npm run test         # tests Vitest
+npm run smoke        # vérification fonctionnelle rapide
+npm run db:reset     # reset local Supabase database
+npm run db:seed:users # seed utilisateurs de dév
+```
+
+## Structure du projet
+
+```text
+.
+├── src/
+│   ├── app/              # routes Next.js App Router
+│   ├── components/       # composants UI
+│   ├── config/           # configuration métier / RBAC
+│   ├── domain/           # modèle métier et workflows
+│   ├── lib/              # helpers, filtres, utils, données
+│   ├── server/           # environnement et services serveur
+│   └── stores/           # Zustand stores
+├── supabase/
+│   ├── config.toml
+│   ├── migrations/
+│   └── seed.sql
+├── public/
+├── docs/
+├── scripts/
+├── .env.example
+├── package.json
+├── README.md
+└── next.config.ts
+```
+
+## Rôles et parcours
+
+L'application est dimensionnée pour couvrir plusieurs parcours :
+
+- portail citoyen / demandeur,
+- parcours d'onboarding,
+- gestion documentaire de dossier,
+- suivi et vérification,
+- console d’administration et rôles internes CFC.
+
+La cible fonctionnelle est documentée dans le dossier `docs/` et notamment dans `docs/CFC-GREENFIELD-REFERENCE.md`.
+
+## Documentation de référence
+
+- `docs/CFC-GREENFIELD-REFERENCE.md` : document de cadrage métier et technique du projet CFC.
+- `supabase/seed.sql` : référentiel initial et données de départ.
+- `supabase/migrations/` : migrations de schéma et sécurité.
+
+## Notes importantes
+
+- Le build ne doit pas dépendre d'une configuration Supabase complète au chargement du module ; les variables sont validées avec tolérance lors des accès réellement nécessaires.
+- Les URLs publiques de callback doivent utiliser `NEXT_PUBLIC_SITE_URL`.
+- Ne commitez pas les vraies clés de production ni le contenu de `.env.local`.
+
+## Contribution
+
+Les changements fonctionnels et les évolutions sont à valider dans le contexte du projet CFC, en respectant le schéma de données Supabase, les règles RBAC et les parcours métier documentés.

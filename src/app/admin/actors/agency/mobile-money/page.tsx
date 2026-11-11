@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import { momoTransactions as transactions } from "./data";
+import { momoTransactions as transactions } from "@/domain/entities/mobile-money";
 
 const momoKpis: ActorKpiItem[] = [
   {
@@ -200,12 +200,30 @@ export default function MobileMoneyPage() {
                   <TableRow
                     key={item.id}
                     onClick={() => router.push(`/admin/actors/agency/mobile-money/${item.id}`)}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push(`/admin/actors/agency/mobile-money/${item.id}`);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Ouvrir la transaction ${item.ref}`}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                   >
                     <TableCell className="px-3 py-2.5">
-                      <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/admin/actors/agency/mobile-money/${item.id}`);
+                        }}
+                        aria-label={`Ouvrir la transaction ${item.ref}`}
+                        className="text-left font-medium hover:underline inline-flex h-5 shrink-0 items-center justify-center rounded-full border border-border bg-muted/30 px-2 font-mono text-[11px] text-foreground"
+                      >
                         {item.ref}
-                      </Badge>
+                      </button>
                     </TableCell>
                     <TableCell className="px-3 py-2.5 text-xs font-medium text-foreground">
                       {item.client}
@@ -239,6 +257,7 @@ export default function MobileMoneyPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => router.push(`/admin/actors/agency/mobile-money/${item.id}`)}
+                        aria-label={`Ouvrir la transaction ${item.ref}`}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >
                         <Eye className="size-4" />

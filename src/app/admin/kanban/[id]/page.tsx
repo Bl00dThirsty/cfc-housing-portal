@@ -26,8 +26,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getInitials } from "@/lib/utils";
 
-import { initialBoard, columns, tagTones } from "../_components/data";
-import type { ColumnId, Task } from "../_components/types";
+import { initialBoard, columns, tagTones } from "@/domain/data/kanban-board";
+import type { ColumnId, Task } from "@/domain/entities/kanban";
 
 export default function KanbanDossierDetailPage() {
   const params = useParams();

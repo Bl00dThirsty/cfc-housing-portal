@@ -264,7 +264,17 @@ export default function DiasporaPage() {
                   <TableRow
                     key={item.id}
                     onClick={() => router.push("/admin/clients/cl-8")}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push("/admin/clients/cl-8");
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Ouvrir le dossier client de ${item.client}`}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                   >
                     <TableCell className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -273,7 +283,17 @@ export default function DiasporaPage() {
                             {getInitials(item.client)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-xs font-semibold text-foreground">{item.client}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push("/admin/clients/cl-8");
+                          }}
+                          aria-label={`Ouvrir le dossier client de ${item.client}`}
+                          className="text-left font-medium hover:underline text-xs text-foreground truncate"
+                        >
+                          {item.client}
+                        </button>
                       </div>
                     </TableCell>
                     <TableCell className="px-3 py-2.5">
@@ -307,6 +327,7 @@ export default function DiasporaPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => router.push("/admin/clients/cl-8")}
+                        aria-label={`Ouvrir le dossier client de ${item.client}`}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >
                         <Eye className="size-4" />

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { momoTransactions } from "../data";
+import { momoTransactions } from "@/domain/entities/mobile-money";
 
 export default function MomoTransactionDetailPage() {
   const params = useParams();
