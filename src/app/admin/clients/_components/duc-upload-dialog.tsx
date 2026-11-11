@@ -1,8 +1,19 @@
 "use client";
 
-import * as React from "react";
-import { Upload, Shield } from "lucide-react";
+/**
+ * Dépôt d'une pièce au DUC — **câblé sur le service de stockage**.
+ *
+ * L'agent choisit le type de document et la chemise de destination, dépose
+ * le fichier ; la pièce est réellement écrite dans le coffre, empreinte,
+ * versionnée et journalisée. L'agent n'a plus à declaring un nom de fichier :
+ * c'est le fichier déposé qui fait foi.
+ */
 
+import * as React from "react";
+import { Shield } from "lucide-react";
+
+import { DocumentUploader, type UploadedDocument } from "@/components/upload/document-uploader";
+import { UploadError, type UploadErrorPayload } from "@/components/upload/upload-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,9 +24,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth-context";
-import { type ClientItem } from "./data";
+import { type ClientItem } from "@/domain/entities/client";
+import { CHEMISE_CODES, getChemise } from "@/domain/policies/chemise";
+import { listDocumentTypesAction, resolveDossierIdAction } from "@/server/storage/actions";
+import type { DocumentTypeOption } from "@/server/storage/types";
 import { type DucFile, type DucFileKind } from "./client-duc-manager";
 
 export interface DucAuditLogEntry {
@@ -38,6 +51,19 @@ interface DucUploadDialogProps {
   onDocumentUploaded: (file: DucFile, auditLog: DucAuditLogEntry) => void;
 }
 
+/** Nature d'affichage d'une pièce, déduite de son format. */
+function fileKindFor(mimeType: string): DucFileKind {
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType.startsWith("image/")) return "design";
+  return "document";
+}
+
+/** Taille lisible, alignée sur l'affichage du DUC. */
+function displaySize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
 export function DucUploadDialog({
   open,
   onOpenChange,
@@ -46,61 +72,91 @@ export function DucUploadDialog({
 }: DucUploadDialogProps) {
   const { currentUser } = useAuth();
 
-  const [docName, setDocName] = React.useState("");
-  const [folderId, setFolderId] = React.useState("c1-id");
-  const [fileKind, setFileKind] = React.useState<DucFileKind>("pdf");
-  const [fileSize, setFileSize] = React.useState("2.4 MB");
-  const [version, setVersion] = React.useState("v1.0");
-  const [issuer, setIssuer] = React.useState("Guichet Agence");
-  const [decision, setDecision] = React.useState<"Validé" | "Rejeté" | "En cours">("Validé");
-  const [rejectReason, setRejectReason] = React.useState("");
+  const [docTypeCode, setDocTypeCode] = React.useState("");
+  const [folderId, setFolderId] = React.useState("C1");
+  const [dossierId, setDossierId] = React.useState<string | null>(null);
+  const [documentTypes, setDocumentTypes] = React.useState<DocumentTypeOption[]>([]);
+  const [error, setError] = React.useState<UploadErrorPayload | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [uploaded, setUploaded] = React.useState<UploadedDocument | null>(null);
+
+  // Le dossier réel est résolu à partir de la référence DUC : la référence
+  // affichée par le back-office n'est pas un identifiant de dossier.
+  React.useEffect(() => {
+    if (!open || !client) return;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setUploaded(null);
+
+    void (async () => {
+      const [dossier, types] = await Promise.all([
+        resolveDossierIdAction({ ducCode: client.ducId }),
+        listDocumentTypesAction(),
+      ]);
+
+      if (cancelled) return;
+      setLoading(false);
+
+      if (!dossier.ok) {
+        setDossierId(null);
+        setError(dossier.error);
+      } else {
+        setDossierId(dossier.data.dossierId);
+      }
+
+      if (types.ok) {
+        setDocumentTypes(types.data);
+        setDocTypeCode((current) => current || (types.data[0]?.code ?? ""));
+      } else {
+        setError(types.error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, open]);
 
   if (!client) return null;
 
-  const handleUpload = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!docName.trim()) {
-      alert("Veuillez renseigner le nom de la pièce.");
-      return;
-    }
+  const handleUploaded = (document: UploadedDocument) => {
+    setUploaded(document);
 
-    if (decision === "Rejeté" && !rejectReason.trim()) {
-      alert("En cas de rejet, le motif circonstancié est obligatoire (Règle CFC-03).");
-      return;
-    }
-
-    const cleanName = docName.endsWith(".pdf") || docName.includes(".") ? docName : `${docName}.pdf`;
     const newFile: DucFile = {
-      id: `f-${client.id}-${Date.now()}`,
-      name: cleanName,
-      kind: fileKind,
-      size: fileSize,
+      id: document.documentId,
+      name: document.filename,
+      kind: fileKindFor(document.mimeType),
+      size: displaySize(document.sizeBytes),
       folderId,
-      owner: issuer,
+      owner: currentUser.name,
       modifiedAt: "Aujourd'hui",
       starred: false,
-      status: decision === "Rejeté" ? "Rejeté" : "Validé",
+      status: "En cours",
     };
 
     const newAuditLog: DucAuditLogEntry = {
-      id: `log-${Date.now()}`,
-      docName: cleanName,
+      id: `log-${document.documentId}`,
+      docName: document.filename,
       folderId,
-      action: decision === "Rejeté" ? "Rejet Documentaire" : "Visa Favorable",
+      action: "Création & Indexation",
       author: `${currentUser.name} (${currentUser.roleLabel})`,
       role: currentUser.role,
-      date: new Date().toLocaleDateString("fr-FR") + " à " + new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
-      version,
-      comment: decision === "Rejeté" ? rejectReason : "Pièce vérifiée conforme, lisible et scellée dans le DUC.",
-      status: decision === "Rejeté" ? "Rejeté" : "Validé",
+      date:
+        new Date().toLocaleDateString("fr-FR") +
+        " à " +
+        new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+      version: `v${document.version}`,
+      comment: "Pièce déposée au coffre, empreinte SHA-256 enregistrée, version indexée au DUC.",
+      status: "En attente",
     };
 
     onDocumentUploaded(newFile, newAuditLog);
-    setDocName("");
-    setRejectReason("");
-    setDecision("Validé");
     onOpenChange(false);
   };
+
+  const selectedType = documentTypes.find((type) => type.code === docTypeCode);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,7 +173,7 @@ export function DucUploadDialog({
               </Badge>
             </div>
             <DialogTitle className="text-base font-semibold text-foreground">
-              Téléverser, Indexer &amp; Viser une Pièce GED
+              Déposer une Pièce au DUC
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
               Rattachement scellé au Dossier Unique de <strong className="text-foreground">{client.name}</strong> avec traçabilité et visa métier.
@@ -126,150 +182,92 @@ export function DucUploadDialog({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleUpload} className="p-6 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
-              Intitulé Officiel de la Pièce *
-            </label>
-            <Input
-              required
-              placeholder="Ex: CNI_Legalisee_Demandeur.pdf ou Attestation_Emploi_2026.pdf"
-              value={docName}
-              onChange={(e) => setDocName(e.target.value)}
-              className="text-xs h-8 font-mono"
-            />
-          </div>
-
+        <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
+              <label htmlFor="duc-upload-doc-type" className="text-xs font-semibold text-foreground">
+                Nature de la Pièce *
+              </label>
+              <select
+                id="duc-upload-doc-type"
+                value={docTypeCode}
+                onChange={(e) => setDocTypeCode(e.target.value)}
+                disabled={loading || documentTypes.length === 0}
+                className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+              >
+                {documentTypes.length === 0 ? (
+                  <option value="">Référentiel indisponible</option>
+                ) : (
+                  documentTypes.map((type) => (
+                    <option key={type.code} value={type.code}>
+                      {type.label}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="duc-upload-folder" className="text-xs font-semibold text-foreground">
                 Chemise DUC de Destination (CFC-09)
               </label>
               <select
+                id="duc-upload-folder"
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
                 className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="c1-id">C1 · Identification (KYC, Demande)</option>
-                <option value="c2-instruction">C2 · Instruction (Analyses, Avis, PV)</option>
-                <option value="c3-garanties">C3 · Garanties (Contrat, Hypothèque, Assurance)</option>
-                <option value="c4-vie">C4 · Vie du prêt (Déblocages, Quittances)</option>
-                <option value="c5-contentieux">C5 · Contentieux (Actes si applicable)</option>
-                <option value="c6-cloture">C6 · Clôture (Solde, Mainlevée)</option>
-                <option value="07-enquetes">C7 · Enquêtes &amp; Audits Réglementaires</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                Nature du Fichier
-              </label>
-              <select
-                value={fileKind}
-                onChange={(e) => setFileKind(e.target.value as DucFileKind)}
-                className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="pdf">Pièce Numérisée (PDF)</option>
-                <option value="document">Acte / Convention Notariée</option>
-                <option value="spreadsheet">Devis Quantitatif Estimatif (Excel)</option>
-                <option value="design">Plan d&apos;Architecte (DWG / Image)</option>
-                <option value="archive">Archive ZIP / Dossier Technique</option>
+                {CHEMISE_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {code} · {getChemise(code).label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                Émetteur / Source
-              </label>
-              <Input
-                value={issuer}
-                onChange={(e) => setIssuer(e.target.value)}
-                className="text-xs h-8"
-                placeholder="Client, Notaire, BET..."
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                Version Documentaire
-              </label>
-              <Input
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-                className="text-xs h-8 font-mono"
-                placeholder="v1.0"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-foreground">
-                Taille Estimée
-              </label>
-              <Input
-                value={fileSize}
-                onChange={(e) => setFileSize(e.target.value)}
-                className="text-xs h-8 font-mono"
-                placeholder="2.5 MB"
-              />
-            </div>
-          </div>
-
-          {/* Decision / Visa métier according to CFC-03 */}
           <div className="p-4 rounded-xl border bg-muted/20 space-y-3 pt-3">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <span
+                id="duc-upload-visa-label"
+                className="text-xs font-bold text-foreground flex items-center gap-1.5"
+              >
                 <Shield className="size-3.5 text-primary" />
-                Contrôle de Recevabilité &amp; Visa Métier
-              </label>
+                Dépôt, empreinte et indexation
+              </span>
               <span className="text-[10.5px] text-muted-foreground font-mono">
-                Par : {currentUser.name}
+                Par : {currentUser.name} ({currentUser.roleLabel})
               </span>
             </div>
-
-            <div className="flex items-center gap-4 text-xs">
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-emerald-700 dark:text-emerald-400">
-                <input
-                  type="radio"
-                  name="decision"
-                  value="Validé"
-                  checked={decision === "Validé"}
-                  onChange={() => setDecision("Validé")}
-                  className="size-3.5 text-emerald-600 focus:ring-emerald-500"
-                />
-                Recevable &amp; Visé conforme
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-rose-700 dark:text-rose-400">
-                <input
-                  type="radio"
-                  name="decision"
-                  value="Rejeté"
-                  checked={decision === "Rejeté"}
-                  onChange={() => setDecision("Rejeté")}
-                  className="size-3.5 text-rose-600 focus:ring-rose-500"
-                />
-                Rejeter avec motif
-              </label>
-            </div>
-
-            {decision === "Rejeté" && (
-              <div className="space-y-1.5 pt-1">
-                <label className="text-[11px] font-semibold text-rose-700 dark:text-rose-400 block">
-                  Motif formel du rejet (exigé pour notification et journal) *
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Ex: Document non signé, absence du cachet du géomètre assermenté ou pièce floue..."
-                  className="w-full rounded-md border border-rose-300 bg-background p-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-rose-500"
-                />
-              </div>
-            )}
+            <p className="caption-style text-subtle">
+              Le fichier est déposé directement dans le coffre privé du dossier, horodaté et
+              empreint (SHA-256). Un second dépôt du même type archive la version précédente au lieu
+              de la dupliquer.
+            </p>
           </div>
+
+          <UploadError error={error} onDismiss={() => setError(null)} />
+
+          {dossierId ? (
+            <DocumentUploader
+              dossierId={dossierId}
+              docTypeCode={docTypeCode}
+              chemiseCode={folderId}
+              onUploaded={handleUploaded}
+              label="Déposer la pièce au dossier"
+              hint={
+                selectedType
+                  ? `${selectedType.label} — ${selectedType.acceptedMime.join(", ")}`
+                  : "PDF, JPEG ou PNG"
+              }
+            />
+          ) : (
+            <p className="caption-style text-subtle">
+              {loading
+                ? "Résolution du dossier…"
+                : "Aucun dossier n'est rattaché à cette référence : le dépôt est impossible."}
+            </p>
+          )}
 
           <DialogFooter className="pt-2">
             <Button
@@ -279,18 +277,15 @@ export function DucUploadDialog({
               onClick={() => onOpenChange(false)}
               className="text-xs"
             >
-              Annuler
+              Fermer
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              className="text-xs gap-1.5 font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <Upload className="size-3.5" />
-              Indexer &amp; Enregistrer au DUC
-            </Button>
+            <span className="caption-style text-subtle">
+              {uploaded
+                ? `Pièce depositada au coffre — version ${uploaded.version}.`
+                : "La pièce est indexée dès la fin du dépôt."}
+            </span>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

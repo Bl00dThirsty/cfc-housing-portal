@@ -14,10 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { type AdminUser, SEEDED_ADMIN_USERS } from "@/lib/auth-data";
+import { type AdminUser } from "@/lib/auth-data";
 
 export interface UserPickerProps {
-  users?: AdminUser[];
+  users: AdminUser[];
   value: string;
   onChange: (userId: string) => void;
   placeholder?: string;
@@ -25,7 +25,7 @@ export interface UserPickerProps {
 }
 
 export function UserPicker({
-  users = SEEDED_ADMIN_USERS,
+  users,
   value,
   onChange,
   placeholder = "Sélectionner un profil métier...",

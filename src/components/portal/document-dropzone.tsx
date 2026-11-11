@@ -1,91 +1,144 @@
 "use client";
 
-import { useState } from "react";
-import { Upload, FileText, ShieldCheck } from "lucide-react";
-import { DocumentItem } from "@/lib/types";
-import { WORKFLOW_PHASES } from "@/lib/mock-data";
+/**
+ * Dépôt des pièces justificatives — **portail emprunteur**.
+ *
+ * La zone de dépôt est câblée sur le service de stockage : le fichier choisi
+ * part réellement dans le coffre privé du dossier, horodaté et empreint. Le
+ * compteur de complétude suit les dépôts réellement effectués.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FileText, ShieldCheck } from "lucide-react";
+import { DocumentItem } from "@/domain/entities/types";
+import { WORKFLOW_PHASES } from "@/domain/data/mock-data";
+import { DocumentUploader, type UploadedDocument } from "@/components/upload/document-uploader";
+import { UploadError, type UploadErrorPayload } from "@/components/upload/upload-error";
+import { formatBytes, resolveCitizenDossierAction } from "@/components/upload/storage";
 
 const INITIAL_DOCS: DocumentItem[] = [
   {
     id: "doc-kyc",
-    category: "kyc",
+    category: "Identité",
     name: "CNI ou Passeport légalisé",
     description: "Pièce d'identité nationale valide ou passeport certifié conforme.",
     required: true,
-    status: "verified",
+    status: "Validé",
     fileName: "CNI_Mballa_JeanPaul_recto_verso.pdf",
     fileSize: "1.2 Mo",
     uploadedAt: "12/08/2026",
   },
   {
     id: "doc-marriage",
-    category: "kyc",
+    category: "Identité",
     name: "Acte d'état civil / Mariage",
     description: "Justificatif de situation matrimoniale et de régime de biens.",
     required: true,
-    status: "verified",
+    status: "Validé",
     fileName: "Acte_Mariage_Legalisé.pdf",
     fileSize: "850 Ko",
     uploadedAt: "12/08/2026",
   },
   {
     id: "doc-income",
-    category: "income",
+    category: "Revenus",
     name: "3 Derniers Bulletins de Paie + AVI",
     description: "Justificatifs de salaires récents et Attestation de Virement Irrévocable.",
     required: true,
-    status: "verified",
+    status: "Validé",
     fileName: "Bulletins_Salaires_3Mois_AVI.pdf",
     fileSize: "2.8 Mo",
     uploadedAt: "14/08/2026",
   },
   {
     id: "doc-land",
-    category: "land",
+    category: "Foncier",
     name: "Titre Foncier ou Certificat de Propriété",
     description: "Copie certifiée du TF grevé ou certificat délivré par le MINDCAF (< 3 mois).",
     required: true,
-    status: "uploaded",
+    status: "Téléversé",
     fileName: "Titre_Foncier_4892_Mfoundi.pdf",
     fileSize: "5.1 Mo",
     uploadedAt: "18/08/2026",
   },
   {
     id: "doc-tech",
-    category: "technical",
+    category: "Technique",
     name: "Devis Estimatif & Plans d'Architecte",
     description: "Dossier technique de construction pour expertise par le BET.",
     required: true,
-    status: "pending_upload",
+    status: "En attente",
   },
 ];
+
+/**
+ * Type de document attendu pour chaque pièce du guichet unique.
+ *
+ * L'emprunteur dépose dans **sa** chemise (C1) : le classement définitif
+ * est l'affaire du guichet.
+ */
+const DOC_TYPE_BY_ITEM: Record<string, string> = {
+  "doc-kyc": "CNI_BIOMETRIQUE",
+  "doc-marriage": "BIRTH_CERTIFICATE",
+  "doc-income": "PAYSLIP",
+  "doc-land": "LAND_TITLE",
+  "doc-tech": "BET_DQE",
+};
 
 export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { ducId?: string }) {
   const [docs, setDocs] = useState<DocumentItem[]>(INITIAL_DOCS);
   const [activeTab, setActiveTab] = useState<"documents" | "tracking">("documents");
+  const [dossierId, setDossierId] = useState<string | null>(null);
+  const [error, setError] = useState<UploadErrorPayload | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const completedCount = docs.filter((d) => d.status === "verified" || d.status === "uploaded").length;
-  const progressPct = Math.round((completedCount / docs.length) * 100);
+  // Le dossier de l'emprunteur : le portail ne connaît que sa référence DUC.
+  useEffect(() => {
+    let cancelled = false;
 
-  const handleSimulateUpload = (id: string) => {
-    setDocs((prev) =>
-      prev.map((d) =>
-        d.id === id
+    void (async () => {
+      const result = await resolveCitizenDossierAction();
+      if (cancelled) return;
+      setLoading(false);
+      if (result.ok) {
+        setDossierId(result.data.dossierId);
+      } else {
+        setError(result.error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleUploaded = useCallback((itemId: string, document: UploadedDocument) => {
+    setDocs((previous) =>
+      previous.map((doc) =>
+        doc.id === itemId
           ? {
-              ...d,
-              status: "uploaded",
-              fileName: "Devis_Plans_Architecte_V2.pdf",
-              fileSize: "3.4 Mo",
+              ...doc,
+              status: "Téléversé",
+              fileName: document.filename,
+              fileSize: formatBytes(document.sizeBytes),
               uploadedAt: new Date().toLocaleDateString("fr-FR"),
             }
-          : d
-      )
+          : doc,
+      ),
     );
-  };
+  }, []);
+
+  const completedCount = docs.filter((d) => d.status === "Validé" || d.status === "Téléversé").length;
+  const progressPct = Math.round((completedCount / docs.length) * 100);
+
+  const pendingItems = useMemo(
+    () => docs.filter((doc) => doc.status !== "Validé" && doc.status !== "Téléversé"),
+    [docs],
+  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      
+
       {/* Bandeau supérieur : Référence DUC */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
         <div className="flex items-center gap-3.5">
@@ -149,19 +202,19 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
       {/* CONTENU ONGLET 1 : DÉPÔT DOCUMENTAIRE */}
       {activeTab === "documents" && (
         <div className="space-y-4">
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {docs.map((doc) => {
-              const isDone = doc.status === "verified" || doc.status === "uploaded";
+              const isDone = doc.status === "Validé" || doc.status === "Téléversé";
               return (
                 <div
                   key={doc.id}
                   className={`bg-white p-5 rounded-2xl border transition-all ${
-                    doc.status === "verified"
+                    doc.status === "Validé"
                       ? "border-emerald-200 bg-emerald-50/20"
-                      : doc.status === "uploaded"
-                      ? "border-cfc-gold/50 bg-cfc-lightgold/10"
-                      : "border-dashed border-slate-300 hover:border-cfc-brown/50"
+                      : doc.status === "Téléversé"
+                        ? "border-cfc-gold/50 bg-cfc-lightgold/10"
+                        : "border-dashed border-slate-300 hover:border-cfc-brown/50"
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -171,18 +224,18 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
                     </span>
                     <span
                       className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        doc.status === "verified"
+                        doc.status === "Validé"
                           ? "bg-emerald-100 text-emerald-800"
-                          : doc.status === "uploaded"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-slate-100 text-slate-500"
+                          : doc.status === "Téléversé"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-slate-100 text-slate-500"
                       }`}
                     >
-                      {doc.status === "verified"
+                      {doc.status === "Validé"
                         ? "Vérifié & Conforme"
-                        : doc.status === "uploaded"
-                        ? "Téléversé (En revue)"
-                        : "À déposer"}
+                        : doc.status === "Téléversé"
+                          ? "Téléversé (En revue)"
+                          : "À déposer"}
                     </span>
                   </div>
 
@@ -196,20 +249,34 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
                       </div>
                       <span className="text-[10px] text-slate-400 shrink-0">{doc.fileSize}</span>
                     </div>
+                  ) : dossierId ? (
+                    <DocumentUploader
+                      dossierId={dossierId}
+                      docTypeCode={DOC_TYPE_BY_ITEM[doc.id] ?? "CNI_BIOMETRIQUE"}
+                      chemiseCode="C1"
+                      label="Déposer ce document"
+                      hint={doc.description}
+                      onUploaded={(document) => handleUploaded(doc.id, document)}
+                    />
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleSimulateUpload(doc.id)}
-                      className="w-full py-3 px-4 border-2 border-dashed border-cfc-brown/30 hover:border-cfc-brown hover:bg-cfc-lightgold/20 rounded-xl text-xs font-semibold text-cfc-brown flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Upload className="w-4 h-4" />
-                      <span>Cliquez pour téléverser ce document</span>
-                    </button>
+                    <p className="text-[11px] text-slate-500">
+                      {loading
+                        ? "Résolution du dossier…"
+                        : "Aucun dossier rattaché : le dépôt est impossible."}
+                    </p>
                   )}
                 </div>
               );
             })}
           </div>
+
+          {pendingItems.length === 0 ? (
+            <p className="text-xs text-slate-600 bg-white rounded-xl border border-slate-200 p-3">
+              Toutes les pièces attendues sont déposées. Le guichet instruit désormais votre dossier.
+            </p>
+          ) : null}
+
+          <UploadError error={error} onDismiss={() => setError(null)} />
 
           <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
             <div className="flex items-center gap-3">
@@ -233,7 +300,7 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
       {/* CONTENU ONGLET 2 : TIMELINE DES 6 PHASES */}
       {activeTab === "tracking" && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
-          
+
           <div className="pb-4 border-b border-slate-100">
             <h3 className="text-base font-bold text-slate-900">
               Pipeline des 6 Phases d&apos;Instruction & d&apos;Octroi de Crédit
@@ -244,7 +311,7 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
           </div>
 
           <div className="space-y-6 relative before:absolute before:inset-0 before:left-4 before:w-0.5 before:bg-slate-200">
-            
+
             {WORKFLOW_PHASES.map((phase, idx) => {
               const isCompleted = idx === 0;
               const isCurrent = idx === 1;
@@ -256,20 +323,19 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
                       isCompleted
                         ? "bg-emerald-500 text-white"
                         : isCurrent
-                        ? "bg-cfc-gold text-slate-950 ring-4 ring-cfc-lightgold animate-pulse"
-                        : "bg-slate-200 text-slate-500"
+                          ? "bg-cfc-gold text-slate-950 ring-4 ring-cfc-lightgold animate-pulse"
+                          : "bg-slate-200 text-slate-500"
                     }`}
                   >
                     {isCompleted ? "✓" : phase.stepNumber}
                   </div>
-
                   <div
                     className={`flex-1 p-4 rounded-xl border transition-all ${
-                      isCompleted
-                        ? "bg-slate-50 border-slate-200"
-                        : isCurrent
+                      isCurrent
                         ? "bg-cfc-lightgold/30 border-cfc-gold/60 shadow-sm"
-                        : "bg-white border-slate-100 opacity-60"
+                        : isCompleted
+                          ? "bg-slate-50 border-slate-200"
+                          : "bg-white border-slate-100 opacity-60"
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
@@ -281,16 +347,18 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
                           isCompleted
                             ? "bg-emerald-100 text-emerald-800"
                             : isCurrent
-                            ? "bg-cfc-gold text-slate-950"
-                            : "bg-slate-100 text-slate-500"
+                              ? "bg-cfc-gold text-slate-950"
+                              : "bg-slate-100 text-slate-500"
                         }`}
                       >
                         {isCompleted ? "Étape Validée" : isCurrent ? "En Cours de Traitement" : "À Venir"}
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-500 mt-1">{phase.description}</p>
-                    
+                    <p className="text-xs text-slate-500 mt-1">
+                      {phase.description}
+                    </p>
+
                     <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center gap-2 text-[10px] text-slate-400">
                       <span>Intervenants :</span>
                       <span className="font-medium text-slate-600">{phase.responsibleActors.join(" · ")}</span>
@@ -301,7 +369,6 @@ export default function DocumentDropzone({ ducId = "CFC-2026-DUC-04829" }: { duc
             })}
 
           </div>
-
         </div>
       )}
 

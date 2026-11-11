@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn, getInitials } from "@/lib/utils";
 
-import { type ClientItem, clientsData } from "./data";
+import { type ClientItem, clientsData } from "@/domain/entities/client";
 import {
   KanbanCardDialog,
   type ClientKanbanTask,

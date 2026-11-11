@@ -14,7 +14,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
         {/* Brand Logo & Tagline */}
-        <Link href="/" className="flex items-center space-x-4 group">
+        <Link href="/accueil" className="flex items-center space-x-4 group">
           <div className="relative h-11 w-40 sm:w-44 transition-transform group-hover:scale-[1.02]">
             <Image
               src="/images/logo-cfc.png"
@@ -36,7 +36,7 @@ export default function Navbar() {
         {/* Center Nav Links (Desktop) */}
         <nav className="hidden lg:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/70 text-xs font-medium">
           <Link
-            href="/"
+            href="/accueil"
             className={`px-3 py-1.5 rounded-lg transition-all ${
               pathname === "/"
                 ? "bg-white text-cfc-brown shadow-sm font-semibold"
@@ -95,7 +95,7 @@ export default function Navbar() {
         <div className="flex items-center gap-2">
           {isAdminActive ? (
             <Link
-              href="/"
+              href="/accueil"
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all border border-slate-200"
             >
               <span>← Vue Citoyen</span>

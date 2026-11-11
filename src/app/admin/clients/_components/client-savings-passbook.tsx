@@ -48,7 +48,7 @@ import type {
   SavingsPassbook,
   SavingsTransaction,
   SavingsTransactionType,
-} from "./data";
+} from "@/domain/entities/client";
 import {
   SavingsNewTransactionDialog,
   type NewTransactionPayload,

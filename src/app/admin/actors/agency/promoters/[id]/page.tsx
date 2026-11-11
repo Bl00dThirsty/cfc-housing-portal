@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { promotersData } from "../data";
+import { promotersData } from "@/domain/entities/promoters";
 
 export default function PromoterDetailPage() {
   const params = useParams();

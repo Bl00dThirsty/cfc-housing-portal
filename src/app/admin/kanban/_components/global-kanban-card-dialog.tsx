@@ -34,8 +34,8 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { cn, getInitials } from "@/lib/utils";
 
-import { columns } from "./data";
-import type { Task, ColumnId } from "./types";
+import { columns } from "@/domain/data/kanban-board";
+import type { Task, ColumnId } from "@/domain/entities/kanban";
 
 interface GlobalKanbanCardDialogProps {
   task: Task | null;

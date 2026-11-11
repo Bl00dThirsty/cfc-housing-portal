@@ -310,7 +310,17 @@ export default function AgenceActorPage() {
                   <TableRow
                     key={item.id}
                     onClick={() => router.push(`/admin/clients/${item.id.replace('d', 'cl-')}`)}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer"
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push(`/admin/clients/${item.id.replace('d', 'cl-')}`);
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Ouvrir le dossier client de ${item.client}`}
+                    className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                   >
                     <TableCell className="px-3 py-2.5">
                       <div className="flex items-center gap-2.5">
@@ -320,7 +330,17 @@ export default function AgenceActorPage() {
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col min-w-0">
-                          <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/admin/clients/${item.id.replace('d', 'cl-')}`);
+                            }}
+                            aria-label={`Ouvrir le dossier client de ${item.client}`}
+                            className="text-left font-medium hover:underline text-xs text-foreground truncate"
+                          >
+                            {item.client}
+                          </button>
                           <span className="text-[11px] text-muted-foreground truncate">{item.profession}</span>
                         </div>
                       </div>
@@ -352,6 +372,7 @@ export default function AgenceActorPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => router.push(`/admin/clients/${item.id.replace('d', 'cl-')}`)}
+                        aria-label={`Ouvrir le dossier client de ${item.client}`}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >
                         <Eye className="size-4" />

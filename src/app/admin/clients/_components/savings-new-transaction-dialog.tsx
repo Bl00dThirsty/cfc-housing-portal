@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import type { SavingsChannel, SavingsTransactionType } from "./data";
+import type { SavingsChannel, SavingsTransactionType } from "@/domain/entities/client";
 
 const CHANNELS: { value: SavingsChannel; label: string; icon: React.ReactNode }[] = [
   { value: "Guichet CFC", label: "Guichet CFC", icon: <Landmark className="size-3.5" /> },
@@ -124,14 +124,18 @@ export function SavingsNewTransactionDialog({
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           {/* Type */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
+            <label
+              id="savings-tx-type-label"
+              htmlFor="savings-tx-type"
+              className="text-xs font-medium text-foreground"
+            >
               Type d&apos;opération
             </label>
             <Select
               value={txType}
               onValueChange={(v) => setTxType(v as "Dépôt" | "Retrait")}
             >
-              <SelectTrigger>
+              <SelectTrigger id="savings-tx-type" aria-labelledby="savings-tx-type-label">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -153,10 +157,11 @@ export function SavingsNewTransactionDialog({
 
           {/* Montant */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="savings-tx-amount" className="text-xs font-medium text-foreground">
               Montant (FCFA)
             </label>
             <Input
+              id="savings-tx-amount"
               type="text"
               placeholder="Ex: 200 000"
               value={amount}
@@ -167,14 +172,18 @@ export function SavingsNewTransactionDialog({
 
           {/* Canal */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
+            <label
+              id="savings-tx-channel-label"
+              htmlFor="savings-tx-channel"
+              className="text-xs font-medium text-foreground"
+            >
               Canal de paiement
             </label>
             <Select
               value={channel}
               onValueChange={(v) => setChannel(v as SavingsChannel)}
             >
-              <SelectTrigger>
+              <SelectTrigger id="savings-tx-channel" aria-labelledby="savings-tx-channel-label">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -192,10 +201,11 @@ export function SavingsNewTransactionDialog({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="savings-tx-description" className="text-xs font-medium text-foreground">
               Libellé <span className="text-muted-foreground">(optionnel)</span>
             </label>
             <Input
+              id="savings-tx-description"
               type="text"
               placeholder="Versement mensuel épargne logement"
               value={description}
@@ -205,11 +215,12 @@ export function SavingsNewTransactionDialog({
 
           {/* Référence */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-foreground">
+            <label htmlFor="savings-tx-reference" className="text-xs font-medium text-foreground">
               Référence{" "}
               <span className="text-muted-foreground">(auto-générée si vide)</span>
             </label>
             <Input
+              id="savings-tx-reference"
               type="text"
               placeholder="REF-MTN-2026-0912"
               value={reference}

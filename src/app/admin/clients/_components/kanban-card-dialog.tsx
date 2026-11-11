@@ -32,7 +32,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { cn, getInitials } from "@/lib/utils";
 
-import type { ClientItem } from "./data";
+import type { ClientItem } from "@/domain/entities/client";
 
 export interface KanbanChecklistItem {
   id: string;

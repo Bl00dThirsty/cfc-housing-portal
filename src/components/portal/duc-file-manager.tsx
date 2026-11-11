@@ -20,11 +20,13 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { type DocumentCategory } from "@/domain/entities/types";
 
 export interface DucFolder {
   id: string;
   name: string;
-  category: "kyc" | "income" | "land" | "technical" | "committee" | "legal";
+  /** Taxonomie documentaire canonique du CFC — voir `src/domain/entities/types.ts`. */
+  category: DocumentCategory;
   fileCount: number;
   size: string;
   updatedAt: string;
@@ -34,7 +36,6 @@ export interface DucFolder {
 export interface DucFile {
   id: string;
   name: string;
-  kind: "kyc" | "income" | "land" | "technical" | "committee" | "legal";
   folderId: string;
   ducId: string;
   customerName: string;
@@ -51,7 +52,7 @@ const DUC_FOLDERS: DucFolder[] = [
   {
     id: "duc-kyc",
     name: "01 - Identité & KYC (DUC)",
-    category: "kyc",
+    category: "Identité",
     fileCount: 2,
     size: "2.2 MB",
     updatedAt: "Il y a 10 min",
@@ -60,7 +61,7 @@ const DUC_FOLDERS: DucFolder[] = [
   {
     id: "duc-income",
     name: "02 - Revenus & Solvabilité",
-    category: "income",
+    category: "Revenus",
     fileCount: 1,
     size: "2.8 MB",
     updatedAt: "Hier",
@@ -69,7 +70,7 @@ const DUC_FOLDERS: DucFolder[] = [
   {
     id: "duc-land",
     name: "03 - Foncier & Titre Foncier (MINDCAF)",
-    category: "land",
+    category: "Foncier",
     fileCount: 2,
     size: "7.9 MB",
     updatedAt: "28 Août 2026",
@@ -78,7 +79,7 @@ const DUC_FOLDERS: DucFolder[] = [
   {
     id: "duc-technical",
     name: "04 - Devis, Plans & Expertises BET",
-    category: "technical",
+    category: "Technique",
     fileCount: 2,
     size: "18.8 MB",
     updatedAt: "25 Août 2026",
@@ -87,7 +88,7 @@ const DUC_FOLDERS: DucFolder[] = [
   {
     id: "duc-committee",
     name: "05 - Comités CGR & Décisions CRC",
-    category: "committee",
+    category: "Finances",
     fileCount: 1,
     size: "940 KB",
     updatedAt: "22 Août 2026",
@@ -96,7 +97,7 @@ const DUC_FOLDERS: DucFolder[] = [
   {
     id: "duc-legal",
     name: "06 - Notaires, Assurances & Mainlevées",
-    category: "legal",
+    category: "Assurance",
     fileCount: 2,
     size: "7.7 MB",
     updatedAt: "19 Août 2026",
@@ -108,7 +109,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f1",
     name: "CNI_Mballa_JeanPaul_recto_verso_certifie.pdf",
-    kind: "kyc",
     folderId: "duc-kyc",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -123,7 +123,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f2",
     name: "Acte_Mariage_Legalisé_Mballa.pdf",
-    kind: "kyc",
     folderId: "duc-kyc",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -138,7 +137,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f3",
     name: "Bulletins_Salaires_3Derniers_Mois_AVI.pdf",
-    kind: "income",
     folderId: "duc-income",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -153,7 +151,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f4",
     name: "Titre_Foncier_Original_N4892_Mfoundi_MINDCAF.pdf",
-    kind: "land",
     folderId: "duc-land",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -168,7 +165,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f5",
     name: "Certificat_Propriété_Valide_MINDCAF.pdf",
-    kind: "land",
     folderId: "duc-land",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -183,7 +179,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f6",
     name: "Plans_Architecte_Vises_Permis_Batir.pdf",
-    kind: "technical",
     folderId: "duc-technical",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -198,7 +193,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f7",
     name: "Rapport_Expertise_Terrain_PV_Tripartite_BET.pdf",
-    kind: "technical",
     folderId: "duc-technical",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -213,7 +207,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f8",
     name: "PV_Avis_Favorable_Comite_Gestion_Risques_CGR.pdf",
-    kind: "committee",
     folderId: "duc-committee",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -228,7 +221,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f9",
     name: "Police_Assurance_Tous_Risques_Chantier_TRC.pdf",
-    kind: "legal",
     folderId: "duc-legal",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -243,7 +235,6 @@ const INITIAL_FILES: DucFile[] = [
   {
     id: "f10",
     name: "Convention_Pret_Hypothecaire_Me_Nkouendjin.pdf",
-    kind: "legal",
     folderId: "duc-legal",
     ducId: "CFC-2026-DUC-04829",
     customerName: "MBALLA Jean-Paul",
@@ -336,8 +327,18 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
             return (
               <Card
                 key={folder.id}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                aria-label={`Filtrer sur le sous-dossier ${folder.name}`}
                 onClick={() => setSelectedFolder(isSelected ? null : folder.id)}
-                className={`cursor-pointer transition-all hover:border-[#7B2E15] hover:shadow-md ${
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedFolder(isSelected ? null : folder.id);
+                  }
+                }}
+                className={`cursor-pointer transition-all hover:border-[#7B2E15] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7B2E15]/40 ${
                   isSelected ? "border-[#7B2E15] ring-2 ring-[#7B2E15]/20 bg-amber-50/20" : ""
                 }`}
               >
@@ -391,7 +392,11 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <label htmlFor="duc-search-piece" className="sr-only">
+                Rechercher une pièce justificative
+              </label>
               <input
+                id="duc-search-piece"
                 type="text"
                 placeholder="Rechercher une pièce..."
                 value={searchQuery}
@@ -434,6 +439,7 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
                   </div>
                   <button
                     onClick={() => toggleStar(file.id)}
+                    aria-label={file.starred ? `Retirer ${file.name} des favoris` : `Ajouter ${file.name} aux favoris`}
                     className="text-slate-400 hover:text-amber-500 transition-colors"
                   >
                     <Star className={`w-4 h-4 ${file.starred ? "text-amber-500 fill-amber-500" : ""}`} />
@@ -456,10 +462,10 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
                   <span className="text-[11px] text-slate-400">{file.size} · {file.modifiedAt}</span>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Consulter">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Consulter" aria-label={`Consulter ${file.name}`}>
                       <Eye className="w-3.5 h-3.5 text-slate-600" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Télécharger">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Télécharger" aria-label={`Télécharger ${file.name}`}>
                       <Download className="w-3.5 h-3.5 text-slate-600" />
                     </Button>
                   </div>
@@ -502,11 +508,15 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => toggleStar(file.id)}
+                          aria-label={file.starred ? `Retirer ${file.name} des favoris` : `Ajouter ${file.name} aux favoris`}
                           className="p-1 text-slate-400 hover:text-amber-500"
                         >
                           <Star className={`w-3.5 h-3.5 ${file.starred ? "text-amber-500 fill-amber-500" : ""}`} />
                         </button>
-                        <button className="p-1 text-slate-400 hover:text-slate-700">
+                        <button
+                          aria-label={`Télécharger ${file.name}`}
+                          className="p-1 text-slate-400 hover:text-slate-700"
+                        >
                           <Download className="w-3.5 h-3.5" />
                         </button>
                       </div>

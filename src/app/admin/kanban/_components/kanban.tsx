@@ -46,11 +46,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, getInitials } from "@/lib/utils";
 
-import { columnIds, columns, tagTones } from "./data";
+import { columnIds, columns, tagTones } from "@/domain/data/kanban-board";
 import { KanbanColumn } from "./kanban-column";
 import { TaskCard } from "./task-card";
 import { GlobalKanbanCardDialog } from "./global-kanban-card-dialog";
-import type { BoardState, ColumnId, Task } from "./types";
+import type { BoardState, ColumnId, Task } from "@/domain/entities/kanban";
 
 interface KanbanProps {
   initialBoard: BoardState;

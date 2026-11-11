@@ -55,25 +55,25 @@ export function DataTableToolbar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-1",
+        "flex flex-col gap-3 py-1 sm:flex-row sm:items-center sm:justify-between",
         className
       )}
     >
       <div className="flex flex-1 flex-wrap items-center gap-2">
         {/* Search input with search icon & clear button */}
         <div className="relative w-full sm:w-64 md:w-72">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle" />
           <Input
             placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="h-8 pl-8 pr-7 text-xs bg-background border-input focus:bg-background transition-colors"
+            className="h-8 pl-8 pr-7 text-[12px]"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => onSearchChange("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 size-4 flex items-center justify-center rounded-xs text-muted-foreground hover:text-foreground"
+              className="absolute right-2 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-xs text-subtle hover:text-foreground"
             >
               <X className="size-3" />
             </button>
@@ -97,7 +97,7 @@ export function DataTableToolbar({
             variant="ghost"
             size="sm"
             onClick={handleReset}
-            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5"
+            className="h-8 gap-1.5 px-2.5 text-[12px] text-subtle hover:text-foreground"
           >
             <span>Réinitialiser</span>
             <X className="size-3.5" />
@@ -106,12 +106,12 @@ export function DataTableToolbar({
       </div>
 
       {/* Right side: Count Badge & Actions */}
-      <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+      <div className="flex shrink-0 items-center gap-2.5 self-end sm:self-center">
         {filteredCount !== undefined && (
-          <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
+          <span className="caption-style whitespace-nowrap font-mono text-subtle">
             {filteredCount} {unitName}
             {totalCount !== undefined && filteredCount !== totalCount && (
-              <span className="text-muted-foreground/60"> / {totalCount}</span>
+              <span className="text-subtle/60"> / {totalCount}</span>
             )}
           </span>
         )}

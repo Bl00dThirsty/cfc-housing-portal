@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { type ClientItem } from "../../_components/data";
+import { type ClientItem } from "@/domain/entities/client";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Clock } from "lucide-react";
 

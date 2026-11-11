@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { type ClientDocument, getDocumentPdf } from "../../_components/data";
+import { type ClientDocument, getDocumentPdf } from "@/domain/entities/client";
 
 interface DucPdfViewerModalProps {
   document: ClientDocument | null;
@@ -23,7 +23,10 @@ const statusStyles: Record<string, string> = {
   "Validé": "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   "En cours": "bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
   "En attente": "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  "Téléversé": "bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300",
   "Rejeté": "bg-rose-500/10 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+  "Manquant": "bg-slate-500/10 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300",
+  "Expiré": "bg-orange-500/10 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
 };
 
 export function DucPdfViewerModal({

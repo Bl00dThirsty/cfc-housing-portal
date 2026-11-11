@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { clientsData, type ClientItem, type ClientDocument } from "../_components/data";
+import { clientsData, type ClientItem, type ClientDocument } from "@/domain/entities/client";
 import { ClientBarcodeWidget } from "./_components/client-barcode-widget";
 import { ClientInfoTable } from "./_components/client-info-table";
 import { ClientDraggableDocs } from "./_components/client-draggable-docs";

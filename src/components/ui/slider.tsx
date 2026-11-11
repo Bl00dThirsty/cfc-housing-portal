@@ -4,22 +4,29 @@ import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { cn } from "@/lib/utils";
 
+/**
+ * Slider — kit design language (`guichet-unque-cfc/components/_ui/slider`).
+ */
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
 >(({ className, ...props }, ref) => (
   <SliderPrimitive.Root
     ref={ref}
+    data-slot="slider"
     className={cn(
-      "relative flex w-full touch-none select-none items-center",
+      "relative flex h-5 w-full touch-none items-center select-none data-[disabled]:opacity-50",
       className
     )}
     {...props}
   >
-    <SliderPrimitive.Track className="relative h-2 w-full grow overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-      <SliderPrimitive.Range className="absolute h-full bg-[#E59819]" />
+    <SliderPrimitive.Track className="bg-track relative h-1.5 grow overflow-hidden rounded-full">
+      <SliderPrimitive.Range className="bg-soft absolute h-full rounded-full" />
     </SliderPrimitive.Track>
-    <SliderPrimitive.Thumb className="block h-5 w-5 rounded-full border-2 border-[#7B2E15] bg-white ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-grab active:cursor-grabbing shadow-md" />
+    <SliderPrimitive.Thumb
+      aria-label={props["aria-label"]}
+      className="bg-foreground ease-power3-out block size-4 cursor-grab rounded-full shadow-[0px_2px_6px_0px_rgba(0,0,0,0.5),0px_0px_0px_1px_rgba(0,0,0,0.4)] transition-[box-shadow] duration-150 outline-none focus-visible:shadow-[0px_2px_6px_0px_rgba(0,0,0,0.5),0px_0px_0px_4px_rgba(255,255,255,0.12)] active:cursor-grabbing"
+    />
   </SliderPrimitive.Root>
 ));
 Slider.displayName = SliderPrimitive.Root.displayName;

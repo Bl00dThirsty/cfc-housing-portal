@@ -2,22 +2,27 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/**
+ * Badge — pill label.
+ *
+ * The kit has no `badge`; its pill role is covered by `tag` (tone-coloured)
+ * and `count-badge` (numeric). This primitive keeps the app's exported API
+ * (`Badge`, `badgeVariants`, `BadgeProps`) and every variant the app already
+ * used, re-expressed with the kit's token vocabulary.
+ */
 const badgeVariants = cva(
-  "inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-colors focus:outline-none focus:ring-1 focus:ring-ring [&>svg]:pointer-events-none [&>svg]:size-3! [&>svg]:shrink-0",
+  "inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-2 py-0.5 text-[12px] leading-none font-medium whitespace-nowrap transition-colors focus:outline-none focus:ring-1 focus:ring-ring [&>svg]:pointer-events-none [&>svg]:size-3! [&>svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-slate-900 text-slate-50 hover:bg-slate-900/80 dark:bg-slate-50 dark:text-slate-900",
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
         secondary:
-          "border-transparent bg-slate-100 text-slate-900 hover:bg-slate-100/80 dark:bg-slate-800 dark:text-slate-50",
+          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:
-          "border-transparent bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-400",
-        outline: "border-border text-foreground",
-        success:
-          "border-transparent bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-        cfc:
-          "border-transparent bg-amber-500/10 text-[#7B2E15] border-[#7B2E15]/20 font-semibold",
+          "border-transparent bg-destructive/10 text-destructive hover:bg-destructive/20",
+        outline: "border-line-strong text-foreground",
+        success: "border-transparent bg-success/10 text-success hover:bg-success/20",
+        cfc: "border-transparent bg-cfc-lightgold text-cfc-brown border-cfc-gold/20 font-semibold",
       },
     },
     defaultVariants: {
@@ -27,12 +32,16 @@ const badgeVariants = cva(
 );
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <span
+      data-slot="badge"
+      className={cn(badgeVariants({ variant }), className)}
+      {...props}
+    />
   );
 }
 

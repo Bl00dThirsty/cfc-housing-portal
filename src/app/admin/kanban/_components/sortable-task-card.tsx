@@ -5,7 +5,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import { cn } from "@/lib/utils";
 
 import { TaskCard } from "./task-card";
-import type { ColumnId, Task } from "./types";
+import type { ColumnId, Task } from "@/domain/entities/kanban";
 
 export function SortableTaskCard({
   task,
