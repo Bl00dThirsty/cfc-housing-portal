@@ -24,7 +24,7 @@ export default async function EmailSettingsLayout({
   }
 
   if (profile.role === "CITIZEN" || !hasCapability(profile.role, "catalogue:write")) {
-    redirect("/admin/analytics");
+    redirect("/portail-cfc/analytics");
   }
 
   return <>{children}</>;

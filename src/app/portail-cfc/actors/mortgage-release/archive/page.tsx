@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Search, Download, Eye } from "lucide-react";
-import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
+import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

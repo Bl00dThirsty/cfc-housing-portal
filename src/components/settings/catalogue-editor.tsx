@@ -4,8 +4,10 @@ import * as React from "react";
 import { Check, Loader2, Pencil, Plus, Save, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { REQUIREMENT_STAGES } from "@/domain/entities/services";
 import { cn } from "@/lib/utils";
 import {
   deleteRequirementAction,
@@ -17,15 +19,6 @@ import {
   type CatalogueSnapshot,
 } from "@/server/actions/catalogue";
 
-const STAGES = [
-  { value: "ONBOARDING", label: "À l'inscription" },
-  { value: "SAVINGS", label: "Pendant l'épargne" },
-  { value: "CREDIT_FILE", label: "Dossier de crédit" },
-  { value: "NOTARY", label: "Notaire" },
-  { value: "MORTGAGE", label: "Hypothèque" },
-  { value: "DISBURSEMENT", label: "Déblocage" },
-  { value: "PAYOFF", label: "Apurement" },
-] as const;
 
 type TabId = "services" | "natures" | "documents" | "requirements";
 
@@ -215,14 +208,14 @@ function DocumentTypeForm({
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Intitulé" id={`dt-label-${doc.code}`}>
+        <Field label="Intitulé" htmlFor={`dt-label-${doc.code}`}>
           <Input
             id={`dt-label-${doc.code}`}
             value={values.label}
             onChange={(event) => setValues({ ...values, label: event.target.value })}
           />
         </Field>
-        <Field label="Nature" id={`dt-nature-${doc.code}`}>
+        <Field label="Nature" htmlFor={`dt-nature-${doc.code}`}>
           <select
             id={`dt-nature-${doc.code}`}
             value={values.nature_code}
@@ -236,7 +229,7 @@ function DocumentTypeForm({
             ))}
           </select>
         </Field>
-        <Field label="Émetteur" id={`dt-issuer-${doc.code}`}>
+        <Field label="Émetteur" htmlFor={`dt-issuer-${doc.code}`}>
           <Input
             id={`dt-issuer-${doc.code}`}
             value={values.issuing_authority ?? ""}
@@ -246,7 +239,7 @@ function DocumentTypeForm({
             placeholder="DGSN, MINDCAF, Notaire…"
           />
         </Field>
-        <Field label="Validité (mois)" id={`dt-validity-${doc.code}`}>
+        <Field label="Validité (mois)" htmlFor={`dt-validity-${doc.code}`}>
           <Input
             id={`dt-validity-${doc.code}`}
             type="number"
@@ -260,7 +253,7 @@ function DocumentTypeForm({
             }
           />
         </Field>
-        <Field label="Taille max (octets)" id={`dt-size-${doc.code}`}>
+        <Field label="Taille max (octets)" htmlFor={`dt-size-${doc.code}`}>
           <Input
             id={`dt-size-${doc.code}`}
             type="number"
@@ -273,7 +266,7 @@ function DocumentTypeForm({
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Min." id={`dt-min-${doc.code}`}>
+          <Field label="Min." htmlFor={`dt-min-${doc.code}`}>
             <Input
               id={`dt-min-${doc.code}`}
               type="number"
@@ -284,7 +277,7 @@ function DocumentTypeForm({
               }
             />
           </Field>
-          <Field label="Max." id={`dt-max-${doc.code}`}>
+          <Field label="Max." htmlFor={`dt-max-${doc.code}`}>
             <Input
               id={`dt-max-${doc.code}`}
               type="number"
@@ -348,7 +341,7 @@ function RequirementsTab({ snapshot, run, pending }: TabProps) {
       </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Service" id="req-service">
+        <Field label="Service" htmlFor="req-service">
           <select
             id="req-service"
             value={serviceCode}
@@ -362,14 +355,14 @@ function RequirementsTab({ snapshot, run, pending }: TabProps) {
             ))}
           </select>
         </Field>
-        <Field label="Étape" id="req-stage">
+        <Field label="Étape" htmlFor="req-stage">
           <select
             id="req-stage"
             value={stage}
             onChange={(event) => setStage(event.target.value)}
             className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
           >
-            {STAGES.map((item) => (
+            {REQUIREMENT_STAGES.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
@@ -534,14 +527,14 @@ function ServiceForm({
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Intitulé" id={`svc-label-${service.code}`}>
+        <Field label="Intitulé" htmlFor={`svc-label-${service.code}`}>
           <Input
             id={`svc-label-${service.code}`}
             value={values.label}
             onChange={(event) => setValues({ ...values, label: event.target.value })}
           />
         </Field>
-        <Field label="Description" id={`svc-desc-${service.code}`}>
+        <Field label="Description" htmlFor={`svc-desc-${service.code}`}>
           <Input
             id={`svc-desc-${service.code}`}
             value={values.description}
@@ -644,14 +637,14 @@ function NatureForm({
   return (
     <div className="flex flex-1 flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Intitulé" id={`nature-label-${nature.code}`}>
+        <Field label="Intitulé" htmlFor={`nature-label-${nature.code}`}>
           <Input
             id={`nature-label-${nature.code}`}
             value={values.label}
             onChange={(event) => setValues({ ...values, label: event.target.value })}
           />
         </Field>
-        <Field label="Description" id={`nature-desc-${nature.code}`}>
+        <Field label="Description" htmlFor={`nature-desc-${nature.code}`}>
           <Input
             id={`nature-desc-${nature.code}`}
             value={values.description}
@@ -681,21 +674,3 @@ function NatureForm({
   );
 }
 
-function Field({
-  label,
-  id,
-  children,
-}: {
-  label: string;
-  id: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="eyebrow-style font-normal text-subtle">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}

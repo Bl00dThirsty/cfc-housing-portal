@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 /**
  * Porte d'entrée **emprunteur** — Guichet Unique citoyen.
  *
- * La connexion de l'agent est ailleurs (`/admin/login`) : les deux portes
+ * La connexion de l'agent est ailleurs (`/portail-cfc/login`) : les deux portes
  * sont distinctes, tant par leur audience que par les parcours qu'elles
  * autorisent.
  *

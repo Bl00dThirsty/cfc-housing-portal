@@ -67,7 +67,7 @@ export function OnboardingWizard({
   }, [stepIndex]);
 
   const finish = React.useCallback(() => {
-    router.push("/portal");
+    router.push("/portail-client");
   }, [router]);
 
   return (

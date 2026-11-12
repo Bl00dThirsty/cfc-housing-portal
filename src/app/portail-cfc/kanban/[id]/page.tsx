@@ -58,7 +58,7 @@ export default function KanbanDossierDetailPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/admin/kanban")}
+            onClick={() => router.push("/portail-cfc/kanban")}
             className="gap-2 text-xs text-muted-foreground hover:text-foreground -ml-2 mb-1"
           >
             <ArrowLeft className="size-3.5" />
@@ -108,7 +108,7 @@ export default function KanbanDossierDetailPage() {
               variant="outline"
               size="sm"
               className="gap-1.5 rounded-md text-xs"
-              onClick={() => router.push(`/admin/clients/${task.clientId}`)}
+              onClick={() => router.push(`/portail-cfc/clients/${task.clientId}`)}
             >
               <User className="size-3.5" />
               Fiche Emprunteur

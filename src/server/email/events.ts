@@ -41,7 +41,13 @@ export const DOMAIN_EVENT_TEMPLATES: Record<string, string> = {
   SAVE_CONTACT: "SAVE_CONTACT",
 };
 
-/** Enveloppe d'événement reçue du relais base de données. */
+/**
+ * Enveloppe d'événement reçue du relais base de données.
+ *
+ * Elle est consommée par le dispatch des notifications
+ * (`src/server/notifications/notify.ts`), qui décide à la fois du signal
+ * in-app et du courriel.
+ */
 export interface DomainEventEnvelope {
   /** Table d'origine (`dossier_events`, `citizen_profiles`). */
   source?: string;
@@ -120,7 +126,7 @@ export function buildVariables(
     duc: recipient.ducCode ?? "",
     reference: recipient.ducCode ?? "",
     date: date ?? formatDate(new Date()),
-    lien: link ?? `${getSiteUrl()}/portal`,
+    lien: link ?? `${getSiteUrl()}/portail-client`,
     montant: formatAmount(recipient.loanAmount),
     taux: recipient.rate === null ? "" : `${recipient.rate} %`,
     echeance:
@@ -203,7 +209,12 @@ async function resolveDossier(dossierId: string): Promise<ResolvedRecipient> {
   }
 }
 
-/** Envoie le message correspondant à un événement métier. */
+/**
+ * Envoie le message correspondant à un événement métier.
+ *
+ * Le modèle est résolu par `DOMAIN_EVENT_TEMPLATES` ; un événement sans
+ * modèle ne produit aucun envoi.
+ */
 export async function notifyDomainEvent(event: DomainEvent): Promise<SendEmailResult | null> {
   const templateCode = DOMAIN_EVENT_TEMPLATES[event.eventType];
   if (!templateCode) return null;
@@ -228,8 +239,8 @@ export async function notifyDomainEvent(event: DomainEvent): Promise<SendEmailRe
   if (!to) return null;
 
   const link = recipient.dossierId
-    ? `${getSiteUrl()}/portal/dossiers/${recipient.dossierId}`
-    : `${getSiteUrl()}/portal`;
+    ? `${getSiteUrl()}/portail-client/dossiers/${recipient.dossierId}`
+    : `${getSiteUrl()}/portail-client`;
 
   const variables = buildVariables({ recipient, payload: event.payload, link });
 
@@ -242,64 +253,4 @@ export async function notifyDomainEvent(event: DomainEvent): Promise<SendEmailRe
       ? `${event.eventType}:${recipient.dossierId ?? to}`
       : `${event.eventType}:${to}:${new Date().toISOString().slice(0, 10)}`,
   });
-}
-
-/**
- * Traite une enveloppe d'événement reçue du relais base de données.
- *
- * Deux sources sont comprises :
- * - `citizen_profiles` : création d'un profil → message de bienvenue ;
- * - `dossier_events` : fait métier daté → modèle correspondant.
- */
-export async function handleDomainEvent(envelope: DomainEventEnvelope): Promise<SendEmailResult[]> {
-  const row = envelope.row ?? {};
-  const source = envelope.source ?? "";
-
-  if (source === "citizen_profiles") {
-    const citizenId = typeof row.id === "string" ? row.id : null;
-    const email = typeof row.email === "string" ? row.email : null;
-    const fullName = typeof row.full_name === "string" ? row.full_name : null;
-
-    if (!email) return [];
-
-    const { prenom, nom } = splitName(fullName);
-    const result = await sendTemplatedEmail({
-      templateCode: DOMAIN_EVENT_TEMPLATES.PROFILE_CREATED,
-      to: email,
-      recipientUserId: citizenId,
-      variables: {
-        prenom,
-        nom,
-        email,
-        date: formatDate(new Date()),
-        lien: `${getSiteUrl()}/portal`,
-      },
-      idempotencyKey: `PROFILE_CREATED:${citizenId ?? email}`,
-    });
-
-    return [result];
-  }
-
-  const eventType = envelope.event_type ?? (typeof row.event_type === "string" ? row.event_type : "");
-  if (!eventType) return [];
-
-  const dossierId =
-    typeof row.dossier_id === "string"
-      ? row.dossier_id
-      : typeof row.dossierId === "string"
-        ? row.dossierId
-        : null;
-
-  const payload =
-    row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
-      ? (row.payload as Record<string, unknown>)
-      : {};
-
-  const result = await notifyDomainEvent({
-    eventType,
-    dossierId,
-    payload,
-  });
-
-  return result ? [result] : [];
 }

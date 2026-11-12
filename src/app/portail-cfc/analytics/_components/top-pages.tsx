@@ -6,8 +6,8 @@ const pages = [
   { bounce: "18%", path: "/ (Vitrine Campagne Épargne)", time: "3m 45s", views: "148.2k" },
   { bounce: "22%", path: "/simulator (Simulateur d'Emprunt)", time: "4m 12s", views: "84.6k" },
   { bounce: "15%", path: "/onboarding (Création Compte DUC)", time: "5m 30s", views: "34.8k" },
-  { bounce: "12%", path: "/portal (Guichet Unique Citoyen)", time: "6m 18s", views: "28.4k" },
-  { bounce: "35%", path: "/portal/depot-pieces (Téléversement)", time: "2m 50s", views: "14.2k" },
+  { bounce: "12%", path: "/portail-client (Guichet Unique Citoyen)", time: "6m 18s", views: "28.4k" },
+  { bounce: "35%", path: "/portail-client/depot-pieces (Téléversement)", time: "2m 50s", views: "14.2k" },
 ];
 
 export function TopPages() {

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Search, Download, MoreHorizontal, CheckCircle2, Clock, FileText, ArrowRight } from "lucide-react";
-import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
+import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -274,7 +274,7 @@ export function DossiersDucTab() {
                 <TableRow
                   key={item.id}
                   className="hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/admin/analytics/dossiers/${item.id}`)}
+                  onClick={() => router.push(`/portail-cfc/analytics/dossiers/${item.id}`)}
                 >
                   <TableCell className="px-3 py-2.5">
                     <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
@@ -331,20 +331,20 @@ export function DossiersDucTab() {
                       <DropdownMenuContent align="end" className="w-64 p-1.5 rounded-xl">
                         <DropdownMenuLabel className="text-xs font-semibold">Actions Dossier Unique Client (DUC)</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs">
                           <FileText className="size-3.5 mr-2 text-muted-foreground" />
                           Consulter la fiche DUC détaillée
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs">
                           <CheckCircle2 className="size-3.5 mr-2 text-muted-foreground" />
                           Contrôler la checklist des pièces
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 font-medium">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 font-medium">
                           <ArrowRight className="size-3.5 mr-2" />
                           Transmettre au service suivant
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs text-amber-600 dark:text-amber-400">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/dossiers/${item.id}`)} className="cursor-pointer text-xs text-amber-600 dark:text-amber-400">
                           <Clock className="size-3.5 mr-2" />
                           Relancer pièces manquantes (SMS)
                         </DropdownMenuItem>

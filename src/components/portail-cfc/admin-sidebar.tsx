@@ -27,7 +27,7 @@ export default function AdminSidebar() {
     <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r bg-card text-card-foreground">
       {/* Header / Brand */}
       <div className="flex h-12 items-center justify-between border-b px-4">
-        <Link href="/admin/analytics" className="flex items-center gap-2.5 font-semibold text-sm">
+        <Link href="/portail-cfc/analytics" className="flex items-center gap-2.5 font-semibold text-sm">
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
             <Layers className="size-4" />
           </div>
@@ -180,7 +180,7 @@ export default function AdminSidebar() {
       {/* Footer / User Profile */}
       <div className="border-t p-3 space-y-2">
         <Link
-          href="/portal"
+          href="/portail-client"
           className="flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border bg-background px-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors shadow-2xs"
         >
           <ArrowLeft className="size-3.5" />

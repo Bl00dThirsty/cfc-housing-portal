@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Search, Download, MoreHorizontal, ArrowRight, FileText, CreditCard } from "lucide-react";
-import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
+import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -293,7 +293,7 @@ export function EpargnantsTab() {
                 <TableRow
                   key={item.id}
                   className="hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/admin/analytics/savers/${item.id}`)}
+                  onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)}
                 >
                   <TableCell className="px-3 py-2.5">
                     <div className="flex items-center gap-2.5">
@@ -349,20 +349,20 @@ export function EpargnantsTab() {
                       <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
                         <DropdownMenuLabel className="text-xs font-semibold">Actions Épargnant</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
                           <FileText className="size-3.5 mr-2 text-muted-foreground" />
                           Consulter le dossier d&apos;épargne
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
                           <CreditCard className="size-3.5 mr-2 text-muted-foreground" />
                           Extrait des versements (Carthago)
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
                           <Download className="size-3.5 mr-2 text-muted-foreground" />
                           Attestation de capacité d&apos;apport
                         </DropdownMenuItem>
                         {item.progressPercent >= 100 && (
-                          <DropdownMenuItem onClick={() => router.push(`/admin/analytics/savers/${item.id}`)} className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                             <ArrowRight className="size-3.5 mr-2" />
                             Initier le passage en crédit DUC
                           </DropdownMenuItem>

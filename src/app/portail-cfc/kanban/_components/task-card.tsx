@@ -90,7 +90,7 @@ export function TaskCard({
     if (onCardClick) {
       onCardClick(task);
     } else {
-      router.push(`/admin/kanban/${task.id}`);
+      router.push(`/portail-cfc/kanban/${task.id}`);
     }
   };
 
@@ -142,7 +142,7 @@ export function TaskCard({
                   if (onCardClick) {
                     onCardClick(task);
                   } else {
-                    router.push(`/admin/kanban/${task.id}`);
+                    router.push(`/portail-cfc/kanban/${task.id}`);
                   }
                 }}
               >
@@ -151,7 +151,7 @@ export function TaskCard({
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="gap-2 text-xs font-medium cursor-pointer"
-                onClick={() => router.push(`/admin/kanban/${task.id}`)}
+                onClick={() => router.push(`/portail-cfc/kanban/${task.id}`)}
               >
                 <FileText className="size-3.5 text-muted-foreground" />
                 Fiche complète (Page dédiée)
@@ -159,7 +159,7 @@ export function TaskCard({
               {task.clientId ? (
                 <DropdownMenuItem
                   className="gap-2 text-xs cursor-pointer"
-                  onClick={() => router.push(`/admin/clients/${task.clientId}`)}
+                  onClick={() => router.push(`/portail-cfc/clients/${task.clientId}`)}
                 >
                   <User className="size-3.5 text-muted-foreground" />
                   Voir la fiche emprunteur
