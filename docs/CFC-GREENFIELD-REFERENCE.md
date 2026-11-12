@@ -1682,6 +1682,11 @@ Four read-only sweeps over the two repositories (entities & workflows · routes,
 
 ## PART 12 — IMPLEMENTATION STATUS (2026-11-11)
 
+> **Partially superseded by Part 14 (2026-11-12).** Part 12 predates the two
+> portals, the removal of the public vitrine, the working document deposit and
+> the business-event signalling. Where the two disagree, **Part 14 wins**.
+> Part 12 remains true for what it does not cover.
+
 Part 0–11 describe the **target**. This part records what has **actually been built and verified** on the `cfc-housing-portal` repository. Where Part 1 describes the pre-refactor state, this part supersedes it.
 
 ### 12.1 What was implemented
@@ -1845,5 +1850,529 @@ back-office, le portail et le reporting.
 
 ---
 
-*End of document. Part 13 records the alignment on the official cartography;
-Part 12 records the implementation state; Parts 0–11 remain the target.*
+## PART 14 — DEUX PORTAILS, DÉPÔT RÉEL ET SIGNALISATION (2026-11-12)
+
+Cette partie **supersède la partie 12** sur tous les points qu'elle couvre : les
+deux portails, la vitrine publique retirée, le dépôt documentaire, les
+notifications et le fil de support n'existaient pas à la date de la partie 12.
+La partie 12 reste vraie pour ce qu'elle ne traite pas (structure du domaine,
+RLS, cartographie).
+
+### 14.1 Les deux portails
+
+| | Portail client | Portail CFC |
+|---|---|---|
+| **Porte** | `/login` (e-mail + mot de passe **ou** lien magique) | `/portail-cfc/login` (**mot de passe seul**) |
+| **Racine** | `/portail-client` | `/portail-cfc` → redirection **307** vers l'écran du pôle |
+| **Écran d'atterrissage** | `/portail-client` | déduit du rôle réel (`public.staff_assignments`), jamais codé en dur |
+
+- **Plus de vitrine publique.** `/` répond **307 → `/login`** ; `/accueil`
+  répond **404** (la page et ses composants `showcase/**` ont été supprimés).
+- Les routes ont été renommées : `src/app/admin/**` → `src/app/portail-cfc/**`
+  (85 fichiers), `src/app/portal/**` → `src/app/portail-client/**`,
+  `src/components/admin/**` → `src/components/portail-cfc/**`,
+  `src/components/portal/**` → `src/components/portail-client/**`.
+
+### 14.2 Le dépôt documentaire — cause racine du blocage « 42P10 »
+
+Le dépôt échouait sur **toute** écriture, y compris sur un seau neuf sans
+politique RLS. Ce n'était ni notre RLS, ni nos politiques, ni la danse des
+URLs signées : c'était un **décalage de version entre l'image de l'API Storage
+et le schéma de la base**.
+
+| | Version | Migrations `storage` embarquées |
+|---|---|---|
+| Image **exécutée** | `supabase/storage-api:v1.72.1` | 1 → 67 |
+| Schéma **de la base** | migration 79 (`lifecycle-writer-coordination`) | 1 → 79 |
+
+La migration `0072-drop-bucketid-objname-index` a supprimé l'index unique
+`(bucket_id, name)` ; les index d'unicité restants sont **partiels**
+(`idx_objects_current_version`, `idx_objects_null_version`). Or `v1.72.1`
+écrit toujours :
+
+```sql
+INSERT INTO storage.objects (...) ON CONFLICT (name, bucket_id) DO UPDATE ...
+```
+
+Cette forme n'infère plus aucun index → PostgreSQL répond **42P10**. La
+version `v1.89.13` teste la présence de la migration
+`objects-current-version-index` et choisit alors
+`ON CONFLICT (bucket_id, name COLLATE "C") WHERE archived_at IS NULL`, qui
+s'infère.
+
+**Correctif** : `supabase/config.toml` épingle désormais l'image —
+
+```toml
+[storage]
+image = "public.ecr.aws/supabase/storage-api:v1.89.13"
+```
+
+**Image et schéma doivent rester alignés** : c'est le conteneur qui migre la
+base, donc c'est lui qui décide de la version du schéma. Un `supabase db reset`
+appliqué par une image plus ancienne que le schéma laisse la base en avance ;
+un `supabase db reset` avec une image plus récente que le schéma la laisse en
+retard.
+
+Second correctif, dans l'application : la verb du dépôt signé. Le client
+officiel (`storage-js`, `uploadToSignedUrl`) fait un **PUT** sur l'URI de
+signature ; un `POST` renvoie la *description* de la signature et n'écrit
+rien. `src/components/upload/document-uploader.tsx` est revenu à `PUT`.
+
+### 14.3 La signalisation des événements métier
+
+Un événement important produit **deux** signaux : une notification in-app
+(`public.notifications`) et un courriel. Le module
+`src/server/notifications/notify.ts` en est le **seul** propriétaire :
+
+- `DOMAIN_EVENT_NOTIFICATIONS` — le catalogue : type de notification et titre
+  affichés, par type d'événement ;
+- `notify()` — l'écriture de la ligne (rôle de service) ;
+- `notifyBusinessEvent()` — le dispatch : résout le destinataire, écrit la
+  notification, déclenche le courriel ;
+- `handleBusinessEventEnvelope()` — la lecture des enveloppes du relais base.
+
+Le relais HTTP est passé de `/api/email/dispatch` à **`/api/events/dispatch`** :
+il ne dispatche plus un e-mail, il dispatche un **fait métier**. L'URL est
+toujours celle de `ref.email_settings.dispatch_url` (désactivée par défaut).
+
+Événements câblés : **décision KYC** (l'emprunteur), **dépôt d'une pièce** (le
+conseiller du dossier), **message de support** (l'interlocuteur).
+
+### 14.4 Défauts trouvés et corrigés en chemin
+
+| Défaut | Cause | Correctif |
+|---|---|---|
+| La décision KYC échouait toujours | insertion directe dans `dossier_events`, qui est en **ajout seul** sous RLS forcé : aucune politique d'insertion, seule la fonction `security definer` écrit | passage par `public.append_dossier_event`, qui contrôle l'habilitation de l'agent sur le dossier |
+| `/portail-cfc/login` en **boucle de redirection** | le middleware renvoyait toute route `/portail-cfc/**` vers la porte agent, y compris la porte elle-même | la porte est exclue du renvoi |
+| `/portail-cfc` renvoyait un **200 + rafraîchissement** | `redirect()` dans la page, alors que le gabarit de la console était déjà envoyé | redirection **307** posée dans le middleware |
+| La checklist affichait des états bruts | `status` casté sans normalisation (`awaiting_upload` hors énumération) | `checklistStatusFor()` dans le domaine |
+| Deux vocabulaires de phases et d'événements | `PHASE_LABELS` dupliqué dans la couche serveur | le domaine (`src/domain/entities/processes.ts`) est le seul propriétaire |
+| Un événement s'appelait autrement selon l'écran | la notification avait son propre titre, la chronologie le sien | un seul libellé par fait métier, dans le domaine ; la cloche et la chronologie l'emploient |
+| Le composant client importait la couche serveur | contournement de la règle ESLint par un import relatif | les types passent par `@/domain/entities/services` |
+| L'emprunteur de démonstration n'avait **aucun dossier** | le script de provisionnement créait les comptes, pas les dossiers | `scripts/seed-dev-users.mjs` ouvre un dossier par emprunteur, avec son conseiller, sa phase et sa chronologie |
+
+### 14.5 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **229 passés** (18 fichiers) |
+| `CFC_E2E=1 vitest run src/server/storage/e2e.local.test.ts` | 5 passés — dépôt réel, chaînage de versions, substitution refusée, intrusion refusée |
+| `CFC_E2E=1 vitest run src/server/notifications/e2e.local.test.ts` | 3 passés — décision KYC notifiée et journalisée, pièce notifiée au conseiller, événement hors catalogue ignoré |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **23/23** — portes, garde d'accès, atterrissages de rôle, file KYC, catalogue, page agent |
+| `supabase db reset --local` | 20 migrations + seed appliqués |
+| `supabase migration list` (projet `yyqfqsmsfaccsstwlpog`) | **19/19** — local et hébergé alignés |
+| Rendu authentifié (session réelle) | portail client : phase, chronologie, complétude, fil de support et cloche présents ; console CFC : cloche, filtres, tableau CRM, export — **16/16** |
+
+### 14.6 Ce qui n'a pas été vérifié
+
+- **L'apparence des portails authentifiés** n'a pas été revue à l'écran : la
+  connexion dans le Browser n'a pas abouti, et je n'inscris jamais de mot de
+  passe moi-même. Ce qui est vérifié, c'est le **rendu** : le HTML rendu par
+  le serveur avec une session réelle contient bien la phase, la chronologie,
+  la checklist, le fil de support et la cloche des deux côtés.
+- Les pages publiques (`/login`, `/portail-cfc/login`) ont été vues à l'écran.
+
+### 14.7 Ce qui reste ouvert
+
+Inchangé sur l'essentiel de la partie 12.3, plus :
+
+1. **Les écrans par pôle restent adossés à des tableaux statiques** (risques,
+   comités, notariat, déblocages, recouvrement) : le câblage existe, il doit
+   être rempli pôle par pôle.
+2. **Le coffre local dépend d'une image épinglée.** Un `supabase start` avec
+   une pile plus récente réintroduirait le décalage : vérifier
+   `supabase/config.toml` avant toute remise à jour de la CLI.
+3. **Le relais base → application est désactivé par défaut** : sans
+   `ref.email_settings.is_enabled`, seuls les événements produits par une
+   action serveur notifient l'acteur.
+4. **`/tracking` expose encore des PII** par CNI / téléphone / nom (§3.6.6) —
+   l'item le plus sérieux qui reste.
+5. **Aucune CI** : `typecheck` / `lint` / `test` / `build` / `smoke` sont
+   scriptables mais ne sont pas câblés à une chaîne d'intégration.
+
+---
+
+---
+
+## PART 15 — ESPACE CITOYEN, MESSAGERIE ET ISOLEMENT DES RÔLES (2026-11-12)
+
+Cette partie décrit l'état de l'application après la refonte de l'espace
+citoyen, la messagerie et le cloisonnement des rôles. Elle **supersède la
+partie 14** sur ces points.
+
+### 15.1 L'espace citoyen n'est plus une liste
+
+| Écran | Ce qu'il est |
+|---|---|
+| `/portail-client` | **Tableau de bord** : bandeau d'indicateurs (avancement, complétude des pièces, épargne constituée, échéance) et trois graphiques (anneau des pièces par état, barres des pièces obligatoires par étape, activité des événements par mois) |
+| `/tracking` | **Suivi indexé** du parcours : les étapes du circuit (`CRD-01`…`CRD-13`, `GAR-01`) avec leur état — franchie, en cours, à venir — et les pièces encore dues |
+| `/portail-client/profil` | **Profil** : identité, dossier, préférences d'affichage, déconnexion |
+| `/simulator` | Simulateur d'épargne, accessible depuis l'en-tête de l'espace citoyen |
+
+L'en-tête de l'espace citoyen porte les trois parcours (Mon dossier,
+Simulateur, Suivi DUC), la cloche de notifications et le menu d'identité.
+C'est le **même** menu d'identité et la **même** cloche que dans la console
+CFC (`src/components/layout/user-menu.tsx`) : un seul chemin vers son compte,
+dans les deux portails.
+
+`/tracking` n'interroge plus de données fictives et n'affiche plus de CNI, de
+téléphone ni de nom : il ne montre que **le dossier du visiteur**, à travers
+`getCitizenTracking()`.
+
+### 15.2 L'indexation du parcours
+
+`src/domain/workflows/tracking.ts` est le propriétaire de l'indexation : il
+combine la phase courante du dossier et les événements de son journal pour
+étatiser chaque étape. Le principe retenu : **le journal l'emporte sur
+l'ordre théorique** — un dossier peut sauter une phase, l'événement
+atteste.
+
+### 15.3 La messagerie
+
+Le fil de support est une conversation **indexée par dossier**. Un message
+peut porter un texte, une **pièce jointe** (image ou document, 10 Mo), une
+**réponse** à un message précis et un **ancrage** dans le parcours (étape du
+circuit ou pièce du dossier).
+
+- Bulles de type messagerie instantanée : réponse citée, aperçu d'image,
+  pastille de fichier, horodatage.
+- Sélecteur d'émojis (palette courte, dans la `Popover` du kit).
+- Dépôt par **URL signée** : les octets ne transitent jamais par le serveur.
+- La pièce jointe est servie par une **URL signée** à durée courte : le
+  coffre `support-attachments` est privé.
+- Le fil est cloisonné par le **périmètre** du dossier, pas par le seul rôle.
+
+L'agent dispose d'une **file de support** (`/portail-cfc/support`) : la liste
+des conversations de son périmètre et la conversation ouverte.
+
+#### Deux défauts du fil, corrigés
+
+- **La réponse citée ne s'affichait pas.** Le message chargé depuis la base
+  portait `reply_to_id`, mais l'aperçu cité n'était jamais résolu : la bulle
+  ne montrait donc aucun bloc de citation. L'aperçu est désormais **résolu
+  depuis le fil** au moment du rendu (`withResolvedReplies`) — jamais stocké
+  deux fois. Un message reçu par diffusion et un message relu depuis la base
+  sont traités de la même façon.
+- **Répondre à un message à l'instant était refusé** par la clé étrangère
+  `reply_to_id` : le message visé portait un identifiant **optimiste**,
+  inconnu de la base. Le fil **écrit avant de diffuser** — l'identifiant
+  diffusé est donc celui de la base, et une réponse peut le viser des deux
+  côtés. Quand la réponse vise un message dont l'écriture est en cours,
+  l'identifiant stocké est **attendu** avant l'insertion.
+
+Ces deux points sont couverts par des tests : `src/components/support/support-chat.test.tsx`
+(citation rendue) et `src/hooks/use-realtime-chat.test.tsx` (identifiant
+diffusé).
+
+#### L'indexation, câblée de bout en bout
+
+L'ancrage n'est pas une colonne décorative : il relie la conversation au
+parcours.
+
+- Le **suivi** propose, sur chaque étape, une action « Discuter » qui ouvre
+  la conversation **sur cette étape** (`/portail-client?etape=CRD-07`).
+- La **liste des pièces** propose la même chose pour une pièce déjà
+  déposée (`/portail-client?piece=<id>`) : c'est la seule qui a une
+  identité dans le dossier, et donc une conversation qui peut y être
+  rattachée.
+- L'espace citoyen affiche l'ancrage au-dessus du fil, et **chaque message
+  écrit** porte le sien : `step_code` ou `document_id`.
+- La file de support de l'agent affiche l'étape de la conversation, et
+  l'agent y répond **sur le même ancrage**.
+
+À défaut de contexte, l'ancrage est l'**étape en cours** du parcours
+(`currentStepOf`).
+
+### 15.4 L'isolement des rôles — un défaut fermé
+
+La navigation était filtrée par rôle, mais **la route n'était pas
+contrôlée** : n'importe quel utilisateur authentifié — y compris un
+emprunteur — obtenait un `200` sur tous les écrans de la console CFC.
+
+Le contrôle est désormais posé dans le **middleware**, avant tout rendu, et
+il est **fermé par défaut** :
+
+- `src/config/rbac/route-access.ts` déduit les rôles autorisés sur chaque
+  route **de la navigation elle-même** : ce qu'un agent voit dans le menu est
+  exactement ce qu'il peut ouvrir. Une route de console qu'aucun rôle ne
+  porte est refusée.
+- Un emprunteur qui ouvre la console est renvoyé vers son portail.
+- Un agent dont le rôle ne porte pas l'écran demandé reçoit un refus
+  explicite (`/portail-cfc/acces-refuse`), qui explique le refus.
+
+La matrice complète est vérifiée par `scripts/smoke.mjs` (rôles × écrans) et
+par `src/config/rbac/route-access.test.ts`.
+
+### 15.5 Structure et code mort
+
+- **Un seul propriétaire par concept** : le vocabulaire des phases et des
+  événements est dans le domaine (`src/domain/entities/processes.ts`), les
+  règles des pièces jointes dans `src/server/support/attachments.ts`, le
+  libellé d'un fait métier est partagé par la chronologie et la notification.
+- Les doublons retirés : `Field` local de l'éditeur de catalogue (le
+  primitive du kit est désormais utilisé), `STAGES` local (le catalogue du
+  domaine fait autorité).
+- Fichiers supprimés, sans importeur : `components/ui/asset/**` (7),
+  `components/ui/slider.tsx`, `components/ui/video.tsx`,
+  `components/_common/sparkline.tsx`,
+  `portail-cfc/clients/_components/client-creation-dialog.tsx`, et les cinq
+  composants de la page `/tracking` devenue réelle.
+- Un audit d'imports automatisé ne trouve plus **aucun** fichier source sans
+  importeur, hors les conventions de routage de Next.js.
+
+### 15.6 L'isolation des suites de bout en bout
+
+Les trois suites e2e partageaient **le même emprunteur** et la même base. Une
+action qui résout « le dossier de l'emprunteur » — la décision KYC, par
+exemple — pouvait donc journaliser sur le dossier d'une autre suite, et
+l'échec n'apparaissait qu'une fois sur trois ou quatre. Chaque suite a
+désormais son **propre compte** (`src/server/testing/e2e-accounts.ts`) :
+l'isolation est un fait du test, pas une hypothèse.
+
+### 15.7 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **254 tests** passés (20 fichiers) |
+| `CFC_E2E=1 vitest run` (3 fichiers e2e) | **14 tests** passés — dépôt DUC, notifications, fil de support (pièce jointe, réponse, ancrage) ; **8 exécutions consécutives sans échec** |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **53/53** — dont la matrice des rôles × écrans, le parcours citoyen et l'indexation des messages |
+| `supabase migration list` (hébergé) | **20/20** — local et hébergé alignés |
+
+### 15.8 Ce qui reste ouvert
+
+1. **L'apparence des écrans authentifiés** n'a pas été revue à l'écran : la
+   connexion dans le Browser n'a pas abouti. Ce qui est vérifié, c'est le
+   **rendu** : le HTML produit par le serveur avec une session réelle.
+2. Les écrans par pôle de la console CFC restent adossés à des données
+   statiques (la file de support, elle, est réelle).
+3. **`/verify/[code]`** garde un certificat de démonstration qui porte un
+   faux CNI : c'est l'empreinte du sceau, pas une page de suivi.
+4. `/tracking` ne propose plus de recherche par identifiant : la recherche
+   publique d'un dossier par CNI ou téléphone reste à décider (elle
+   exposerait des données personnelles).
+5. Le **filtrage** de la file de support par étape ou par pièce n'est pas
+   encore dans l'interface : l'ancrage est affiché, pas filtrable.
+
+---
+
+---
+
+## PART 16 — NAVIGATION, INTÉGRITÉ DES DONNÉES (2026-11-12)
+
+Cette partie décrit la correction du **parcours** affiché et la mise en
+cohérence des **données** avec le workflow déclaré. Elle supersède les points
+concernés des parties 14 et 15.
+
+### 16.1 La navigation suit le parcours réel
+
+L'en-tête public n'annonce plus que ce qui est **ouvert à tous**.
+
+| Ce qui est proposé | Où | Pourquoi |
+|---|---|---|
+| Simulateur d'épargne | en-tête public | seul service ouvert à tous |
+| Espace Agent CFC | lien discret en-tête **et** pied de page | l'agent a sa porte ; un agent n'est pas un visiteur du site public |
+| Se connecter | en-tête public | la porte de l'emprunteur |
+| Mon dossier · Simulateur · Suivi DUC | en-tête de l'espace **authentifié** | ces écrans ne montrent que les données du visiteur |
+| Onboarding | **après l'inscription** | l'ouverture du dossier unique client est l'étape qui suit la création du compte |
+
+Un emprunteur qui n'a pas encore de dossier est **conduit directement** vers
+l'onboarding : le tableau de bord ne s'affiche jamais vide.
+
+### 16.2 Les valeurs dérivées sont tenues par la base
+
+Trois colonnes du dossier sont des **conséquences** de l'état réel des
+pièces et de l'épargne. Aucune action applicative ne les écrivait : elles
+restaient à leur valeur par défaut et **contredisaient les graphiques
+affichés sur le même écran** (un « avancement » à 20 % alors que le donut
+annonçait 0/12).
+
+La migration 021 installe :
+
+- `private.refresh_dossier_progress()` — recalcule l'avancement (part du
+  référentiel **obligatoire** satisfaite) et la part d'épargne ;
+- un déclencheur sur `dossier_documents` (dépôt, validation, retrait) et un
+  autre sur `dossiers` ;
+- `dossiers_status_check` — l'état du dossier devient un vocabulaire **fermé**
+  (`open`, `on_hold`, `closed`), validé après coup.
+
+Le garde-fou des champs (un citoyen ne modifie ni le taux ni l'avancement de
+son dossier) distingue désormais l'écriture du citoyen de la **mise à jour
+système** : la transaction est marquée par le drapeau local
+`app.system_update`. Sans cette distinction, la tenue de l'avancement
+refusait le dépôt lui-même.
+
+### 16.3 Les données de démonstration dérivent des règles
+
+Les dossiers de démonstration ne décrivent plus que leurs **entrées** — coût
+du projet, apport, durée d'épargne, revenu, taux, versements effectués. Le
+montant du prêt, l'échéance, le taux d'endettement et la part d'épargne sont
+**calculés par le domaine** (`calculateHousingPlan`). Un scenario ne peut
+donc plus afficher une mensualité que la plateforme ne produirait pas.
+
+La cohérence du scénario suit le parcours : neuf versements pour un dossier
+encore en phase d'épargne (le droit acquis exige douze mois), quarante-huit
+pour un dossier qui l'a franchie.
+
+### 16.4 Un état français, et des comptes qui disent la vérité
+
+- L'état du dossier est affiché **en français** (`open` → « En cours ») ;
+  le code brut reste visible s'il sort du vocabulaire, pour qu'un défaut de
+  données se voie au lieu de se masquer.
+- Le rôle qui a produit un événement est affiché **en français**
+  (« Emprunteur », « Guichetier ») et non par son code.
+- La checklist distingue l'**obligatoire** du facultatif : elle dit
+  « 3 pièce(s) obligatoire(s) sur 8 » et « 4 pièce(s) facultative(s) », au
+  lieu de « 3 sur 12 attendues » — un compte qui exagérait l'effort.
+
+### 16.5 Code mort retiré
+
+La page du portail portait une branche « visiteur anonyme » et une branche
+« configuration absente » **inatteignables** : la coquille (`layout.tsx`)
+les traite déjà. Elles sont retirées, avec leurs imports.
+
+### 16.6 Vérifié
+
+> Comptes relevés au moment de la rédaction de cette partie ; la **partie 17**
+> porte les comptes suivants.
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **254 tests** passés (20 fichiers) |
+| `CFC_E2E=1 vitest run` (3 fichiers e2e) | **14 tests** passés — dont l'avancement tenu par la base |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **56/56** — dont les règles de navigation publique |
+| `supabase db reset --local` | 21 migrations + seed appliqués |
+| `supabase migration list` (hébergé) | **21/21** — local et hébergé alignés |
+| Navigateur | en-tête public vérifié à l'écran ; console **0 erreur, 0 avertissement** |
+
+### 16.7 Ce qui reste ouvert
+
+1. **L'apparence des écrans authentifiés** n'a pas été revue à l'écran : la
+   connexion dans le Browser n'aboutit pas. Ce qui est vérifié, c'est le
+   **rendu** produit par le serveur avec une session réelle.
+2. Les écrans par pôle de la console CFC restent adossés à des données
+   statiques.
+3. `/verify/[code]` garde un certificat de démonstration portant un faux
+   CNI : c'est l'empreinte du sceau, pas une page de suivi.
+4. La recherche publique d'un dossier par identifiant a été **retirée** : elle
+   exposait des données personnelles. Une recherche par **code DUC** et un
+   mot de passe reste à décider.
+
+---
+
+## PART 17 — LA FAQ, LES ÉCHECS AFFICHÉS, LA MESSAGERIE PROUVÉE (2026-11-12)
+
+### 17.1 La FAQ publique
+
+`src/domain/entities/faq.ts` porte **13 questions** réparties en **5 groupes**
+(le prêt, l'épargne habitat, les pièces, le suivi, le dataspace). La page
+`/faq` les rend en accordéon, sans JavaScript obligatoire, et l'en-tête public
+l'expose en onglet à côté du simulateur.
+
+Le FAQ est **une entité du domaine**, pas une page : son contenu est donc
+testable et réutilisable, et il ne dépend d'aucune donnée de session.
+
+### 17.2 Un échec ne doit jamais ressembler à une absence
+
+Le principe est désormais tenu par **un seul composant**,
+`src/components/ui/error-state.tsx` : `role="alert"`, le refus, la cause quand
+elle est connue, et l'action de reprise.
+
+Il est branché sur :
+
+- la **cloche de notifications** — un chargement, un marquage lu, un
+  « tout marquer comme lu » qui échoue ne s'affichent jamais comme une boîte
+  vide ;
+- le **fil de support** — une conversation illisible ne ressemble pas à une
+  conversation vide ;
+- la **messagerie temps réel** — un envoi refusé laisse le texte et la pièce
+  jointe au composeur, et un bandeau le dit ; rien n'est diffusé à
+  l'interlocuteur.
+
+### 17.3 Le blocage `scrollTo` sous jsdom
+
+`use-chat-scroll` appelait `container.scrollTo(...)`. jsdom n'implémente pas
+cette méthode : l'effet levait une `TypeError`, le composant de chat ne se
+montrait pas, et les trois tests du fil échouaient. La correction est à deux
+niveaux, parce que ce sont deux défauts distincts : une **garde défensive** dans
+le hook (il doit être correct dans tout environnement, pas seulement sous
+test) et une **doublure** `Element.prototype.scrollTo` dans `vitest.setup.ts`,
+dans le même esprit que la doublure `scrollIntoView` existante.
+
+### 17.4 La réponse citée, prouvée
+
+La réponse à un message précis est un bloc cité dans la bulle. Deux
+comportements meritaient une preuve, et n'avaient que des tests absents :
+
+| Comportement | Preuve |
+|---|---|
+| Le bloc cité s'affiche pour un message **déjà enregistré** | `support-chat.test.tsx` — l'auteur et le texte du message cité apparaissent deux fois : dans la bulle d'origine, et dans la citation |
+| Une réponse à un message **qui part à l'instant** est enregistrée sous son identifiant **réel** | `support-chat.test.tsx` — l'identifiant optimiste n'existe pas en base ; le test attend l'identifiant stocké, sinon la clé étrangère `reply_to_id` refuse l'écriture |
+
+Les deux portails partagent le même composant (`SupportChat`), donc la preuve
+vaut pour l'espace citoyen **et** pour la file de support de la console.
+
+### 17.5 La décision KYC ne peut plus être appliquée sans trace
+
+`advanceKycAction` applique la décision au dossier citoyen et la journalise
+dans `public.dossier_events`. Deux défauts ont été fermés :
+
+1. **Une absence silencieuse.** Quand aucun dossier n'était trouvé, l'événement
+   était ignoré : la décision s'appliquait, l'emprunteur était notifié, et
+   **aucune trace** n'était écrite. Le résultat porte désormais `journaled`,
+   et la file de validation affiche l'avertissement au lieu d'un succès.
+2. **Une cible implicite.** Le dossier visé était déduit de l'emprunteur par
+   « le plus récent » — un critère qui dépend d'une égalité de date de
+   création. L'appelant peut maintenant **nommer** le dossier, et la déduction
+   départage à égalité par l'identifiant.
+
+La suite de bout en bout nomme son dossier : la décision est journalisée sur
+celui-là, pas sur celui que le hasard désignerait.
+
+### 17.6 L'isolation des suites de bout en bout
+
+La suite de dépôt s'identifiait avec un **emprunteur de démonstration** et lui
+créait un dossier témoin. Une assertion en échec laissait ce dossier derrière
+elle, dans les données de démonstration. Elle utilise maintenant un **compte de
+test** dédié (`e2e.cloisonnement@cfc.cm`) et un nettoyage garanti par `finally`.
+
+### 17.7 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **257 tests** passés (20 fichiers), 14 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (3 fichiers e2e) | **14 tests** passés — **5 exécutions consécutives** sans échec |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **58/58** — dont la FAQ, le profil et le suivi des étapes |
+
+### 17.8 Ce qui reste ouvert
+
+1. **L'apparence des écrans authentifiés** reste non revue à l'écran, pour la
+   même raison qu'en 16.7 : la connexion dans le Browser n'aboutit pas.
+2. Les écrans par pôle de la console CFC restent adossés à des données
+   statiques.
+3. `/verify/[code]` garde un certificat de démonstration portant un faux CNI.
+4. La recherche publique par **code DUC** et mot de passe reste à décider.
+5. Le chantier de **cohérence de l'interface** — moteur de table partagé,
+   drawer de suivi interactif, couche de toasts, en-tête paramétré par le
+   rôle — est spécifié dans
+   `docs/superpowers/specs/2026-11-12-portal-ui-conformance-design.md` et
+   n'est pas encore implémenté.
+
+---
+
+*End of document. Part 17 records the FAQ, the surfacing of failures, the
+proven messaging and the traced KYC decision; Part 16 the navigation and the
+data integrity; Part 15 the citizen space, the messaging and the role
+isolation; Part 14 the two portals and the working document deposit; Part 13
+the alignment on the official cartography; Parts 0–11 remain the target.*
