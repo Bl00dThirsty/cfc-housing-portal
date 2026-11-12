@@ -46,7 +46,7 @@ export default function VerifyCertificatePage() {
             </div>
           </div>
 
-          <Link href="/portal">
+          <Link href="/portail-client">
             <Button variant="outline" size="sm" className="h-8 text-xs font-medium">
               Portail Citoyen
             </Button>

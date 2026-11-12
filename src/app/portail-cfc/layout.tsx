@@ -25,7 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   if (profile.role === "CITIZEN") {
-    redirect("/portal");
+    redirect("/portail-client");
   }
 
   return (

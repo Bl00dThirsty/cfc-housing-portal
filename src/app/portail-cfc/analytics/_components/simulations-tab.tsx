@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Search, Download, MoreHorizontal, ArrowRight, FileText } from "lucide-react";
-import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
+import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -273,7 +273,7 @@ export function SimulationsTab() {
                 <TableRow
                   key={item.id}
                   className="hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/admin/analytics/simulations/${item.id}`)}
+                  onClick={() => router.push(`/portail-cfc/analytics/simulations/${item.id}`)}
                 >
                   <TableCell className="px-3 py-2.5">
                     <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
@@ -319,11 +319,11 @@ export function SimulationsTab() {
                       <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
                         <DropdownMenuLabel className="text-xs font-semibold">Actions Simulation</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/simulations/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/simulations/${item.id}`)} className="cursor-pointer text-xs">
                           <FileText className="size-3.5 mr-2 text-muted-foreground" />
                           Consulter la fiche détaillée
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push("/admin/actors/agency")} className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        <DropdownMenuItem onClick={() => router.push("/portail-cfc/actors/agency")} className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                           <ArrowRight className="size-3.5 mr-2" />
                           Convertir en Dossier Unique Client (DUC)
                         </DropdownMenuItem>

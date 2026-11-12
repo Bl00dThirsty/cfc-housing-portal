@@ -1,16 +1,29 @@
-import { Check, CircleDashed, Clock, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { Check, CircleDashed, Clock, MessageSquare, TriangleAlert } from "lucide-react";
 
 import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 // Import de types uniquement : effacé à la compilation, aucun lien d'exécution
 // avec la couche serveur (le contrat de la couture impose l'alias pour les
 // valeurs, pas pour les types).
-import type { ChecklistItem, ChecklistStatus } from "../../server/queries/dossiers";
+import type { ChecklistItem, ChecklistStatus } from "@/domain/entities/services";
 
 type DossierRequirementsProps = {
   checklist: ChecklistItem[];
-  uploadedCount: number;
+  /** Pièces **obligatoires** déjà déposées. */
+  uploadedRequiredCount: number;
+  /** Pièces **obligatoires** attendues. */
   requiredCount: number;
+  /** Pièces facultatives, ajoutées au référentiel mais non exigées. */
+  optionalCount: number;
+  /**
+   * Page de discussion, où la pièce est ciblée.
+   *
+   * Le lien n'est proposé que pour une pièce **déposée** : c'est la seule
+   * qui a une identité dans le dossier, et donc une conversation qui peut
+   * y être rattachée.
+   */
+  discussionPath?: string;
 };
 
 const STATUS_META: Record<
@@ -26,8 +39,10 @@ const STATUS_META: Record<
 
 export function DossierRequirements({
   checklist,
-  uploadedCount,
+  uploadedRequiredCount,
   requiredCount,
+  optionalCount,
+  discussionPath,
 }: DossierRequirementsProps) {
   if (checklist.length === 0) {
     return (
@@ -49,13 +64,18 @@ export function DossierRequirements({
             Complétude du dossier
           </span>
           <span className="text-sm font-medium text-foreground">
-            {uploadedCount} pièce(s) déposée(s) sur {checklist.length} attendues
+            {uploadedRequiredCount} pièce(s) obligatoire(s) sur {requiredCount}
           </span>
+          {optionalCount > 0 ? (
+            <span className="caption-style text-soft">
+              et {optionalCount} pièce(s) facultative(s)
+            </span>
+          ) : null}
         </div>
-        <Tag tone={uploadedCount >= requiredCount ? "green" : "amber"}>
-          {uploadedCount >= requiredCount
+        <Tag tone={uploadedRequiredCount >= requiredCount ? "green" : "amber"}>
+          {uploadedRequiredCount >= requiredCount
             ? "Dossier complet"
-            : `${requiredCount - uploadedCount} pièce(s) manquante(s)`}
+            : `${requiredCount - uploadedRequiredCount} pièce(s) manquante(s)`}
         </Tag>
       </div>
 
@@ -90,6 +110,16 @@ export function DossierRequirements({
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
+                {discussionPath && item.documentId ? (
+                  <Link
+                    href={`${discussionPath}?piece=${item.documentId}`}
+                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium text-cfc-brown underline-offset-2 transition-colors hover:bg-muted hover:underline"
+                    aria-label={`Discuter au sujet de ${item.label}`}
+                  >
+                    <MessageSquare className="size-3" aria-hidden />
+                    Discuter
+                  </Link>
+                ) : null}
                 {item.required && (
                   <Tag tone="neutral" size="sm">
                     Obligatoire

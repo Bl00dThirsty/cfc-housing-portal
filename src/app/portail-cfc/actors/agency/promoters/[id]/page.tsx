@@ -30,7 +30,7 @@ export default function PromoterDetailPage() {
       {/* Breadcrumbs */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Link
-          href="/admin/actors/agency/promoters"
+          href="/portail-cfc/actors/agency/promoters"
           className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
         >
           <ArrowLeft className="size-3.5" />
@@ -176,7 +176,7 @@ export default function PromoterDetailPage() {
               Les emprunteurs disposant d&apos;un DUC avec apport constitué de 15% ou 20% peuvent être positionnés directement sur les lots disponibles de ce programme.
             </p>
             <Button asChild className="w-full text-xs gap-1.5 mt-2">
-              <Link href="/admin/clients">
+              <Link href="/portail-cfc/clients">
                 Positionner un Emprunteur DUC
                 <ArrowRight className="size-3.5" />
               </Link>

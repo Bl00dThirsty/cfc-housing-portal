@@ -56,7 +56,7 @@ export default async function EmailTemplatesPage() {
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link href="/admin/settings/email/deliveries">Journal des envois</Link>
+          <Link href="/portail-cfc/settings/email/deliveries">Journal des envois</Link>
         </Button>
       </header>
 
@@ -78,7 +78,7 @@ export default async function EmailTemplatesPage() {
               <TableRow key={template.code}>
                 <TableCell>
                   <Link
-                    href={`/admin/settings/email/${template.code}`}
+                    href={`/portail-cfc/settings/email/${template.code}`}
                     className="font-mono text-[12px] font-medium text-primary underline-offset-2 hover:underline"
                   >
                     {template.code}

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Search, Download, MoreHorizontal, AlertTriangle, RefreshCw, FileText } from "lucide-react";
-import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
+import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -321,7 +321,7 @@ export function CanauxCollecteTab() {
                 <TableRow
                   key={item.id}
                   className="hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/admin/analytics/transactions/${item.id}`)}
+                  onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)}
                 >
                   <TableCell className="px-3 py-2.5">
                     <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
@@ -369,20 +369,20 @@ export function CanauxCollecteTab() {
                       <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
                         <DropdownMenuLabel className="text-xs font-semibold">Actions Transaction</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
                           <FileText className="size-3.5 mr-2 text-muted-foreground" />
                           Voir la preuve de règlement
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
                           <RefreshCw className="size-3.5 mr-2 text-muted-foreground" />
                           Forcer le rapprochement Carthago
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
                           <Download className="size-3.5 mr-2 text-muted-foreground" />
                           Télécharger le reçu fiscal (PDF)
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/admin/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs text-rose-600 dark:text-rose-400">
+                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs text-rose-600 dark:text-rose-400">
                           <AlertTriangle className="size-3.5 mr-2" />
                           Signaler un litige / anomalie
                         </DropdownMenuItem>

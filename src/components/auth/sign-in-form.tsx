@@ -6,7 +6,7 @@
  * Le CFC a **deux portes d'entrée distinctes** :
  *
  * - `/login` — l'emprunteur (Guichet Unique citoyen) ;
- * - `/admin/login` — l'agent CFC (console d'administration).
+ * - `/portail-cfc/login` — l'agent CFC (console d'administration).
  *
  * Elles partagent le même mécanisme (Supabase Auth) mais **pas** la même
  * audience, ni le même texte, ni les mêmes parcours autorisés : un agent se
@@ -49,7 +49,7 @@ const COPY = {
     ],
     allowMagicLink: true,
     switchLabel: "Vous êtes agent CFC ? Accéder à l'espace agent",
-    switchHref: "/admin/login",
+    switchHref: "/portail-cfc/login",
   },
   staff: {
     badge: "Crédit Foncier du Cameroun · Espace Agent",

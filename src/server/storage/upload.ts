@@ -28,7 +28,8 @@ import { hasCapability } from "@/domain/policies/permissions";
 import { isInScope, resolveScope } from "@/domain/policies/scope";
 import { getAdminClient } from "@/server/supabase/admin";
 import { createServerSupabaseClient } from "@/server/supabase/server";
-import { isValidChecksum } from "./checksum";
+import { notifyBusinessEvent } from "@/server/notifications/notify";
+import { checksumBlob, isValidChecksum } from "./checksum";
 import { buildStoragePath, STORAGE_BUCKET, storageFileName } from "./paths";
 import type {
   ConfirmUploadInput,
@@ -272,13 +273,19 @@ export async function requestSignedUpload(
 }
 
 /**
- * Vérifie que l'objet attendu est bien arrivé, et à la bonne taille.
+ * Vérifie que l'objet attendu est bien arrivé, à la bonne taille **et avec
+ * la bonne empreinte**.
  *
- * La vérification porte sur **la taille** : l'empreinte est calculée par le
- * navigateur et ne peut pas être recalculée sans relire les octets côté
- * serveur — ce que la chaîne exclut volontairement.
+ * L'empreinte annoncée par le navigateur n'est une preuve que si le serveur
+ * ne l'a pas recalculée sur les octets **reçus** : un fichier de même taille
+ * pourrait avoir été substitué. On la recalcule donc ici — l'objet est borné
+ * (20 Mo par les règles de dépôt), la relecture l'est donc aussi.
  */
-async function verifyStoredObject(storagePath: string, expectedSize: number): Promise<void> {
+async function verifyStoredObject(
+  storagePath: string,
+  expectedSize: number,
+  expectedChecksum: string,
+): Promise<void> {
   const admin = getAdminClient();
   const folder = storagePath.split("/").slice(0, -1).join("/");
   const name = storageFileName(storagePath);
@@ -298,6 +305,25 @@ async function verifyStoredObject(storagePath: string, expectedSize: number): Pr
     throw new StorageError(
       "upload_failed",
       `Taille du fichier incohérente (${size} octets reçus, ${expectedSize} annoncés).`,
+    );
+  }
+
+  const { data: blob, error: downloadError } = await admin.storage
+    .from(STORAGE_BUCKET)
+    .download(storagePath);
+
+  if (downloadError || !blob) {
+    throw new StorageError(
+      "upload_failed",
+      `Lecture de l'objet déposé impossible : ${downloadError?.message ?? "objet vide"}.`,
+    );
+  }
+
+  const actualChecksum = await checksumBlob(blob);
+  if (actualChecksum !== expectedChecksum) {
+    throw new StorageError(
+      "checksum_mismatch",
+      "Empreinte du fichier reçu différente de l'empreinte annoncée : le dépôt est rejeté.",
     );
   }
 }
@@ -323,6 +349,41 @@ function readObjectSize(object: {
   }
 
   return null;
+}
+
+/**
+ * Prévient le conseiller du dossier qu'une pièce vient d'être déposée.
+ *
+ * Le dépôt ne lève jamais : la pièce est enregistrée et journalisée, un
+ * échec de notification ne doit pas remettre en cause le dépôt.
+ */
+async function notifyDossierAgent(
+  dossierId: string,
+  filename: string,
+  actorId: string,
+): Promise<void> {
+  try {
+    const admin = getAdminClient();
+    const { data: dossier } = await admin
+      .from("dossiers")
+      .select("owner_user_id")
+      .eq("id", dossierId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    const agentId = (dossier as { owner_user_id: string | null } | null)?.owner_user_id ?? null;
+    if (!agentId || agentId === actorId) return;
+
+    await notifyBusinessEvent({
+      eventType: "DOCUMENT_UPLOADED",
+      dossierId,
+      recipientUserId: agentId,
+      body: filename,
+      actionUrl: "/portail-cfc/clients",
+    });
+  } catch (error) {
+    console.warn("[storage] notification du conseiller impossible :", error);
+  }
 }
 
 /**
@@ -372,7 +433,11 @@ export async function confirmUpload(
 
   // L'objet est vérifié **avant** la bascule : une pièce ne passe pas en
   // « uploaded » si le coffre ne l'a pas reçue.
-  await verifyStoredObject(document.storage_path, document.size_bytes);
+  await verifyStoredObject(
+    document.storage_path,
+    document.size_bytes,
+    document.checksum_sha256,
+  );
 
   if (document.status !== "uploaded") {
     const { error: updateError } = await supabase
@@ -451,6 +516,10 @@ export async function confirmUpload(
   if (eventError) {
     throw new StorageError("internal", `Journal de l'événement non écrit : ${eventError.message}`);
   }
+
+  // Le conseiller du dossier est prévenu : une pièce attend sa vérification.
+  // C'est l'agent qui doit agir, pas l'emprunteur qui vient de déposer.
+  await notifyDossierAgent(document.dossier_id, document.original_filename, actor.id);
 
   return {
     documentId: document.id,

@@ -39,7 +39,7 @@ const SAMPLE_VALUES: Record<string, string> = {
   duc: "CFC-2026-DUC-04829",
   reference: "DUC-2026-04829",
   date: "12 mars 2026",
-  lien: "https://cfc.cm/portal",
+  lien: "https://cfc.cm/portail-client",
   montant: "5 000 000 FCFA",
   taux: "6,5 %",
   echeance: "145 000 FCFA",

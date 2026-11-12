@@ -15,6 +15,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // `server-only` lève une erreur hors contexte serveur : c'est un
+      // garde-fou de bundler, sans garantie runtime. Les tests doivent
+      // pouvoir importer les modules serveur.
+      "server-only": path.resolve(__dirname, "./vitest.server-only-stub.ts"),
     },
   },
 });

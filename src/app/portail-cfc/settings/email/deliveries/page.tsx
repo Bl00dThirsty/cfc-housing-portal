@@ -29,7 +29,7 @@ export default async function EmailDeliveriesPage() {
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link href="/admin/settings/email">Catalogue des modèles</Link>
+          <Link href="/portail-cfc/settings/email">Catalogue des modèles</Link>
         </Button>
       </header>
 

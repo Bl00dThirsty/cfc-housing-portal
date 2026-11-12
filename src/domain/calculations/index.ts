@@ -1,4 +1,6 @@
-import { SimulationResult } from '@/domain/entities/types';
+// Import de type uniquement : effacé à la compilation, ce module reste
+// chargeable par un script Node sans outillage.
+import type { SimulationResult } from '@/domain/entities/types';
 
 /**
  * Calcule les composantes financières d'un plan Épargne Habitat et Crédit Foncier

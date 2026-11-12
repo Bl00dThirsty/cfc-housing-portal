@@ -29,7 +29,7 @@ export default function MomoTransactionDetailPage() {
       {/* Breadcrumbs */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Link
-          href="/admin/actors/agency/mobile-money"
+          href="/portail-cfc/actors/agency/mobile-money"
           className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
         >
           <ArrowLeft className="size-3.5" />
@@ -144,7 +144,7 @@ export default function MomoTransactionDetailPage() {
               Ce flux est indexé en temps réel dans le carnet d&apos;épargne du Dossier Unique Client (DUC) et crédite directement l&apos;apport personnel.
             </p>
             <Button asChild className="w-full text-xs gap-1.5 mt-2">
-              <Link href="/admin/clients/cl-1">
+              <Link href="/portail-cfc/clients/cl-1">
                 Accéder au DUC Emprunteur
                 <ArrowRight className="size-3.5" />
               </Link>

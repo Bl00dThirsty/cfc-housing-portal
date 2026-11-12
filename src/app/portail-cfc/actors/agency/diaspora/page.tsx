@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
-import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
+import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -263,12 +263,12 @@ export default function DiasporaPage() {
                 filtered.map((item) => (
                   <TableRow
                     key={item.id}
-                    onClick={() => router.push("/admin/clients/cl-8")}
+                    onClick={() => router.push("/portail-cfc/clients/cl-8")}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        router.push("/admin/clients/cl-8");
+                        router.push("/portail-cfc/clients/cl-8");
                       }
                     }}
                     tabIndex={0}
@@ -287,7 +287,7 @@ export default function DiasporaPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push("/admin/clients/cl-8");
+                            router.push("/portail-cfc/clients/cl-8");
                           }}
                           aria-label={`Ouvrir le dossier client de ${item.client}`}
                           className="text-left font-medium hover:underline text-xs text-foreground truncate"
@@ -326,7 +326,7 @@ export default function DiasporaPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push("/admin/clients/cl-8")}
+                        onClick={() => router.push("/portail-cfc/clients/cl-8")}
                         aria-label={`Ouvrir le dossier client de ${item.client}`}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >

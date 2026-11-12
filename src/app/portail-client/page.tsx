@@ -1,154 +1,217 @@
-import Link from "next/link";
-import { FolderKanban, FileText, ListChecks, LogIn } from "lucide-react";
+import { redirect } from "next/navigation";
+import { FileText, ListChecks, MessageSquare, Timer } from "lucide-react";
 
-import DucFileManager from "@/components/portal/duc-file-manager";
-import DocumentDropzone from "@/components/portal/document-dropzone";
-import { DossierRequirements } from "@/components/portal/dossier-requirements";
+import { DossierPhaseCard, DossierTimeline } from "@/components/portail-client/dossier-timeline";
+import { DossierRequirements } from "@/components/portail-client/dossier-requirements";
+import { CitizenDashboard } from "@/components/portail-client/dashboard/dashboard";
+import { buildDashboardModel } from "@/components/portail-client/dashboard/dashboard-model";
+import DucFileManager from "@/components/portail-client/duc-file-manager";
+import DocumentDropzone from "@/components/portail-client/document-dropzone";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { SupportChat } from "@/components/support/support-chat";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tag } from "@/components/ui/tag";
-import { getPublicEnv } from "@/server/env";
-import { getCitizenDossier } from "@/server/queries/dossiers";
+import { getCitizenSpace } from "@/server/queries/citizen-space";
 import { createServerSupabaseClient } from "@/server/supabase/server";
 
-const PHASE_LABELS: Record<string, string> = {
-  kyc_savings: "Épargne & KYC",
-  risk_bet: "Risques & BET",
-  committees: "Comités CGR/CRC",
-  notary_mortgage: "Notaire & Hypothèque",
-  disbursements: "Déblocages Travaux",
-  closing_release: "Clôture & Mainlevée",
-};
+export const dynamic = "force-dynamic";
 
-export default async function PortalPage() {
-  const configured = getPublicEnv() !== null;
+/**
+ * **Portail citoyen** — l'espace de l'emprunteur.
+ *
+ * Le client y voit : un **tableau de bord** (sa situation en quatre
+ * indicateurs et trois graphiques), l'état de son dossier, la
+ * **chronologie** de son avancement, les pièces qui lui sont encore
+ * demandées, ses conversations avec son conseiller et ses notifications.
+ */
+export default async function CitizenPortalPage({
+  searchParams,
+}: {
+  /** `etape` : code d'étape du circuit (`CRD-07`) ; `piece` : pièce visée. */
+  searchParams: Promise<{ etape?: string; piece?: string }>;
+}) {
+  // La session et la configuration sont déjà vérifiées par la coquille
+  // (`layout.tsx`) : un visiteur anonyme n'atteint jamais cette page.
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  let userId: string | null = null;
-  if (configured) {
-    const supabase = await createServerSupabaseClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    userId = user?.id ?? null;
+  if (!user) {
+    redirect("/login");
   }
 
-  const result = userId ? await getCitizenDossier(userId) : null;
-  const dossier = result && "dossier" in result ? result.dossier : null;
+  const [spaceResult, profileResult, params] = await Promise.all([
+    getCitizenSpace(user.id),
+    supabase
+      .from("citizen_profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .maybeSingle(),
+    searchParams,
+  ]);
 
-  if (!configured || !userId) {
+  if (!spaceResult.ok) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
-        <div className="flex flex-col items-start gap-4 rounded-lg border border-line-strong bg-card p-6">
-          <Badge variant="cfc">Guichet Unique Dématérialisé</Badge>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Votre dossier de prêt, en un seul endroit
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Connectez-vous pour déposer vos pièces, suivre l&apos;avancement de
-            votre dossier unique client et recevoir les demandes de
-            complements.
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="cfc" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/login">
-                <LogIn className="size-3.5" aria-hidden />
-                Se connecter
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs" asChild>
-              <Link href="/onboarding">
-                Commencer mon dossier
-              </Link>
-            </Button>
-          </div>
-        </div>
+      <div className="mx-auto max-w-2xl px-4 py-16">
+        <p className="text-sm text-destructive">
+          Espace citoyen illisible : {spaceResult.error}
+        </p>
       </div>
     );
   }
 
-  if (!dossier) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
-        <div className="flex flex-col items-start gap-4 rounded-lg border border-line-strong bg-card p-6">
-          <Badge variant="cfc">Guichet Unique Dématérialisé</Badge>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Vous n&apos;avez pas encore de dossier
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Choisissez le service auquel vous sollicitez un prêt, lengkap vos
-            informations et déposez vos pièces : votre dossier unique client
-            s&apos;ouvre en quatre étapes.
-          </p>
-          <Button variant="cfc" size="sm" className="gap-1.5 text-xs" asChild>
-            <Link href="/onboarding">Commencer mon dossier</Link>
-          </Button>
-        </div>
-      </div>
-    );
+  const space = spaceResult.space;
+  const displayName = (profileResult.data?.full_name as string | undefined) ?? user.email ?? "Emprunteur";
+
+  /**
+   * Pas encore de dossier : l'emprunteur vient d'ouvrir son compte.
+   *
+   * L'ouverture du dossier unique client est **l'étape qui suit
+   * l'inscription** : on y conduit directement, plutôt que d'afficher un
+   * tableau de bord vide. Le parcours est donc continu — inscription,
+   * dossier, dépôt des pièces — sans écran intermédiaire.
+   */
+  if (!space) {
+    redirect("/onboarding");
   }
 
-  const phaseLabel = dossier.currentPhase
-    ? (PHASE_LABELS[dossier.currentPhase] ?? dossier.currentPhase)
+  const roomName = `dossier:${space.dossierId}`;
+
+  /**
+   * Ancrage de la conversation.
+   *
+   * Le message n'est pas suspendu dans le vide : il porte l'**étape du
+   * circuit** ou la **pièce** dont on parle. L'ancrage vient du contexte —
+   * on arrive du suivi sur une étape, de la liste des pièces sur une pièce —
+   * et à défaut de l'étape en cours.
+   */
+  const requestedStep = params.etape
+    ? (space.steps.find((step) => step.code === params.etape) ?? null)
     : null;
 
+  const requestedDocument = params.piece
+    ? (space.checklist.find((item) => item.documentId === params.piece) ?? null)
+    : null;
+
+  const anchor = requestedDocument
+    ? { kind: "piece" as const, id: requestedDocument.documentId!, label: requestedDocument.label }
+    : requestedStep
+      ? { kind: "etape" as const, id: requestedStep.code, label: `${requestedStep.code} — ${requestedStep.label}` }
+      : space.currentStep
+        ? { kind: "etape" as const, id: space.currentStep.code, label: `${space.currentStep.code} — ${space.currentStep.label}` }
+        : null;
+
+  // Une seule lecture, un seul modèle : le tableau de bord reçoit des
+  // valeurs sérialisables, jamais un client Supabase.
+  const dashboard = buildDashboardModel({
+    completionPercent: space.completionPercent,
+    currentPhase: space.currentPhase,
+    checklist: space.checklist,
+    events: space.events,
+    finance: space.finance,
+  });
+
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-2xl space-y-2 text-center">
-        <div className="flex items-center justify-center gap-2">
-          <Badge variant="cfc">Guichet Unique Dématérialisé</Badge>
-          <Badge variant="success">Espace Citoyen</Badge>
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="cfc">Guichet Unique · Espace Citoyen</Badge>
+            <Tag tone="blue">{space.ducCode}</Tag>
+            {space.unreadNotifications > 0 && (
+              <Tag tone="amber">
+                {space.unreadNotifications} notification(s)
+              </Tag>
+            )}
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Bonjour {displayName.split(" ")[0]}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Suivez l&apos;avancement de votre dossier, déposez vos pièces et
+            échangez avec votre conseiller.
+          </p>
         </div>
-        <h1 className="text-3xl font-black tracking-tight text-slate-900">
-          Gestionnaire Documentaire DUC & Suivi de Prêt
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-500">
-          Consultez et complétez les pièces de votre Dossier Unique Client (DUC)
-          réparties en sous-dossiers thématiques et suivez l&apos;avancement en
-          temps réel.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-          <Tag tone="blue">{dossier.ducCode}</Tag>
-          {dossier.serviceLabel && <Tag tone="neutral">{dossier.serviceLabel}</Tag>}
-          {phaseLabel && <Tag tone="amber">{phaseLabel}</Tag>}
-          {dossier.completionPercent !== null && (
-            <Tag tone="teal">{dossier.completionPercent} %</Tag>
-          )}
-        </div>
-      </div>
+        <NotificationBell />
+      </header>
 
-      <Tabs defaultValue="requirements" className="w-full">
-        <div className="mb-6 flex justify-center">
-          <TabsList className="rounded-xl border border-slate-200 bg-slate-100 p-1">
-            <TabsTrigger value="requirements" className="gap-2 px-4 py-2 text-xs font-semibold">
-              <ListChecks className="size-4 text-[#7B2E15]" />
-              1. Mes pièces exigées
-            </TabsTrigger>
-            <TabsTrigger value="file-manager" className="gap-2 px-4 py-2 text-xs font-semibold">
-              <FileText className="size-4 text-[#7B2E15]" />
-              2. File Manager DUC (Sous-dossiers &amp; Pièces)
-            </TabsTrigger>
-            <TabsTrigger value="workflow-tracking" className="gap-2 px-4 py-2 text-xs font-semibold">
-              <FolderKanban className="size-4 text-amber-600" />
-              3. Circuit des 6 Phases &amp; Dépôt Guidé
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <CitizenDashboard model={dashboard} />
 
-        <TabsContent value="requirements">
+      <DossierPhaseCard
+        currentPhase={space.currentPhase}
+        completionPercent={space.completionPercent}
+        status={space.status}
+        serviceLabel={space.serviceLabel}
+      />
+
+      <Tabs defaultValue={anchor ? "messages" : "suivi"} className="w-full">
+        <TabsList className="flex w-full flex-wrap gap-1 border border-line-strong bg-muted/40 p-1">
+          <TabsTrigger value="suivi" className="gap-2 text-xs font-semibold">
+            <Timer className="size-3.5" aria-hidden />
+            Suivi du dossier
+          </TabsTrigger>
+          <TabsTrigger value="pieces" className="gap-2 text-xs font-semibold">
+            <ListChecks className="size-3.5" aria-hidden />
+            Mes pièces
+          </TabsTrigger>
+          <TabsTrigger value="messages" className="gap-2 text-xs font-semibold">
+            <MessageSquare className="size-3.5" aria-hidden />
+            Messages
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="suivi" className="mt-4 flex flex-col gap-4 focus-visible:outline-none">
+          <DossierTimeline events={space.events} />
           <DossierRequirements
-            checklist={dossier.checklist}
-            uploadedCount={dossier.uploadedCount}
-            requiredCount={dossier.requiredCount}
+            checklist={space.checklist}
+            uploadedRequiredCount={
+              space.checklist.filter(
+                (item) => item.required && item.status !== "missing",
+              ).length
+            }
+            requiredCount={space.checklist.filter((item) => item.required).length}
+            optionalCount={
+              space.checklist.filter((item) => !item.required).length
+            }
+            discussionPath="/portail-client"
           />
         </TabsContent>
 
-        <TabsContent value="file-manager">
-          <DucFileManager ducId={dossier.ducCode} />
+        <TabsContent value="pieces" className="mt-4 flex flex-col gap-4 focus-visible:outline-none">
+          <DucFileManager ducId={space.ducCode} />
+          <DocumentDropzone ducId={space.ducCode} />
         </TabsContent>
 
-        <TabsContent value="workflow-tracking">
-          <DocumentDropzone ducId={dossier.ducCode} />
+        <TabsContent value="messages" className="mt-4 focus-visible:outline-none">
+          <div className="overflow-hidden rounded-lg border border-line-strong bg-card">
+            <div className="flex items-center justify-between border-b border-line-strong px-4 py-3">
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-foreground">
+                  Mon conseiller
+                </span>
+                <span className="caption-style text-soft">
+                  Échanges enregistrés sur votre dossier {space.ducCode}
+                </span>
+                {anchor ? (
+                  <span
+                    data-anchor={anchor.kind}
+                    className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-cfc-lightgold px-2 py-0.5 text-[10.5px] font-medium text-cfc-brown"
+                  >
+                    {anchor.kind === "etape" ? "Étape" : "Pièce"} · {anchor.label}
+                  </span>
+                ) : null}
+              </div>
+              <FileText className="size-4 text-muted-foreground" aria-hidden />
+            </div>
+            <SupportChat
+              roomName={roomName}
+              dossierId={space.dossierId}
+              displayName={displayName}
+              anchor={anchor}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 /**
@@ -75,20 +76,29 @@ export function Popover({
   );
 }
 
-export type PopoverTriggerProps = React.ComponentProps<"button">;
+export type PopoverTriggerProps = React.ComponentProps<"button"> & {
+  /**
+   * Rend le déclencheur via `Slot` : le contrôleur peut être n'importe quel
+   * élément (un `Button` de l'application, par exemple) sans perdre la
+   * position, l'état ouvert et la gestion du clic.
+   */
+  asChild?: boolean;
+};
 
 export function PopoverTrigger({
   className,
   onClick,
   children,
+  asChild,
   ...props
 }: PopoverTriggerProps) {
   const { open, setOpen, triggerRef } = usePopoverContext("PopoverTrigger");
+  const Comp = asChild ? Slot : "button";
 
   return (
-    <button
+    <Comp
       ref={triggerRef}
-      type="button"
+      type={asChild ? undefined : "button"}
       data-slot="popover-trigger"
       data-state={open ? "open" : "closed"}
       aria-haspopup="dialog"
@@ -102,7 +112,7 @@ export function PopoverTrigger({
       {...props}
     >
       {children}
-    </button>
+    </Comp>
   );
 }
 

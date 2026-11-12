@@ -293,3 +293,62 @@ export const PROCESS_PHASE_LABELS: Record<CreditPhase, string> = {
   disbursements: "Déblocages sur inspection de chantier",
   closing_release: "Extinction de dette et mainlevée",
 };
+
+/**
+ * Événement du journal de dossier, tel que l'emprunteur le consulte.
+ *
+ * `public.dossier_events` est la chronologie : la même trace que l'agent
+ * lit, sans interprétation.
+ */
+export type DossierEvent = {
+  id: string;
+  event_type: string;
+  actor_role: string | null;
+  payload: Record<string, unknown>;
+  legal_basis: string | null;
+  occurred_at: string;
+};
+
+/**
+ * Libellés lisibles des événements du journal.
+ *
+ * C'est le **vocabulaire unique** des faits métier : la chronologie de
+ * l'emprunteur et le titre de la notification reprennent le même libellé, pour
+ * qu'un événement ne s'appelle pas autrement selon l'écran où il apparaît.
+ */
+export const DOSSIER_EVENT_LABELS: Record<string, string> = {
+  "document.uploaded": "Pièce déposée",
+  "document.validated": "Pièce validée",
+  "document.rejected": "Pièce rejetée",
+  "kyc.state_changed": "Décision KYC",
+  KYC_SUBMITTED: "Dossier KYC transmis",
+  KYC_APPROVED: "Décision KYC approuvée",
+  KYC_REJECTED: "Décision KYC refusée",
+  DOCUMENT_REQUESTED: "Pièce justificative demandée",
+  DOCUMENT_UPLOADED: "Pièce déposée au dossier",
+  DOCUMENT_VALIDATED: "Pièce validée",
+  COMMITTEE_DECISION: "Décision du comité de crédit",
+  LOAN_OFFER_ISSUED: "Offre de prêt émise",
+  DISBURSEMENT_RELEASED: "Déblocage effectué",
+  PAYOFF_STATEMENT: "Décompte d'apurement émis",
+  MAINLEVEE_READY: "Mainlevée prête",
+  DOSSIER_UPDATED: "Dossier mis à jour",
+  "dossier.phase_changed": "Étape du dossier franchie",
+  "committee.decision": "Décision du comité de crédit",
+  "loan_offer.issued": "Offre de prêt émise",
+  "disbursement.released": "Déblocage effectué",
+  "payoff.statement": "Décompte d'apurement émis",
+  "mainlevee.ready": "Mainlevée prête",
+  "support.message": "Message échangé",
+};
+
+/** Libellé lisible d'un événement du journal. */
+export function eventLabel(eventType: string): string {
+  return DOSSIER_EVENT_LABELS[eventType] ?? eventType.replace(/[._]/g, " ");
+}
+
+/** Libellé d'une phase du circuit de crédit. */
+export function phaseLabel(phase: string | null): string {
+  if (!phase) return "—";
+  return PROCESS_PHASE_LABELS[phase as CreditPhase] ?? phase;
+}

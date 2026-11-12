@@ -252,7 +252,7 @@ export function ClientDetailSheet({
                   className="gap-1.5 text-xs"
                   onClick={() => {
                     closeDetail();
-                    router.push(`/admin/clients/${client.id}`);
+                    router.push(`/portail-cfc/clients/${client.id}`);
                   }}
                 >
                   <FileText className="size-3.5" />

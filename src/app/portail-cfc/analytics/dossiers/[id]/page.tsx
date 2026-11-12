@@ -123,7 +123,7 @@ export default function DucDetailPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Link
-            href="/admin/analytics?tab=conversions"
+            href="/portail-cfc/analytics?tab=conversions"
             className="flex items-center gap-1 hover:text-foreground transition-colors font-medium"
           >
             <ArrowLeft className="size-3.5" />
@@ -146,7 +146,7 @@ export default function DucDetailPage() {
           </Button>
           <Button
             size="sm"
-            onClick={() => router.push("/admin/actors/risk-engineering")}
+            onClick={() => router.push("/portail-cfc/actors/risk-engineering")}
             className="h-8 gap-1.5 px-3 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white"
           >
             <ArrowRight className="size-3.5" />
@@ -348,7 +348,7 @@ export default function DucDetailPage() {
               Actions sur le Dossier
             </h3>
             <Button
-              onClick={() => router.push("/admin/actors/credit-committees")}
+              onClick={() => router.push("/portail-cfc/actors/credit-committees")}
               className="w-full h-10 text-xs font-semibold gap-2 bg-blue-600 hover:bg-blue-700 text-white"
             >
               <ArrowRight className="size-4" />

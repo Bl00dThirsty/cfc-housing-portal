@@ -398,7 +398,7 @@ export function GlobalKanbanCardDialog({
                     variant="outline"
                     size="sm"
                     className="w-full justify-start gap-2 rounded-md text-xs"
-                    onClick={() => router.push(`/admin/clients/${currentTask.clientId}`)}
+                    onClick={() => router.push(`/portail-cfc/clients/${currentTask.clientId}`)}
                   >
                     <User className="size-3.5" />
                     Fiche Emprunteur
@@ -409,7 +409,7 @@ export function GlobalKanbanCardDialog({
                   variant="outline"
                   size="sm"
                   className="w-full justify-start gap-2 rounded-md text-xs"
-                  onClick={() => router.push(`/admin/clients?tab=duc&clientId=${currentTask.clientId || "cl-1"}`)}
+                  onClick={() => router.push(`/portail-cfc/clients?tab=duc&clientId=${currentTask.clientId || "cl-1"}`)}
                 >
                   <ExternalLink className="size-3.5" />
                   Ouvrir Dossier Unique Client (DUC)

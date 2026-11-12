@@ -13,7 +13,46 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { landingPathForRole } from "@/config/rbac/sidebar-by-role";
-import { isStaffRole } from "@/lib/auth-data";
+import { isStaffRole, type AppRole } from "@/lib/auth-data";
+
+/**
+ * Rôle réel d'un utilisateur authentifié.
+ *
+ * Lu dans `public.staff_assignments` (registre de référence), jamais codé en
+ * dur. Un utilisateur sans affectation lisible n'a **aucun** rôle : lui
+ * attribuer le rôle le plus large serait une escalade de privilège par
+ * défaut.
+ */
+export async function resolveRoleForUser(
+  supabase: SupabaseClient | null,
+  userId: string,
+): Promise<AppRole | null> {
+  if (!supabase) return null;
+
+  const { data } = await supabase
+    .from("staff_assignments")
+    .select("role")
+    .eq("actor_id", userId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const role = (data as { role?: string } | null)?.role;
+  if (typeof role === "string" && isStaffRole(role)) return role;
+
+  // Un citoyen est un acteur sans affectation : c'est le rôle par défaut
+  // d'un compte non staff.
+  const { data: actor } = await supabase
+    .from("actors")
+    .select("actor_type")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return (actor as { actor_type?: string } | null)?.actor_type === "citizen"
+    ? "CITIZEN"
+    : null;
+}
 
 /**
  * Page d'atterrissage d'un utilisateur authentifié.
@@ -27,21 +66,6 @@ export async function resolveLandingPathForUser(
   supabase: SupabaseClient | null,
   userId: string,
 ): Promise<string> {
-  if (!supabase) return landingPathForRole("CITIZEN");
-
-  const { data } = await supabase
-    .from("staff_assignments")
-    .select("role")
-    .eq("actor_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const role = (data as { role?: string } | null)?.role;
-  if (typeof role === "string" && isStaffRole(role)) {
-    return landingPathForRole(role);
-  }
-
-  return landingPathForRole("CITIZEN");
+  const role = await resolveRoleForUser(supabase, userId);
+  return landingPathForRole(role ?? "CITIZEN");
 }

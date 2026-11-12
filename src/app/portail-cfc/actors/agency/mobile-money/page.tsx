@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
-import { ActorKpiStrip, type ActorKpiItem } from "@/components/admin/actor-kpi-strip";
+import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -199,12 +199,12 @@ export default function MobileMoneyPage() {
                 filtered.map((item) => (
                   <TableRow
                     key={item.id}
-                    onClick={() => router.push(`/admin/actors/agency/mobile-money/${item.id}`)}
+                    onClick={() => router.push(`/portail-cfc/actors/agency/mobile-money/${item.id}`)}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        router.push(`/admin/actors/agency/mobile-money/${item.id}`);
+                        router.push(`/portail-cfc/actors/agency/mobile-money/${item.id}`);
                       }
                     }}
                     tabIndex={0}
@@ -217,7 +217,7 @@ export default function MobileMoneyPage() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/admin/actors/agency/mobile-money/${item.id}`);
+                          router.push(`/portail-cfc/actors/agency/mobile-money/${item.id}`);
                         }}
                         aria-label={`Ouvrir la transaction ${item.ref}`}
                         className="text-left font-medium hover:underline inline-flex h-5 shrink-0 items-center justify-center rounded-full border border-border bg-muted/30 px-2 font-mono text-[11px] text-foreground"
@@ -256,7 +256,7 @@ export default function MobileMoneyPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push(`/admin/actors/agency/mobile-money/${item.id}`)}
+                        onClick={() => router.push(`/portail-cfc/actors/agency/mobile-money/${item.id}`)}
                         aria-label={`Ouvrir la transaction ${item.ref}`}
                         className="size-8 text-muted-foreground hover:text-foreground"
                       >

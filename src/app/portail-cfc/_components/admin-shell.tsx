@@ -3,42 +3,24 @@
 /**
  * Chrome de la console d'administration.
  *
- * La partie serveur (`src/app/admin/layout.tsx`) a déjà vérifié la session et
+ * La partie serveur (`src/app/portail-cfc/layout.tsx`) a déjà vérifié la session et
  * le rôle : ce composant n'affiche que l'identité **réelle** de l'agent
  * connecté. Le sélecteur de profil métier a été supprimé — il permettait une
  * auto-élévation de privilèges en un clic.
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Search, Bell, LogOut, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { MessagesSquare, Search } from "lucide-react";
 
-import AdminSidebar from "@/components/admin/admin-sidebar";
+import AdminSidebar from "@/components/portail-cfc/admin-sidebar";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { UserMenu } from "@/components/layout/user-menu";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/lib/auth-context";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const { currentUser, signOut } = useAuth();
-
-  const handleLogout = async () => {
-    await signOut();
-    router.replace("/login");
-    router.refresh();
-  };
-
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       <AdminSidebar />
@@ -58,81 +40,24 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
-              size="icon"
-              className="relative size-8 text-muted-foreground hover:text-foreground"
+              asChild
+              variant="muted"
+              size="sm"
+              className="hidden h-8 gap-1.5 text-xs md:inline-flex"
             >
-              <Bell className="size-3.5" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-emerald-500" />
+              <Link href="/portail-cfc/support">
+                <MessagesSquare className="size-3.5" aria-hidden />
+                File de support
+              </Link>
             </Button>
+
+            <NotificationBell />
 
             <ThemeToggle />
 
             <Separator orientation="vertical" className="mx-1 h-4" />
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-left outline-none transition-colors hover:bg-muted/40"
-                >
-                  <Avatar className="size-7 shrink-0 rounded-md">
-                    <AvatarFallback
-                      className={`rounded-md text-[10px] font-bold ${currentUser.avatarTone}`}
-                    >
-                      {currentUser.initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="hidden min-w-0 flex-col md:flex">
-                    <span className="max-w-[130px] truncate text-xs font-semibold leading-tight text-foreground">
-                      {currentUser.name}
-                    </span>
-                    <span className="max-w-[130px] truncate text-[10px] font-medium text-muted-foreground">
-                      {currentUser.roleLabel}
-                    </span>
-                  </div>
-                  <ChevronDown className="ml-0.5 size-3 text-muted-foreground" />
-                </button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="end" className="w-64 rounded-xl p-1.5 text-xs">
-                <div className="space-y-1 rounded-lg bg-muted/40 p-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-foreground">{currentUser.name}</span>
-                    <Badge
-                      variant="outline"
-                      className="h-4 px-1.5 py-0 font-mono text-[9.5px] font-medium"
-                    >
-                      {currentUser.role}
-                    </Badge>
-                  </div>
-                  <p className="truncate text-[10.5px] text-muted-foreground">
-                    {currentUser.agency}
-                  </p>
-                  <p className="truncate font-mono text-[10px] text-muted-foreground/80">
-                    {currentUser.email}
-                  </p>
-                </div>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[10.5px] font-semibold text-muted-foreground">
-                  Habilitation en cours
-                </DropdownMenuLabel>
-                <p className="px-2 pb-1.5 text-[10.5px] leading-relaxed text-muted-foreground">
-                  Votre rôle est défini par la Direction Générale. Pour une modification
-                  d&apos;habilitation, adressez-vous au superviseur DSI.
-                </p>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleLogout}
-                  className="cursor-pointer py-1.5 rounded-md text-destructive focus:text-destructive"
-                >
-                  <LogOut className="mr-2 size-3.5" />
-                  <span>Se déconnecter</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <UserMenu profileHref="/portail-cfc/profil" />
           </div>
         </header>
 

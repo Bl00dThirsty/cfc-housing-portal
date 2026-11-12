@@ -373,11 +373,11 @@ export function Kanban({ initialBoard }: KanbanProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52 rounded-md">
-                  <DropdownMenuItem onClick={() => router.push("/admin/clients")}>
+                  <DropdownMenuItem onClick={() => router.push("/portail-cfc/clients")}>
                     <User className="size-4 mr-2" />
                     Répertoire Emprunteurs
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => router.push("/admin/analytics")}>
+                  <DropdownMenuItem onClick={() => router.push("/portail-cfc/analytics")}>
                     <Table2 className="size-4 mr-2" />
                     Vue Analytique DUC
                   </DropdownMenuItem>
@@ -586,13 +586,13 @@ export function Kanban({ initialBoard }: KanbanProps) {
                                 Ouvrir les détails (Trello)
                               </DropdownMenuItem>
                               {task.clientId && (
-                                <DropdownMenuItem onClick={() => router.push(`/admin/clients?selected=${task.clientId}&tab=duc`)}>
+                                <DropdownMenuItem onClick={() => router.push(`/portail-cfc/clients?selected=${task.clientId}&tab=duc`)}>
                                   <FileText className="size-3.5 mr-2" />
                                   Dossier Unique Client (DUC)
                                 </DropdownMenuItem>
                               )}
                               {task.clientId && (
-                                <DropdownMenuItem onClick={() => router.push(`/admin/clients?selected=${task.clientId}`)}>
+                                <DropdownMenuItem onClick={() => router.push(`/portail-cfc/clients?selected=${task.clientId}`)}>
                                   <User className="size-3.5 mr-2" />
                                   Fiche Emprunteur
                                 </DropdownMenuItem>
@@ -720,13 +720,13 @@ export function Kanban({ initialBoard }: KanbanProps) {
                               Ouvrir détails (Trello)
                             </DropdownMenuItem>
                             {task.clientId && (
-                              <DropdownMenuItem onClick={() => router.push(`/admin/clients?selected=${task.clientId}&tab=duc`)}>
+                              <DropdownMenuItem onClick={() => router.push(`/portail-cfc/clients?selected=${task.clientId}&tab=duc`)}>
                                 <FileText className="size-3.5 mr-2" />
                                 Dossier Unique Client (DUC)
                               </DropdownMenuItem>
                             )}
                             {task.clientId && (
-                              <DropdownMenuItem onClick={() => router.push(`/admin/clients?selected=${task.clientId}`)}>
+                              <DropdownMenuItem onClick={() => router.push(`/portail-cfc/clients?selected=${task.clientId}`)}>
                                 <User className="size-3.5 mr-2" />
                                 Fiche Emprunteur
                               </DropdownMenuItem>

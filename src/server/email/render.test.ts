@@ -62,12 +62,12 @@ describe("renderTemplate", () => {
     const rendered = renderTemplate(template, {
       prenom: "Awa",
       nom: "Njoya",
-      lien: "https://cfc.cm/portal",
+      lien: "https://cfc.cm/portail-client",
     });
 
     expect(rendered.subject).toBe("Bienvenue Awa Njoya");
     expect(rendered.html).toContain("Bonjour Awa Njoya");
-    expect(rendered.text).toContain("Bonjour Awa Njoya — https://cfc.cm/portal");
+    expect(rendered.text).toContain("Bonjour Awa Njoya — https://cfc.cm/portail-client");
     expect(rendered.missing).toEqual([]);
   });
 
@@ -75,7 +75,7 @@ describe("renderTemplate", () => {
     const rendered = renderTemplate(template, {
       prenom: '<script>alert("xss")</script>',
       nom: "Njoya & Fils",
-      lien: "https://cfc.cm/portal",
+      lien: "https://cfc.cm/portail-client",
     });
 
     // Le balisage injecté ne doit jamais devenir une balise.

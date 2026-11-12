@@ -163,7 +163,7 @@ export function ClientWorkspaceHub() {
               variant="ghost"
               size="sm"
               className="h-8 text-xs gap-1 rounded-md"
-              onClick={() => router.push(`/admin/clients/${activeClient.id}`)}
+              onClick={() => router.push(`/portail-cfc/clients/${activeClient.id}`)}
             >
               <FileText className="size-3.5 text-muted-foreground" />
               Fiche détaillée

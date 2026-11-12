@@ -106,6 +106,16 @@ const STATUS_LABELS: Record<UploadStatus, string> = {
 /**
  * Envoie les octets vers l'URL signée et suit la progression.
  *
+ * **La méthode est `PUT`, comme dans le client officiel.** L'URL signée
+ * porte l'URI de signature (`/object/upload/sign/…?token=…`) : c'est cette
+ * URI qui reçoit le corps du fichier. Le client officiel (`storage-js`,
+ * `uploadToSignedUrl`) fait exactement cela — un `PUT` sur cette URI, avec
+ * l'en-tête `x-upsert`.
+ *
+ * Un `POST` sur cette URI ne dépose rien : le coffre répond avec la
+ * *description* de la signature (`{url, token}`) au lieu d'accepter les
+ * octets, et le confirmateur serveur ne trouve jamais l'objet.
+ *
  * `XMLHttpRequest` et non `fetch` : c'est le seul moyen d'obtenir la
  * progression d'un envoi dans tous les navigateurs.
  */

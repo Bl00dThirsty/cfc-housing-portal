@@ -82,3 +82,57 @@ export function stageLabel(stage: string): string {
     REQUIREMENT_STAGES.find((item) => item.value === stage)?.label ?? stage
   );
 }
+
+/**
+ * État d'une pièce dans la checklist déclarable de l'emprunteur.
+ *
+ * C'est une notion **domaine** : la checklist parle d'une pièce « manquante »
+ * ou « déposée », jamais de l'état technique de la table des pièces.
+ */
+export type ChecklistStatus =
+  | "missing"
+  | "uploaded"
+  | "in_review"
+  | "verified"
+  | "rejected";
+
+/** Une pièce attendue par le référentiel déclarable, et son état réel. */
+export type ChecklistItem = {
+  docTypeCode: string;
+  /** Pièce effectivement déposée — `null` si elle manque encore. */
+  documentId: string | null;
+  label: string;
+  natureLabel: string;
+  issuingAuthority: string | null;
+  required: boolean;
+  stage: string;
+  stageLabel: string;
+  status: ChecklistStatus;
+  uploadedAt: string | null;
+};
+
+/**
+ * Traduit l'état technique d'une pièce en état de checklist.
+ *
+ * Sans pièce, la checklist affiche « manquante » ; une pièce en attente de
+ * vérification n'est pas encore validée.
+ */
+export function checklistStatusFor(raw: string | null | undefined): ChecklistStatus {
+  switch (raw) {
+    case "verified":
+    case "Validé":
+      return "verified";
+    case "in_review":
+    case "En cours":
+      return "in_review";
+    case "uploaded":
+    case "awaiting_upload":
+    case "En attente":
+      return "uploaded";
+    case "rejected":
+    case "Rejeté":
+      return "rejected";
+    default:
+      return "missing";
+  }
+}
