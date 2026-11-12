@@ -148,7 +148,7 @@ describe("moteur de table — règles pures", () => {
 
   it("conserve l'ordre d'origine à valeur égale", () => {
     const sorted = applySorts(ROWS, [{ key: "phase", dir: "asc" }], (row) => row.phase);
-    expect(sorted.map((row) => row.name)).toEqual(["ÉBAH", "FOTSO", "NGUEMA", "ABENA"]);
+    expect(sorted.map((row) => row.name)).toEqual(["NGUEMA", "ABENA", "ÉBAH", "FOTSO"]);
   });
 
   it("bascule la direction au clic et retire la colonne au shift+clic", () => {
@@ -669,6 +669,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useDataTable, type DataColumn } from "@/components/data-table/use-data-table";
+import { useDataTableStore } from "@/stores/data-table-store";
 
 type Row = { id: string; name: string; phase: string };
 
@@ -685,7 +686,6 @@ const ROWS: Row[] = [
 
 beforeEach(() => {
   // Le store est global : chaque test repart de zéro.
-  const { useDataTableStore } = require("@/stores/data-table-store");
   useDataTableStore.setState({ byTable: {} });
 });
 
@@ -735,8 +735,9 @@ describe("useDataTable", () => {
 });
 ```
 
-> Si `require` n'est pas disponible en ESM, remplacer l'import dans `beforeEach` par un import statique en haut du fichier :
-> `import { useDataTableStore } from "@/stores/data-table-store";` puis `useDataTableStore.setState({ byTable: {} });`
+> L'import du store est **statique** (`import { useDataTableStore } from
+> "@/stores/data-table-store"`) : un `require(...)` dans un module ESM
+> échouerait à l'exécution sous Vitest.
 
 - [ ] **Étape 2 : lancer le test et vérifier qu'il échoue**
 
