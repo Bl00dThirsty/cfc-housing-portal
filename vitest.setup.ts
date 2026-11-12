@@ -12,6 +12,7 @@ class ResizeObserverStub {
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
 
 Element.prototype.scrollIntoView ??= function scrollIntoView() {};
+Element.prototype.scrollTo ??= function scrollTo() {};
 
 Element.prototype.hasPointerCapture ??= function hasPointerCapture() {
   return false;
@@ -33,7 +34,7 @@ vi.mock("next/navigation", () => ({
     forward: vi.fn(),
     prefetch: vi.fn(),
   }),
-  usePathname: () => "/admin/clients",
+  usePathname: () => "/portail-cfc/clients",
   useSearchParams: () => new URLSearchParams(),
   redirect: vi.fn(),
 }));

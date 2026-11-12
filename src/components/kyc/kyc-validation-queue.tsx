@@ -37,7 +37,15 @@ const RISK_TONE = {
 export function KycValidationQueue() {
   const [entries, setEntries] = React.useState<KycQueueEntry[]>([]);
   const [error, setError] = React.useState<string | null>(null);
-  const [message, setMessage] = React.useState<string | null>(null);
+  /**
+   * Retour de la dernière décision.
+   *
+   * `journaled` distingue la décision **tracée** de la décision **appliquée
+   * sans trace** : les deux ne s'affichent pas de la même façon.
+   */
+  const [message, setMessage] = React.useState<{ text: string; journaled: boolean } | null>(
+    null,
+  );
   const [loading, setLoading] = React.useState(true);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [note, setNote] = React.useState<Record<string, string>>({});
@@ -69,11 +77,10 @@ export function KycValidationQueue() {
         setError(result.error);
         return;
       }
-      setMessage(result.message);
+      setMessage({ text: result.message, journaled: result.journaled });
       refresh();
     });
   };
-
   if (loading) {
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
@@ -92,9 +99,21 @@ export function KycValidationQueue() {
         </p>
       )}
       {message && (
-        <p role="status" className="flex items-start gap-2 rounded-md border border-line-strong bg-muted/50 p-2.5 text-xs text-foreground">
-          <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
-          {message}
+        <p
+          role="status"
+          className={cn(
+            "flex items-start gap-2 rounded-md border p-2.5 text-xs",
+            message.journaled
+              ? "border-line-strong bg-muted/50 text-foreground"
+              : "border-destructive/40 bg-destructive/5 text-destructive",
+          )}
+        >
+          {message.journaled ? (
+            <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
+          ) : (
+            <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          )}
+          {message.text}
         </p>
       )}
 
