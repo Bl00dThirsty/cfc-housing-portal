@@ -2352,6 +2352,7 @@ test** dédié (`e2e.cloisonnement@cfc.cm`) et un nettoyage garanti par `finally
 | `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
 | `npm test` | **257 tests** passés (20 fichiers), 14 ignorés (e2e) |
 | `CFC_E2E=1 vitest run` (3 fichiers e2e) | **14 tests** passés — **5 exécutions consécutives** sans échec |
+| **Depuis une base vierge** (`supabase db reset --local` + `npm run db:seed:users`) | 21 migrations + seed appliqués, puis **5 exécutions e2e consécutives** sans échec, puis **3 exécutions de la suite complète** (271 tests) sans échec |
 | `npm run build` | exit 0 |
 | `node scripts/smoke.mjs` | **58/58** — dont la FAQ, le profil et le suivi des étapes |
 
