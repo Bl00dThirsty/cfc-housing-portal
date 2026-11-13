@@ -14,6 +14,7 @@
 - `src/components/**` ne peut importer ni `@supabase/*` ni `@/server/**` — sauf `@/server/actions/**`.
 - **Tout le texte visible par l'utilisateur est en français** — y compris les dates : une `Date` s'affiche par `formatCfcDate`, jamais par `String(date)`, qui produirait un texte anglais en heure locale.
 - **Le tableau `columns` doit avoir une identité stable** — une constante de module ou un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les mémoïsations du moteur à chaque rendu.
+- **Une colonne dont les valeurs sont des codes internes doit fournir `groupLabel`** — sans lui, l'en-tête de groupe affiche la valeur brute (« kyc_savings · 1 »), qui n'est pas du français.
 - Charte CFC : brun (`--cfc-brown`) et or (`--cfc-gold`), pas la violet du kit de référence.
 - Un seul exemplaire par concept : un second store de tri, une seconde barre d'outils ou un second filtre est **supprimé**, jamais ajouté en parallèle.
 - Les commandes de validation, depuis `C:/Users/DTA_WorkStation/Documents/cfc-housing-portal` :
@@ -1354,6 +1355,13 @@ import { useDataTable } from "./use-data-table";
 export interface DataTableProps<T> {
   /** Identifiant du tableau : il isole son état dans le store. */
   tableId: string;
+  /**
+   * Les colonnes.
+   *
+   * Le tableau **doit** avoir une identité stable : une constante de module
+   * ou un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les
+   * mémoïsations du moteur à chaque rendu.
+   */
   columns: DataColumn<T>[];
   rows: T[];
   /** Identifiant stable d'une ligne — il est la clé React. */
@@ -1364,6 +1372,11 @@ export interface DataTableProps<T> {
    * Par défaut, une cellule par colonne. Un tableau qui a besoin d'une ligne
    * particulière — une case à cocher, une barre d'actions — fournit la sienne,
    * et reçoit la cellule de chaque colonne par `cell(key)`.
+   *
+   * ⚠️ La ligne fournie **possède sa mise en page** : les classes de colonne
+   * (`align`, `cellClassName`) ne sont pas reprises automatiquement, et le
+   * nombre de cellules rendues doit correspondre à `columns.length` — sinon
+   * l'en-tête de groupe se désaligne.
    */
   renderRow?: (context: { row: T; cell: (key: string) => React.ReactNode }) => React.ReactNode;
   /** Message affiché quand aucune ligne ne correspond. */
@@ -1417,6 +1430,8 @@ export function DataTable<T>({
       // « Thu Jan 15 2026 01:00:00 GMT+0100 (West Africa Time) » — en
       // anglais, en heure locale, et parfois au jour précédent.
       if (value instanceof Date) return formatCfcDate(value);
+      // Un booléen aussi : `String(true)` donnerait « true ».
+      if (typeof value === "boolean") return value ? "Oui" : "Non";
       return String(value);
     },
     [],
@@ -1424,8 +1439,9 @@ export function DataTable<T>({
 
   return (
     <div className={cn("flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs", className)}>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table className={tableClassName}>
+      {/* `Table` porte déjà son propre conteneur de défilement : un second
+          `overflow-auto` produirait deux barres de défilement. */}
+      <Table className={tableClassName} containerClassName="min-h-0 flex-1">
           <TableHeader>
             <TableRow className={rowClassName}>
               {columns.map((column) => {
@@ -1459,7 +1475,14 @@ export function DataTable<T>({
                       <button
                         type="button"
                         onClick={(event) => toggleSort(column.key, event.shiftKey)}
-                        aria-label={`Trier par ${column.label}`}
+                        // Le rang de priorité est annoncé : sans lui, un
+                        // lecteur d'écran entend « 2 » sans savoir ce que ce
+                        // chiffre désigne.
+                        aria-label={
+                          state.sorts.length > 1 && rule
+                            ? `Trier par ${column.label} (priorité ${rank})`
+                            : `Trier par ${column.label}`
+                        }
                         className="inline-flex items-center gap-1 text-left hover:text-foreground"
                       >
                         {column.label}
@@ -1542,7 +1565,6 @@ export function DataTable<T>({
             )}
           </TableBody>
         </Table>
-      </div>
     </div>
   );
 }
