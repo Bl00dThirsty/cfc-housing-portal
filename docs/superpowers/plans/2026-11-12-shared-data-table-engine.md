@@ -2517,8 +2517,68 @@ Le build et le serveur de développement ne tournent **jamais** en même temps :
 
 ---
 
-## Ordre recommended
+## Corrections après revue — tâches 1 et 2
 
+Les blocs de code des tâches 1 et 2 ci-dessus décrivent ce qui avait été **planifié**. La revue de ces deux tâches a trouvé des défauts réels, corrigés depuis. **Ce qui suit est la vérité** : c'est la version qui a été committée, et c'est celle qu'il faut copier.
+
+### Tâche 1 — l'état par défaut est gelé
+
+`src/lib/data-table.ts` — l'état par défaut est un **singleton partagé** par tous les tableaux intacts. Il est gelé, pour qu'une mutation résiduelle échoue bruyamment au lieu de corrompre les 44 tableaux en silence :
+
+```ts
+export const DEFAULT_DATA_TABLE_STATE: DataTableState = {
+  search: "",
+  sorts: [],
+  filters: [],
+  groupBy: null,
+};
+
+Object.freeze(DEFAULT_DATA_TABLE_STATE.sorts);
+Object.freeze(DEFAULT_DATA_TABLE_STATE.filters);
+Object.freeze(DEFAULT_DATA_TABLE_STATE);
+```
+
+Le gel se fait **par instruction**, pas par cast : `Object.freeze([])` est de type `readonly never[]`, non assignable à `SortRule[]` (TS2352). Les types publics restent mutables — c'est ce qui permet d'écrire un test qui vérifie que la mutation **échoue**.
+
+Deux autres corrections de la tâche 1 : les **dates** sont normalisées par `cellText` et comparées par horodatage (une colonne de date ne se trie plus silencieusement dans le désordre) ; les **valeurs vides restent en fin quelle que soit la direction**, la comparaison du vide étant sortie de l'inversion de signe.
+
+### Tâche 2 — chaque tableau possède son propre état
+
+`src/stores/data-table-store.ts` — l'état par défaut étant partagé, chaque entrée du store doit être **propriétaire de ses tableaux** :
+
+```ts
+/**
+ * Un état neuf : chaque tableau possède **ses** tableaux.
+ *
+ * L'état par défaut est un singleton partagé : sans cette copie, une
+ * modification en place sur un tableau corromprait tous les autres — sans
+ * exception ni rendu, donc sans aucun signal.
+ */
+function freshState(): DataTableState {
+  return { search: "", sorts: [], filters: [], groupBy: null };
+}
+
+/** L'état de base d'un tableau, avec des tableaux qui lui appartiennent. */
+function ownState(state: TablesStore, tableId: string): DataTableState {
+  const current = state.byTable[tableId];
+  if (!current) return freshState();
+  return {
+    ...current,
+    sorts: [...current.sorts],
+    filters: current.filters.map((filter) => ({ ...filter, values: [...filter.values] })),
+  };
+}
+```
+
+Les cinq actions utilisent `ownState(state, tableId)` ; `reset` écrit `freshState()` ; `setFilter` recopie les valeurs fournies (`values: [...values]`), pour que l'état ne puisse pas changer sans `set()` — donc sans re-render.
+
+`tableState()` **ne.alloue rien** : elle renvoie l'entrée stockée, ou la constante gelée. La référence doit rester **stable**, zustand 5 comparant les snapshots avec `Object.is`.
+
+La ligne « Consomme » de la tâche 2 annonce `SortRule` : le code ne l'importe pas, et ne doit pas l'importer — le type transite par `DataTableState["sorts"]`, et un import de type inutilisé serait une erreur de lint.
+
+---
+
+## Ordre recommended
 | Tâche | Contenu | Dépend de |
 |---|---|---|
 | 1 | Règles pures | — |
