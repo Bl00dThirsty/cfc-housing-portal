@@ -6,13 +6,14 @@
 
 **Architecture :** les règles de manipulation des lignes sont des **fonctions pures** (`src/lib/data-table.ts`), testables sans React. L'état vit dans **un seul** store zustand indexé par `tableId` (`src/stores/data-table-store.ts`). Le composant `DataTable` (`src/components/data-table/`) ne fait que rendre ; il ne connaît aucune règle métier.
 
-**Pile technique :** Next.js 16 · React 19 · TypeScript strict · Tailwind v4 · zustand 5 · Radix UI · Vitest + @testing-library/react
+**Pile technique :** Next.js 15.5 · React 19 · TypeScript strict · Tailwind v4 · zustand 5 · Radix UI · Vitest + @testing-library/react
 
 ## Contraintes globales
 
 - `src/domain/**` ne peut importer ni `react`, ni `next`, ni `@supabase/*`, ni `@/components/**`, ni `@/server/**`. Les règles pures du moteur vivent donc dans `src/lib/`, pas dans `src/domain/`.
 - `src/components/**` ne peut importer ni `@supabase/*` ni `@/server/**` — sauf `@/server/actions/**`.
-- **Tout le texte visible par l'utilisateur est en français.**
+- **Tout le texte visible par l'utilisateur est en français** — y compris les dates : une `Date` s'affiche par `formatCfcDate`, jamais par `String(date)`, qui produirait un texte anglais en heure locale.
+- **Le tableau `columns` doit avoir une identité stable** — une constante de module ou un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les mémoïsations du moteur à chaque rendu.
 - Charte CFC : brun (`--cfc-brown`) et or (`--cfc-gold`), pas la violet du kit de référence.
 - Un seul exemplaire par concept : un second store de tri, une seconde barre d'outils ou un second filtre est **supprimé**, jamais ajouté en parallèle.
 - Les commandes de validation, depuis `C:/Users/DTA_WorkStation/Documents/cfc-housing-portal` :
@@ -746,6 +747,56 @@ describe("useDataTable", () => {
 
     expect(result.current.facets.map((facet) => facet.id)).toEqual(["name", "phase"]);
   });
+
+  it("applique le libellé de groupe de la colonne", () => {
+    const columns: DataColumn<Row>[] = [
+      {
+        key: "phase",
+        label: "Phase",
+        accessor: (row) => row.phase,
+        groupable: true,
+        groupLabel: (value) => `Phase ${value}`,
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "t2", columns, rows: ROWS }),
+    );
+
+    act(() => result.current.setGroupBy("phase"));
+
+    expect(result.current.groups.map((group) => group.label)).toEqual([
+      "Phase committees",
+      "Phase kyc_savings",
+    ]);
+  });
+
+  it("applique le libellé de facette de la colonne", () => {
+    const columns: DataColumn<Row>[] = [
+      {
+        key: "phase",
+        label: "Phase",
+        accessor: (row) => row.phase,
+        filterable: true,
+        facetLabel: (value) => value.toUpperCase(),
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "t3", columns, rows: ROWS }),
+    );
+
+    const facet = result.current.facets[0];
+    expect(facet.options.map((option) => option.label)).toEqual([
+      "COMMITTEES",
+      "KYC_SAVINGS",
+    ]);
+    // La **valeur** reste celle qui sert au filtre : seul le libellé change.
+    expect(facet.options.map((option) => option.value)).toEqual([
+      "committees",
+      "kyc_savings",
+    ]);
+  });
 });
 ```
 
@@ -780,8 +831,14 @@ export interface DataColumn<T> {
   key: string;
   /** Libellé affiché dans l'en-tête. */
   label: string;
-  /** Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable. */
-  accessor?: (row: T) => string | number | boolean | null | undefined;
+  /**
+   * Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable.
+   *
+   * Une **date** est une `Date` : c'est le moteur qui sait la trier
+   * chronologiquement. Une date française en texte brut se trierait
+   * alphabétiquement — donc dans le désordre.
+   */
+  accessor?: (row: T) => string | number | boolean | Date | null | undefined;
   /** Rendu de la cellule ; par défaut la valeur de l'`accessor`. */
   render?: (row: T) => React.ReactNode;
   /** Exclusion explicite du tri (colonne d'icônes). */
@@ -853,6 +910,9 @@ export function parseCfcDate(value: string | null | undefined): Date | null {
 
 /** Écrit une date au format français `JJ/MM/AAAA`. */
 export function formatCfcDate(value: Date): string {
+  // Une date invalide ne doit pas laisser fuir « NaN/NaN/NaN » à l'écran.
+  if (!Number.isFinite(value.getTime())) return "";
+
   const day = String(value.getUTCDate()).padStart(2, "0");
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
   return `${day}/${month}/${value.getUTCFullYear()}`;
@@ -889,6 +949,10 @@ describe("dates de la plateforme", () => {
   it("fait l'aller-retour", () => {
     const parsed = parseCfcDate("03/09/2026");
     expect(parsed && formatCfcDate(parsed)).toBe("03/09/2026");
+  });
+
+  it("n'écrit pas une date invalide", () => {
+    expect(formatCfcDate(new Date(""))).toBe("");
   });
 });
 ```
@@ -1022,21 +1086,41 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
     [groups],
   );
 
+  // Les actions ont une **identité stable** : un consommateur qui les place
+  // dans les dépendances d'un `useEffect` ne doit pas rejouer son effet à
+  // chaque rendu.
+  const setSearchFor = React.useCallback(
+    (search: string) => setSearch(tableId, search),
+    [setSearch, tableId],
+  );
+  const toggleSortFor = React.useCallback(
+    (key: string, additive: boolean) => toggleSortAction(tableId, key, additive),
+    [toggleSortAction, tableId],
+  );
+  const setFilterFor = React.useCallback(
+    (facetId: string, values: string[]) => setFilterAction(tableId, facetId, values),
+    [setFilterAction, tableId],
+  );
+  const setGroupByFor = React.useCallback(
+    (key: string | null) => setGroupByAction(tableId, key),
+    [setGroupByAction, tableId],
+  );
+  const resetFor = React.useCallback(() => resetAction(tableId), [resetAction, tableId]);
+
   return {
     state,
     groups,
     facets,
     totalCount: rows.length,
     filteredCount,
-    setSearch: (search) => setSearch(tableId, search),
-    toggleSort: (key, additive) => toggleSortAction(tableId, key, additive),
-    setFilter: (facetId, values) => setFilterAction(tableId, facetId, values),
-    setGroupBy: (key) => setGroupByAction(tableId, key),
-    reset: () => resetAction(tableId),
+    setSearch: setSearchFor,
+    toggleSort: toggleSortFor,
+    setFilter: setFilterFor,
+    setGroupBy: setGroupByFor,
+    reset: resetFor,
     valueOf,
   };
 }
-
 export type { DataColumn };
 ```
 
@@ -1239,6 +1323,10 @@ export function DataTable<T>({
       if (column.render) return column.render(row);
       const value = column.accessor?.(row);
       if (value === null || value === undefined) return null;
+      // Une date s'affiche **en français** : `String(date)` produirait
+      // « Thu Jan 15 2026 01:00:00 GMT+0100 (West Africa Time) » — en
+      // anglais, en heure locale, et parfois au jour précédent.
+      if (value instanceof Date) return formatCfcDate(value);
       return String(value);
     },
     [],
@@ -2575,6 +2663,43 @@ Les cinq actions utilisent `ownState(state, tableId)` ; `reset` écrit `freshSta
 `tableState()` **ne.alloue rien** : elle renvoie l'entrée stockée, ou la constante gelée. La référence doit rester **stable**, zustand 5 comparant les snapshots avec `Object.is`.
 
 La ligne « Consomme » de la tâche 2 annonce `SortRule` : le code ne l'importe pas, et ne doit pas l'importer — le type transite par `DataTableState["sorts"]`, et un import de type inutilisé serait une erreur de lint.
+
+### Tâche 3 — le contrat de colonne accepte la date, et elle s'affiche en français
+
+La revue de la tâche 3 a trouvé que le contrat de colonne **ne pouvait pas exprimer la colonne de date** que le plan lui-même exigeait : `accessor` était typé `string | number | boolean | null | undefined`, alors que `parseCfcDate` renvoie une `Date` — vérifié par `tsc` : `TS2322`. Les tâches 4 à 11 étaient bloquées sur ce point.
+
+`src/components/data-table/types.ts` :
+
+```ts
+  /**
+   * Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable.
+   *
+   * Une **date** est une `Date` : c'est le moteur qui sait la trier
+   * chronologiquement. Une date française en texte brut se trierait
+   * alphabétiquement — donc dans le désordre.
+   */
+  accessor?: (row: T) => string | number | boolean | Date | null | undefined;
+```
+
+Deux garde-fous côté consommateur, discoveries par la même revue :
+
+1. **Le rendu par défaut d'une date ne doit pas être `String(value)`** — cela produirait « Thu Jan 15 2026 01:00:00 GMT+0100 (West Africa Time) » : en anglais, en heure locale, et parfois au jour précédent. Une `Date` s'affiche par `formatCfcDate` (tâche 4).
+2. **`formatCfcDate` refuse une date invalide** — sans garde, une date illisible s'afficherait « NaN/NaN/NaN » :
+
+```ts
+export function formatCfcDate(value: Date): string {
+  // Une date invalide ne doit pas laisser fuir « NaN/NaN/NaN » à l'écran.
+  if (!Number.isFinite(value.getTime())) return "";
+
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${value.getUTCFullYear()}`;
+}
+```
+
+Le hook renvoie aussi des **actions à identité stable** (`React.useCallback`) : un consommateur qui les place dans les dépendances d'un `useEffect` ne rejoue pas son effet à chaque rendu.
+
+> Une réserve de la revue **réfutée** : la peur d'un `Date.UTC(50, …)` transformant « 0050 » en 1950. Le garde d'aller-retour de `parseCfcDate` la rejette déjà (`"01/01/0050"` → `null`) : aucune date muette n'est fausse.
 
 ---
 
