@@ -1129,7 +1129,7 @@ export type { DataColumn };
 ```
 npx vitest run src/components/data-table/use-data-table.test.tsx src/domain/entities/dates.test.ts
 ```
-Attendu : **11 tests passés** (6 pour le hook, 5 pour les dates).
+Attendu : **12 tests passés** (6 pour le hook, 6 pour les dates).
 
 - [ ] **Étape 5 : committer**
 
