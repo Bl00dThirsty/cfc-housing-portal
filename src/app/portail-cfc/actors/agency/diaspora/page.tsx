@@ -4,12 +4,29 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getInitials } from "@/lib/utils";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { getInitials } from "@/lib/utils";
+
+export interface DiasporaDossierItem {
+  id: string;
+  client: string;
+  country: string;
+  flag: string;
+  ducId: string;
+  savings: string;
+  channel: string;
+  kyc: string;
+  date: string;
+}
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-agency-diaspora";
 
 const diasporaKpis: ActorKpiItem[] = [
   {
@@ -54,7 +71,7 @@ const diasporaKpis: ActorKpiItem[] = [
   },
 ];
 
-const diasporaDossiers = [
+const diasporaDossiers: DiasporaDossierItem[] = [
   {
     id: "dd1",
     client: "TCHINDA Raoul",
@@ -129,51 +146,178 @@ const kycStyles: Record<string, string> = {
   "Incomplet": "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
+/**
+ * Les colonnes du tableau des dossiers diaspora.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const DIASPORA_COLUMNS: DataColumn<DiasporaDossierItem>[] = [
+  {
+    key: "client",
+    label: "Emprunteur",
+    accessor: (row) => row.client,
+  },
+  {
+    key: "country",
+    label: "Pays de Résidence",
+    accessor: (row) => row.country,
+    filterable: true,
+    groupable: true,
+    // Le drapeau est une décoration : la valeur filtrable reste le pays.
+    render: (row) => (
+      <div className="flex items-center gap-1.5 text-xs text-foreground">
+        <span>{row.flag}</span>
+        <span>{row.country}</span>
+      </div>
+    ),
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+  },
+  {
+    key: "savings",
+    label: "Épargne Constituée",
+    // Le tri porte sur la **valeur** : « 6 000 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.savings.replace(/\D/g, "")),
+    render: (row) => row.savings,
+    align: "right",
+  },
+  {
+    key: "channel",
+    label: "Canal",
+    accessor: (row) => row.channel,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "kyc",
+    label: "Statut KYC",
+    accessor: (row) => row.kyc,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${kycStyles[row.kyc] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.kyc}
+      </Badge>
+    ),
+  },
+  {
+    key: "date",
+    label: "Date Ouverture",
+    // La source mêle des dates relatives (« Aujourd'hui, 08:30 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.date,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
+
 export default function DiasporaPage() {
   const router = useRouter();
-  const [search, setSearch] = React.useState("");
-  const [selectedCountries, setSelectedCountries] = React.useState<string[]>([]);
-  const [selectedKyc, setSelectedKyc] = React.useState<string[]>([]);
 
-  const countryOptions = React.useMemo(() => {
-    const counts: Record<string, number> = {};
-    diasporaDossiers.forEach((d) => {
-      counts[d.country] = (counts[d.country] || 0) + 1;
-    });
-    return Object.entries(counts).map(([country, count]) => ({
-      label: country,
-      value: country,
-      count,
-    }));
-  }, []);
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      row,
+      cell,
+    }: {
+      row: DiasporaDossierItem;
+      cell: (key: string) => React.ReactNode;
+    }) => {
+      const openDossier = () => router.push("/portail-cfc/clients/cl-8");
 
-  const kycOptions = React.useMemo(() => {
-    const counts: Record<string, number> = {};
-    diasporaDossiers.forEach((d) => {
-      counts[d.kyc] = (counts[d.kyc] || 0) + 1;
-    });
-    return Object.entries(counts).map(([kyc, count]) => ({
-      label: kyc,
-      value: kyc,
-      count,
-    }));
-  }, []);
-
-  const filtered = diasporaDossiers.filter((d) => {
-    const q = search.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      d.client.toLowerCase().includes(q) ||
-      d.ducId.toLowerCase().includes(q) ||
-      d.country.toLowerCase().includes(q);
-
-    const matchesCountry =
-      selectedCountries.length === 0 || selectedCountries.includes(d.country);
-    const matchesKyc =
-      selectedKyc.length === 0 || selectedKyc.includes(d.kyc);
-
-    return matchesSearch && matchesCountry && matchesKyc;
-  });
+      return (
+        <TableRow
+          onClick={openDossier}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openDossier();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label={`Ouvrir le dossier client de ${row.client}`}
+          className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          <TableCell className="px-3 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <Avatar className="size-8 rounded-lg">
+                <AvatarFallback className="rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-700">
+                  {getInitials(row.client)}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openDossier();
+                }}
+                aria-label={`Ouvrir le dossier client de ${row.client}`}
+                className="text-left font-medium hover:underline text-xs text-foreground truncate"
+              >
+                {cell("client")}
+              </button>
+            </div>
+          </TableCell>
+          <TableCell className="px-3 py-2.5">{cell("country")}</TableCell>
+          <TableCell className="px-3 py-2.5">
+            <Badge
+              variant="outline"
+              className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+            >
+              {cell("ducId")}
+            </Badge>
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+            {cell("savings")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-foreground">
+            {cell("channel")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5">{cell("kyc")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+            {cell("date")}
+          </TableCell>
+          <TableCell
+            className="text-right pr-4 py-2.5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={openDossier}
+              aria-label={`Ouvrir le dossier client de ${row.client}`}
+              className="size-8 text-muted-foreground hover:text-foreground"
+            >
+              <Eye className="size-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      );
+    },
+    [router],
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -210,135 +354,20 @@ export default function DiasporaPage() {
       {/* Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
         <DataTableToolbar
-          searchQuery={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Rechercher par emprunteur, N° DUC ou pays..."
-          totalCount={diasporaDossiers.length}
-          filteredCount={filtered.length}
+          tableId={TABLE_ID}
+          columns={DIASPORA_COLUMNS}
+          rows={diasporaDossiers}
           unitName="dossiers"
-          filters={[
-            {
-              id: "country",
-              title: "Pays",
-              options: countryOptions,
-              selectedValues: selectedCountries,
-              onSelect: setSelectedCountries,
-            },
-            {
-              id: "kyc",
-              title: "KYC",
-              options: kycOptions,
-              selectedValues: selectedKyc,
-              onSelect: setSelectedKyc,
-            },
-          ]}
-          onResetAll={() => {
-            setSelectedCountries([]);
-            setSelectedKyc([]);
-          }}
         />
 
-        <div className="rounded-lg border border-border/40 overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Pays de Résidence</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Épargne Constituée</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Canal</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut KYC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date Ouverture</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-28 text-center text-xs text-muted-foreground">
-                    Aucun dossier diaspora ne correspond aux critères de recherche.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    onClick={() => router.push("/portail-cfc/clients/cl-8")}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        router.push("/portail-cfc/clients/cl-8");
-                      }
-                    }}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Ouvrir le dossier client de ${item.client}`}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-                  >
-                    <TableCell className="px-3 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar className="size-8 rounded-lg">
-                          <AvatarFallback className="rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-700">
-                            {getInitials(item.client)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push("/portail-cfc/clients/cl-8");
-                          }}
-                          aria-label={`Ouvrir le dossier client de ${item.client}`}
-                          className="text-left font-medium hover:underline text-xs text-foreground truncate"
-                        >
-                          {item.client}
-                        </button>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 text-xs text-foreground">
-                        <span>{item.flag}</span>
-                        <span>{item.country}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5">
-                      <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                        {item.ducId}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                      {item.savings}
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5 text-xs text-foreground">
-                      {item.channel}
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5">
-                      <Badge
-                        variant="secondary"
-                        className={`${kycStyles[item.kyc] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                      >
-                        {item.kyc}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
-                    <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => router.push("/portail-cfc/clients/cl-8")}
-                        aria-label={`Ouvrir le dossier client de ${item.client}`}
-                        className="size-8 text-muted-foreground hover:text-foreground"
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={DIASPORA_COLUMNS}
+          rows={diasporaDossiers}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun dossier diaspora ne correspond aux critères de recherche."
+        />
       </div>
     </div>
   );
