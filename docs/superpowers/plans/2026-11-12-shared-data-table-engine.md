@@ -14,7 +14,7 @@
 - `src/components/**` ne peut importer ni `@supabase/*` ni `@/server/**` — sauf `@/server/actions/**`.
 - **Tout le texte visible par l'utilisateur est en français** — y compris les dates : une `Date` s'affiche par `formatCfcDate`, jamais par `String(date)`, qui produirait un texte anglais en heure locale.
 - **Le tableau `columns` doit avoir une identité stable** — une constante de module ou un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les mémoïsations du moteur à chaque rendu.
-- **Une colonne dont les valeurs sont des codes internes doit fournir `groupLabel`** — sans lui, l'en-tête de groupe affiche la valeur brute (« kyc_savings · 1 »), qui n'est pas du français.
+- **Une colonne dont les valeurs sont des codes internes doit fournir `groupLabel`** — sans lui, l'en-tête de groupe affiche la valeur brute (« kyc_savings · 1 »), qui n'est pas du français. Même règle pour **`facetLabel`** : une colonne **booléenne** verrait ses options de facette affichées « true » / « false », le moteur ignorant le français.
 - **Tester le tri multi-colonnes** : dans `user-event` v14, `user.click(el, { shiftKey: true })` **ne transmet pas** le modificateur à l'événement React. Il faut **maintenir** la touche : `await user.keyboard("{Shift>}")`, puis le clic, puis `await user.keyboard("{/Shift}")`. C'est ce qui permet d'ajouter une colonne de tri secondaire.
 - Charte CFC : brun (`--cfc-brown`) et or (`--cfc-gold`), pas la violet du kit de référence.
 - Un seul exemplaire par concept : un second store de tri, une seconde barre d'outils ou un second filtre est **supprimé**, jamais ajouté en parallèle.
@@ -1592,11 +1592,21 @@ git commit -m "feat(data-table): le composant de tableau, en-têtes triables et 
 
 ## Tâche 5 — La barre d'outils canonique
 
-> **Point à trancher dans cette tâche :** la recherche porte sur la forme **ISO**
-> des dates, parce que le moteur normalise une `Date` en ISO. Un agent qui tape
-> « 15/01/2026 » ne trouve donc pas une colonne de date. La correction est
-> d'élargir la recherche à la forme française — ou de l'assumer et de le dire.
-> Ne laisse pas ce point passer sans décision explicite.
+> **Points à trancher dans cette tâche :**
+>
+> 1. La recherche porte sur la forme **ISO** des dates, parce que le moteur
+>    normalise une `Date` en ISO. Un agent qui tape « 15/01/2026 » ne trouve
+>    donc pas une colonne de date. La correction est d'élargir la recherche à
+>    la forme française — ou de l'assumer et de le dire. Ne laisse pas ce
+>    point passer sans décision explicite.
+> 2. Les **options de facette** d'une colonne **booléenne** s'affichent
+>    « true » / « false » : le moteur ignore le français, et le libellé par
+>    défaut vient de `cellText`. La solution est la couture `facetLabel` — la
+>    colonne la fournit. Vérifie qu'un écran de facette booléenne le fait.
+> 3. Le `colSpan` de l'en-tête de groupe suppose que la ligne rendue ait le
+>    même nombre de cellules que `columns`. La couture `renderRow` est
+>    documentée comme propriétaire de la mise en page : un écran qui fournit
+>    sa ligne doit en fournir le bon nombre.
 
 **Fichiers :**
 - Modifier : `src/components/ui/data-table-toolbar.tsx` (réécriture)
