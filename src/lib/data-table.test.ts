@@ -202,6 +202,13 @@ describe("moteur de table — règles pures", () => {
     });
   });
 
+  it("gèle l'état par défaut : une mutation échoue bruyamment", () => {
+    expect(() => DEFAULT_DATA_TABLE_STATE.sorts.push({ key: "x", dir: "asc" })).toThrow();
+    expect(() =>
+      DEFAULT_DATA_TABLE_STATE.filters.push({ id: "x", values: ["y"] }),
+    ).toThrow();
+  });
+
   it("met en forme la valeur d'une cellule", () => {
     expect(cellText("ÉBAH")).toBe("ÉBAH");
     expect(cellText(1200)).toBe("1200");

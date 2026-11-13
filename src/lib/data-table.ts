@@ -27,13 +27,28 @@ export type DataTableState = {
   groupBy: string | null;
 };
 
-/** L'état par défaut : rien de saisi, rien de trié, rien de filtré. */
+/**
+ * L'état par défaut : rien de saisi, rien de trié, rien de filtré.
+ *
+ * Il est **gelé**, avec les tableaux qu'il contient : c'est un singleton,
+ * partagé par tous les tableaux. Une modification en place y échoue
+ * bruyamment, au lieu de corrompre en silence l'état de tous les tableaux du
+ * portail.
+ *
+ * Le gel se fait ici, par instruction : la constante garde le type
+ * `DataTableState`, dont les tableaux restent mutables — c'est ce qui permet
+ * d'écrire un test qui vérifie que la mutation **échoue**.
+ */
 export const DEFAULT_DATA_TABLE_STATE: DataTableState = {
   search: "",
   sorts: [],
   filters: [],
   groupBy: null,
 };
+
+Object.freeze(DEFAULT_DATA_TABLE_STATE.sorts);
+Object.freeze(DEFAULT_DATA_TABLE_STATE.filters);
+Object.freeze(DEFAULT_DATA_TABLE_STATE);
 
 /** Une valeur proposée dans une facette. */
 export type FacetOption = { label: string; value: string; count?: number };
