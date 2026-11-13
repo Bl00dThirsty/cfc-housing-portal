@@ -275,6 +275,7 @@ export default function PromotersPage() {
           columns={PROMOTER_COLUMNS}
           rows={promoters}
           unitName="programmes"
+          searchPlaceholder="Rechercher par promoteur, programme ou ville..."
         />
 
         <DataTable

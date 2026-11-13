@@ -23,6 +23,14 @@ export interface DataColumn<T> {
   accessor?: (row: T) => string | number | boolean | Date | null | undefined;
   /** Rendu de la cellule ; par défaut la valeur de l'`accessor`. */
   render?: (row: T) => React.ReactNode;
+  /**
+   * Valeurs cherchables **en plus** de la valeur de la colonne.
+   *
+   * Une ligne peut afficher une information qui n'est pas une colonne — la
+   * profession sous le nom, par exemple. Sans cette couture, cette
+   * information devient introuvable par la recherche.
+   */
+  searchValues?: (row: T) => string[];
   /** Exclusion explicite du tri (colonne d'icônes). */
   sortable?: boolean;
   /** La colonne alimente une facette de filtre. */

@@ -7,6 +7,7 @@ import { useDataTableStore } from "@/stores/data-table-store";
 type Row = { id: string; name: string; phase: string };
 type DatedRow = { id: string; due: Date };
 type TextDatedRow = { id: string; due: string };
+type EmployeRow = { id: string; name: string; profession: string };
 
 const COLUMNS: DataColumn<Row>[] = [
   { key: "name", label: "Emprunteur", accessor: (row) => row.name, filterable: true, groupable: true },
@@ -116,6 +117,38 @@ describe("useDataTable", () => {
       "committees",
       "kyc_savings",
     ]);
+  });
+
+  it("trouve une ligne par une valeur cherchable supplémentaire", () => {
+    const columns: DataColumn<EmployeRow>[] = [
+      {
+        key: "name",
+        label: "Emprunteur",
+        accessor: (row) => row.name,
+        // La profession est affichée **dans la ligne**, pas dans une colonne :
+        // elle doit rester trouvable par la recherche.
+        searchValues: (row) => [row.profession],
+      },
+    ];
+    const rows: EmployeRow[] = [
+      { id: "1", name: "ÉBAH", profession: "Cadre Bancaire (Salarié)" },
+      { id: "2", name: "FOTSO", profession: "Médecin Généraliste" },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "professions", columns, rows }),
+    );
+
+    // La profession n'est pas une colonne : seule la couture `searchValues`
+    // la rend trouvable.
+    act(() => result.current.setSearch("médecin"));
+    expect(result.current.filteredCount).toBe(1);
+    expect(result.current.groups[0].rows[0].id).toBe("2");
+
+    // La valeur de la colonne reste trouvable, elle aussi.
+    act(() => result.current.setSearch("ÉBAH"));
+    expect(result.current.filteredCount).toBe(1);
+    expect(result.current.groups[0].rows[0].id).toBe("1");
   });
 
   it("trouve une date par sa forme française et par sa forme ISO", () => {

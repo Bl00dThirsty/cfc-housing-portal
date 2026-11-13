@@ -358,6 +358,7 @@ export default function DiasporaPage() {
           columns={DIASPORA_COLUMNS}
           rows={diasporaDossiers}
           unitName="dossiers"
+          searchPlaceholder="Rechercher par emprunteur, N° DUC ou pays..."
         />
 
         <DataTable

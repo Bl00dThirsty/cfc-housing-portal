@@ -78,17 +78,25 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
     (row: T): string[] =>
       columns
         .flatMap((column) => {
-          if (!column.accessor) return [];
-          const value = column.accessor(row);
+          const accessor = column.accessor;
+          if (!accessor) return [];
+
+          // L'accesseur n'est appelé **qu'une fois** par valeur.
+          const value = accessor(row);
 
           // Une date est cherchable sous **les deux formes** : l'ISO, que le
           // moteur compare, et la forme française, que l'agent voit. La saisie
           // n'est jamais normalisée : c'est la comparaison qui s'élargit.
-          if (value instanceof Date) {
-            return [cellText(value), formatCfcDate(value)];
-          }
+          const values =
+            value instanceof Date
+              ? [cellText(value), formatCfcDate(value)]
+              : [cellText(value)];
 
-          return [cellText(value)];
+          // La colonne peut porter des valeurs **supplémentaires** : une
+          // information affichée dans la ligne sans être une colonne — la
+          // profession sous le nom, par exemple. Elle est cherchable comme
+          // la valeur de la colonne.
+          return [...values, ...(column.searchValues?.(row) ?? [])];
         })
         .filter(Boolean),
     [columns],

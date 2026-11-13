@@ -50,6 +50,8 @@ export interface DataTableToolbarProps<T> {
   rows: T[];
   /** Nom de l'unité, pour le compte : « 12 emprunteurs ». */
   unitName?: string;
+  /** Le texte de l'invite de recherche : « Rechercher un emprunteur »… */
+  searchPlaceholder?: string;
   /** Export CSV : le bouton n'apparaît que si l'écran le propose. */
   onExport?: () => void;
   children?: React.ReactNode;
@@ -61,6 +63,7 @@ export function DataTableToolbar<T>({
   columns,
   rows,
   unitName = "lignes",
+  searchPlaceholder,
   onExport,
   children,
   className,
@@ -105,7 +108,7 @@ export function DataTableToolbar<T>({
           <Input
             type="search"
             aria-label="Rechercher"
-            placeholder="Rechercher…"
+            placeholder={searchPlaceholder ?? "Rechercher…"}
             value={state.search}
             onChange={(event) => setSearch(event.target.value)}
             className="h-8 pl-8 pr-7 text-[12px]"

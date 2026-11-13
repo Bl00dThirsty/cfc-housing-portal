@@ -51,6 +51,31 @@ describe("barre d'outils du tableau", () => {
   // libellé français d'une facette booléenne, la réinitialisation et la
   // pastille de tri.
 
+  it("affiche l'invite de recherche de l'écran", () => {
+    render(
+      <DataTableToolbar
+        tableId="t"
+        columns={COLUMNS}
+        rows={ROWS}
+        searchPlaceholder="Rechercher par emprunteur, N° DUC ou agence..."
+      />,
+    );
+
+    expect(screen.getByLabelText("Rechercher")).toHaveAttribute(
+      "placeholder",
+      "Rechercher par emprunteur, N° DUC ou agence...",
+    );
+  });
+
+  it("retombe sur l'invite générique quand l'écran n'en donne pas", () => {
+    render(<DataTableToolbar tableId="t" columns={COLUMNS} rows={ROWS} />);
+
+    expect(screen.getByLabelText("Rechercher")).toHaveAttribute(
+      "placeholder",
+      "Rechercher…",
+    );
+  });
+
   it("filtre les lignes sur la recherche", async () => {
     const user = userEvent.setup();
     render(<DataTableToolbar tableId="t" columns={COLUMNS} rows={ROWS} unitName="emprunteurs" />);

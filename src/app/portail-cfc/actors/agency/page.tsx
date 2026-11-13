@@ -187,6 +187,9 @@ const AGENCY_COLUMNS: DataColumn<AgencyDossierItem>[] = [
     key: "client",
     label: "Emprunteur",
     accessor: (row) => row.client,
+    // La profession est affichée **dans la ligne**, sous le nom : elle n'est
+    // pas une colonne, mais elle reste trouvable par la recherche.
+    searchValues: (row) => [row.profession],
   },
   {
     key: "ducId",
@@ -384,6 +387,7 @@ export default function AgenceActorPage() {
           columns={AGENCY_COLUMNS}
           rows={agenceDossiers}
           unitName="dossiers"
+          searchPlaceholder="Rechercher par emprunteur, N° DUC ou agence..."
         />
 
         <DataTable

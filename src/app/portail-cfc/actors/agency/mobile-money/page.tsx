@@ -263,6 +263,7 @@ export default function MobileMoneyPage() {
           columns={TRANSACTION_COLUMNS}
           rows={transactions}
           unitName="transactions"
+          searchPlaceholder="Rechercher par emprunteur, réf. ou canal..."
         />
 
         <DataTable
