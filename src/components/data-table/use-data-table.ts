@@ -124,19 +124,39 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
     [groups],
   );
 
+  // Les actions ont une **identité stable** : un consommateur qui les place
+  // dans les dépendances d'un `useEffect` ne doit pas rejouer son effet à
+  // chaque rendu.
+  const setSearchFor = React.useCallback(
+    (search: string) => setSearch(tableId, search),
+    [setSearch, tableId],
+  );
+  const toggleSortFor = React.useCallback(
+    (key: string, additive: boolean) => toggleSortAction(tableId, key, additive),
+    [toggleSortAction, tableId],
+  );
+  const setFilterFor = React.useCallback(
+    (facetId: string, values: string[]) => setFilterAction(tableId, facetId, values),
+    [setFilterAction, tableId],
+  );
+  const setGroupByFor = React.useCallback(
+    (key: string | null) => setGroupByAction(tableId, key),
+    [setGroupByAction, tableId],
+  );
+  const resetFor = React.useCallback(() => resetAction(tableId), [resetAction, tableId]);
+
   return {
     state,
     groups,
     facets,
     totalCount: rows.length,
     filteredCount,
-    setSearch: (search) => setSearch(tableId, search),
-    toggleSort: (key, additive) => toggleSortAction(tableId, key, additive),
-    setFilter: (facetId, values) => setFilterAction(tableId, facetId, values),
-    setGroupBy: (key) => setGroupByAction(tableId, key),
-    reset: () => resetAction(tableId),
+    setSearch: setSearchFor,
+    toggleSort: toggleSortFor,
+    setFilter: setFilterFor,
+    setGroupBy: setGroupByFor,
+    reset: resetFor,
     valueOf,
   };
 }
-
 export type { DataColumn };

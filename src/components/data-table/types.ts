@@ -13,8 +13,14 @@ export interface DataColumn<T> {
   key: string;
   /** Libellé affiché dans l'en-tête. */
   label: string;
-  /** Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable. */
-  accessor?: (row: T) => string | number | boolean | null | undefined;
+  /**
+   * Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable.
+   *
+   * Une **date** est une `Date` : c'est le moteur qui sait la trier
+   * chronologiquement. Une date française en texte brut se trierait
+   * alphabétiquement — donc dans le désordre.
+   */
+  accessor?: (row: T) => string | number | boolean | Date | null | undefined;
   /** Rendu de la cellule ; par défaut la valeur de l'`accessor`. */
   render?: (row: T) => React.ReactNode;
   /** Exclusion explicite du tri (colonne d'icônes). */

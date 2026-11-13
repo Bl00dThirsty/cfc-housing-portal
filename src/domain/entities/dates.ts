@@ -3,7 +3,7 @@
  *
  * Les données CFC sont écrites en français : `15/01/2026`. Une telle chaîne
  * se trie **alphabétiquement**, donc dans le désordre chronologique — c'est
- * le piège. Ce module est le **seul** lieu où une date est lue.
+ * le piège. Ce module est le **seul** lieu où une date **française** est lue.
  *
  * La `Date` produite est à **minuit UTC** : deux dates de jours différents ne
  * peuvent pas se chevaucher, quelle que soit l'heure locale du poste.
@@ -42,6 +42,9 @@ export function parseCfcDate(value: string | null | undefined): Date | null {
 
 /** Écrit une date au format français `JJ/MM/AAAA`. */
 export function formatCfcDate(value: Date): string {
+  // Une date invalide ne doit pas laisser fuir « NaN/NaN/NaN » à l'écran.
+  if (!Number.isFinite(value.getTime())) return "";
+
   const day = String(value.getUTCDate()).padStart(2, "0");
   const month = String(value.getUTCMonth() + 1).padStart(2, "0");
   return `${day}/${month}/${value.getUTCFullYear()}`;

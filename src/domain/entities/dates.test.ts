@@ -26,4 +26,8 @@ describe("dates de la plateforme", () => {
     const parsed = parseCfcDate("03/09/2026");
     expect(parsed && formatCfcDate(parsed)).toBe("03/09/2026");
   });
+
+  it("n'écrit pas une date invalide", () => {
+    expect(formatCfcDate(new Date(""))).toBe("");
+  });
 });

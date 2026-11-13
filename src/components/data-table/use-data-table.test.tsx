@@ -65,4 +65,54 @@ describe("useDataTable", () => {
 
     expect(result.current.facets.map((facet) => facet.id)).toEqual(["name", "phase"]);
   });
+
+  it("applique le libellé de groupe de la colonne", () => {
+    const columns: DataColumn<Row>[] = [
+      {
+        key: "phase",
+        label: "Phase",
+        accessor: (row) => row.phase,
+        groupable: true,
+        groupLabel: (value) => `Phase ${value}`,
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "t2", columns, rows: ROWS }),
+    );
+
+    act(() => result.current.setGroupBy("phase"));
+
+    expect(result.current.groups.map((group) => group.label)).toEqual([
+      "Phase committees",
+      "Phase kyc_savings",
+    ]);
+  });
+
+  it("applique le libellé de facette de la colonne", () => {
+    const columns: DataColumn<Row>[] = [
+      {
+        key: "phase",
+        label: "Phase",
+        accessor: (row) => row.phase,
+        filterable: true,
+        facetLabel: (value) => value.toUpperCase(),
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "t3", columns, rows: ROWS }),
+    );
+
+    const facet = result.current.facets[0];
+    expect(facet.options.map((option) => option.label)).toEqual([
+      "COMMITTEES",
+      "KYC_SAVINGS",
+    ]);
+    // La **valeur** reste celle qui sert au filtre : seul le libellé change.
+    expect(facet.options.map((option) => option.value)).toEqual([
+      "committees",
+      "kyc_savings",
+    ]);
+  });
 });
