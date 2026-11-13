@@ -14,6 +14,9 @@ const COLUMNS: DataColumn<Row>[] = [
 ];
 
 const ROWS: Row[] = [
+  // L'ordre de la source n'est **pas** l'ordre alphabétique : un test de tri
+  // doit pouvoir échouer si le tri ne se fait pas.
+  { id: "3", name: "NGUEMA", phase: "committees" },
   { id: "1", name: "ÉBAH", phase: "kyc_savings" },
   { id: "2", name: "FOTSO", phase: "committees" },
 ];
@@ -44,10 +47,30 @@ describe("DataTable", () => {
     const user = userEvent.setup();
     renderTable();
 
+    // Avant le clic, les lignes sont dans l'ordre de la source — **pas**
+    // dans l'ordre alphabétique : l'assertion d'après prouve que le tri a
+    // eu lieu.
+    const before = screen.getAllByRole("row")[1];
+    expect(within(before).getByText("NGUEMA")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /Emprunteur/ }));
 
-    const body = screen.getAllByRole("row")[1];
-    expect(within(body).getByText("ÉBAH")).toBeInTheDocument();
+    const after = screen.getAllByRole("row")[1];
+    expect(within(after).getByText("ÉBAH")).toBeInTheDocument();
+  });
+
+  it("annonce la direction du tri à l'assistance technique", async () => {
+    const user = userEvent.setup();
+    renderTable();
+
+    const header = screen.getByRole("columnheader", { name: /Emprunteur/ });
+    expect(header).toHaveAttribute("aria-sort", "none");
+
+    await user.click(screen.getByRole("button", { name: /Emprunteur/ }));
+    expect(screen.getByRole("columnheader", { name: /Emprunteur/ })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
   });
 
   it("affiche le message quand aucune ligne ne correspond", () => {
@@ -67,9 +90,10 @@ describe("DataTable", () => {
   });
 
   // --- garde-fous ajoutés au brief -------------------------------------
-  // Ils verrouillent trois comportements que le rendu du tableau promet et
-  // que les trois tests du brief ne couvrent pas : la date **française**,
-  // l'en-tête de groupe et la ligne fournie par l'écran.
+  // Ils verrouillent les comportements que le rendu promet et que les tests
+  // du brief n'exercent pas : la date et le booléen **en français**, le
+  // libellé de groupe, la ligne fournie par l'écran, le rang de priorité
+  // annoncé, et l'absence de double conteneur de défilement.
 
   it("affiche une date en français", () => {
     const columns: DataColumn<{ id: string; date: Date }>[] = [
@@ -93,6 +117,32 @@ describe("DataTable", () => {
     expect(screen.getByText("15/01/2026")).toBeInTheDocument();
   });
 
+  it("affiche un booléen en français", () => {
+    const columns: DataColumn<{ id: string; paid: boolean }>[] = [
+      {
+        key: "paid",
+        label: "Payé",
+        accessor: (row) => row.paid,
+      },
+    ];
+
+    render(
+      <DataTable
+        tableId="boolean-table"
+        columns={columns}
+        rows={[
+          { id: "1", paid: true },
+          { id: "2", paid: false },
+        ]}
+        getRowId={(row) => row.id}
+      />,
+    );
+
+    // Jamais « true » ni « false » : ce sont des mots français.
+    expect(screen.getByText("Oui")).toBeInTheDocument();
+    expect(screen.getByText("Non")).toBeInTheDocument();
+  });
+
   it("affiche un en-tête par groupe", () => {
     act(() => {
       useDataTableStore.getState().setGroupBy("test-table", "phase");
@@ -100,7 +150,7 @@ describe("DataTable", () => {
 
     renderTable();
 
-    expect(screen.getByText("committees · 1")).toBeInTheDocument();
+    expect(screen.getByText("committees · 2")).toBeInTheDocument();
     expect(screen.getByText("kyc_savings · 1")).toBeInTheDocument();
   });
 
@@ -121,11 +171,39 @@ describe("DataTable", () => {
     );
 
     const rows = screen.getAllByRole("row");
-    // L'en-tête, puis les deux lignes fournies par l'écran.
-    expect(rows).toHaveLength(3);
-    expect(within(rows[1]).getByText("ÉBAH")).toBeInTheDocument();
+    // L'en-tête, puis les trois lignes fournies par l'écran.
+    expect(rows).toHaveLength(4);
+    expect(within(rows[1]).getByText("NGUEMA")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Action")).toBeInTheDocument();
     // La colonne « Phase » n'est pas rendue : l'écran a choisi ses colonnes.
-    expect(within(rows[1]).queryByText("kyc_savings")).not.toBeInTheDocument();
+    expect(within(rows[1]).queryByText("committees")).not.toBeInTheDocument();
+  });
+
+  it("annonce le rang de priorité quand le tri est multi-colonnes", async () => {
+    const user = userEvent.setup();
+    renderTable();
+
+    await user.click(screen.getByRole("button", { name: /Emprunteur/ }));
+    // `shift` maintenu : le second tri s'ajoute au premier.
+    await user.keyboard("{Shift>}");
+    await user.click(screen.getByRole("button", { name: /Phase/ }));
+    await user.keyboard("{/Shift}");
+
+    // Sans lui, le lecteur d'écran entendrait « 2 » sans savoir ce que ce
+    // chiffre désigne.
+    expect(
+      screen.getByRole("button", { name: "Trier par Phase (priorité 2)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Trier par Emprunteur (priorité 1)" }),
+    ).toBeInTheDocument();
+  });
+
+  it("ne dédouble pas le conteneur de défilement", () => {
+    renderTable();
+
+    // `Table` porte déjà son propre conteneur : un second `overflow-auto`
+    // donnerait deux barres de défilement sur les écrans migrés.
+    expect(document.querySelectorAll(".overflow-auto")).toHaveLength(1);
   });
 });
