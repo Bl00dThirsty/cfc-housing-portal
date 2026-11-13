@@ -223,7 +223,7 @@ Créer `src/lib/data-table.ts` :
  * Sémantique retenue :
  * - recherche : insensible à la casse, sur les valeurs textuelles de la ligne ;
  * - filtres : **ET** entre facettes, **OU** à l'intérieur d'une facette ;
- * - tri : multi-colonnes prioritaire, stable, valeurs nulles en fin ;
+ * - tri : multi-colonnes prioritaire, stable, valeurs vides toujours en fin ;
  * - groupement : **un seul niveau**.
  */
 
@@ -241,13 +241,28 @@ export type DataTableState = {
   groupBy: string | null;
 };
 
-/** L'état par défaut : rien de saisi, rien de trié, rien de filtré. */
+/**
+ * L'état par défaut : rien de saisi, rien de trié, rien de filtré.
+ *
+ * Il est **gelé**, avec les tableaux qu'il contient : c'est un singleton,
+ * partagé par tous les tableaux. Une modification en place y échoue
+ * bruyamment, au lieu de corrompre en silence l'état de tous les tableaux du
+ * portail.
+ *
+ * Le gel se fait ici, par instruction : la constante garde le type
+ * `DataTableState`, dont les tableaux restent mutables — c'est ce qui permet
+ * d'écrire un test qui vérifie que la mutation **échoue**.
+ */
 export const DEFAULT_DATA_TABLE_STATE: DataTableState = {
   search: "",
   sorts: [],
   filters: [],
   groupBy: null,
 };
+
+Object.freeze(DEFAULT_DATA_TABLE_STATE.sorts);
+Object.freeze(DEFAULT_DATA_TABLE_STATE.filters);
+Object.freeze(DEFAULT_DATA_TABLE_STATE);
 
 /** Une valeur proposée dans une facette. */
 export type FacetOption = { label: string; value: string; count?: number };
@@ -263,6 +278,11 @@ export function cellText(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (isDate(value)) {
+    const time = value.getTime();
+    // Une date invalide n'a pas de forme textuelle.
+    return Number.isFinite(time) ? value.toISOString() : "";
+  }
   return "";
 }
 
@@ -276,7 +296,7 @@ export function applySearch<T>(
   if (!needle) return [...rows];
 
   return rows.filter((row) =>
-    valuesOf(row).some((value) => value.toLowerCase().includes(needle)),
+    valuesOf(row).some((value) => cellText(value).toLowerCase().includes(needle)),
   );
 }
 
@@ -313,7 +333,16 @@ export function applySorts<T>(
 
   decorated.sort((a, b) => {
     for (const rule of sorts) {
-      const comparison = compareValues(valueOf(a.row, rule.key), valueOf(b.row, rule.key));
+      const left = valueOf(a.row, rule.key);
+      const right = valueOf(b.row, rule.key);
+
+      // Les valeurs vides restent en fin de liste, quelle que soit la
+      // direction : elles ne sont jamais inversées avec le reste.
+      const leftEmpty = isEmptyValue(left);
+      const rightEmpty = isEmptyValue(right);
+      if (leftEmpty !== rightEmpty) return leftEmpty ? 1 : -1;
+
+      const comparison = compareValues(left, right);
       if (comparison !== 0) return rule.dir === "asc" ? comparison : -comparison;
     }
     // À valeur égale, l'ordre d'origine est conservé : le tri est stable.
@@ -323,19 +352,49 @@ export function applySorts<T>(
   return decorated.map((entry) => entry.row);
 }
 
-/** Compare deux valeurs de cellule : nombres d'abord, sinon locale française. */
+/** Compare deux valeurs de cellule : dates par horodatage, nombres, sinon locale française. */
 function compareValues(a: unknown, b: unknown): number {
   if (a === b) return 0;
 
-  const aEmpty = a === null || a === undefined || a === "";
-  const bEmpty = b === null || b === undefined || b === "";
-  if (aEmpty && bEmpty) return 0;
-  if (aEmpty) return 1;
-  if (bEmpty) return -1;
-
   if (typeof a === "number" && typeof b === "number") return a - b;
 
+  const aTime = dateTimestamp(a);
+  const bTime = dateTimestamp(b);
+  if (aTime !== null && bTime !== null) return aTime - bTime;
+
   return cellText(a).localeCompare(cellText(b), "fr");
+}
+
+/** Une date ISO : `2026-01-15` ou `2026-01-15T10:00:00.000Z`. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
+/** Vrai si la valeur est une date. */
+function isDate(value: unknown): value is Date {
+  return Object.prototype.toString.call(value) === "[object Date]";
+}
+
+/**
+ * L'horodatage d'une date ou d'une chaîne ISO ; `null` si la valeur n'en
+ * est pas une.
+ */
+function dateTimestamp(value: unknown): number | null {
+  if (isDate(value)) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+  if (typeof value === "string" && ISO_DATE.test(value)) {
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? time : null;
+  }
+  return null;
+}
+
+/** Une valeur « vide » : rien à afficher, donc rien à comparer. */
+function isEmptyValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value === "";
+  if (isDate(value)) return !Number.isFinite(value.getTime());
+  return false;
 }
 
 /** Groupement simple : une clé, un groupe par valeur distincte, par ordre de libellé. */
@@ -350,7 +409,10 @@ export function applyGrouping<T>(
 
   for (const row of rows) {
     const key = cellText(valueOf(row, groupBy));
-    groups.set(key, [...(groups.get(key) ?? []), row]);
+    const group = groups.get(key);
+    // Le groupe est complété en place : pas de recopie à chaque ligne.
+    if (group) group.push(row);
+    else groups.set(key, [row]);
   }
 
   return [...groups.entries()]
@@ -361,9 +423,10 @@ export function applyGrouping<T>(
 /**
  * Bascule du tri.
  *
- * - clic simple sur une colonne déjà triée : la direction s'inverse ;
- * - clic simple sur une autre colonne : elle devient le tri principal ;
- * - `shift` + clic sur une colonne déjà triée : elle est **retirée** ;
+ * - clic simple sur une colonne déjà triée : la direction s'inverse et
+ *   **l'ensemble des tris est remplacé** — le tri secondaire est abandonné ;
+ * - clic simple sur une autre colonne : elle devient le seul tri, le principal ;
+ * - `shift` + clic sur une colonne déjà triée : elle est **retirée** du tri ;
  * - `shift` + clic sur une colonne nouvelle : elle s'ajoute en secondaire.
  */
 export function toggleSort(
@@ -430,7 +493,7 @@ export function buildFacets<T>(
       })),
     }));
 }
-```
+``````
 
 - [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
 
@@ -871,7 +934,7 @@ Créer `src/domain/entities/dates.ts` :
  *
  * Les données CFC sont écrites en français : `15/01/2026`. Une telle chaîne
  * se trie **alphabétiquement**, donc dans le désordre chronologique — c'est
- * le piège. Ce module est le **seul** lieu où une date est lue.
+ * le piège. Ce module est le **seul** lieu où une date **française** est lue.
  *
  * La `Date` produite est à **minuit UTC** : deux dates de jours différents ne
  * peuvent pas se chevaucher, quelle que soit l'heure locale du poste.
@@ -1256,6 +1319,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatCfcDate } from "@/domain/entities/dates";
 import { cn } from "@/lib/utils";
 
 import type { DataColumn } from "./types";
@@ -1467,6 +1531,12 @@ git commit -m "feat(data-table): le composant de tableau, en-têtes triables et 
 ---
 
 ## Tâche 5 — La barre d'outils canonique
+
+> **Point à trancher dans cette tâche :** la recherche porte sur la forme **ISO**
+> des dates, parce que le moteur normalise une `Date` en ISO. Un agent qui tape
+> « 15/01/2026 » ne trouve donc pas une colonne de date. La correction est
+> d'élargir la recherche à la forme française — ou de l'assumer et de le dire.
+> Ne laisse pas ce point passer sans décision explicite.
 
 **Fichiers :**
 - Modifier : `src/components/ui/data-table-toolbar.tsx` (réécriture)
