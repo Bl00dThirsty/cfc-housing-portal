@@ -2372,8 +2372,89 @@ test** dédié (`e2e.cloisonnement@cfc.cm`) et un nettoyage garanti par `finally
 
 ---
 
-*End of document. Part 17 records the FAQ, the surfacing of failures, the
-proven messaging and the traced KYC decision; Part 16 the navigation and the
-data integrity; Part 15 the citizen space, the messaging and the role
-isolation; Part 14 the two portals and the working document deposit; Part 13
-the alignment on the official cartography; Parts 0–11 remain the target.*
+## PART 18 — LE PARCOURS D'INSCRIPTION, RÉPARÉ (2026-11-13)
+
+### 18.1 Les trois défauts qui le rendaient inutilisable
+
+Le parcours d'inscription ne pouvait pas aboutir. L'emprunteur lisait
+« **Votre session a expiré. Reconnectez-vous pour continuer.** » — un refus
+qui racontait autre chose.
+
+| Défaut | Cause | Correctif |
+|---|---|---|
+| Aucun **acteur** n'était créé avec le compte | `citizen_profiles.id` référence `public.actors(id)` : sans acteur, pas de profil, et le serveur ne reconnaissait pas le nouvel emprunteur | le déclencheur `20260101000024_actor_on_user_signup.sql` crée l'acteur **avec** le compte, et rattrapage les comptes déjà créés |
+| Le compte était créé **dans le navigateur** | la session était posée après coup ; la requête suivante — celle qui enregistre la situation — partait sans elle | `createAccountAction` fait tout **côté serveur**, et vérifie que la session est utilisable avant de répondre |
+| Le parcours lisait des **colonnes inexistantes** | `citizen_profiles` n'a ni `profession` ni `employer` : la lecture du brouillon échouait, le brouillon était toujours vide, et la reprise du dossier ne pouvait pas fonctionner | le profil est lu avec ses vraies colonnes ; la profession et l'employeur viennent du dossier |
+
+### 18.2 Où vivent les déclarations du citoyen
+
+Le formulaire demande le **revenu déclaré**, les **personnes à charge** et les
+**crédits en cours**. Le dossier ne peut pas les porter : son revenu
+`*_assessé*` est protégé contre l'écriture par le client
+(`guard_citizen_dossier_update`).
+
+Les déclarations ont donc leur table — `kyc_profiles`
+(`20260101000025_kyc_profile.sql`), celle du parcours d'inscription et de KYC :
+
+| Contenu | Seau |
+|---|---|
+| identité (nom, naissance, CNI) | `kyc_profiles.identity` |
+| résidence (adresse, ville, région) | `kyc_profiles.residence` |
+| emploi (profession, employeur, **revenu déclaré**) | `kyc_profiles.employment` |
+| conformité (personnes à charge, crédits en cours) | `kyc_profiles.compliance` |
+| copie de travail de la plateforme | `dossiers` |
+
+Le **revenu évalué** reste à la plateforme : `dossiers.monthly_income`.
+
+### 18.3 Le téléphone : une bibliothèque, pas une table maison
+
+Les plans de numérotation sont ceux de `libphonenumber-js`. Le module
+`src/domain/entities/phone.ts` les **applique** (validation, forme
+internationale, regroupement) ; le composant `src/components/ui/phone-input.tsx`
+les **montre** : indicatif au choix parmi les plans du monde, drapeaux,
+recherche, regroupement au fil de la frappe.
+
+Deux formes, et une seule stockée :
+
+- la forme **nationale** est ce que l'utilisateur tape ;
+- la forme **internationale** (`+237699000001`) est ce que la base stocke et
+  ce que l'affichage reformate.
+
+### 18.4 La couche de toasts
+
+`sonner` est monté **une seule fois**, à la racine (`CfcToaster`). Le retour
+d'action passe par **un seul** propriétaire, `src/lib/action-feedback.ts`, qui
+traduit la convention `{ ok, error }` déjà utilisée par tous les appels
+serveur.
+
+Un toast **accompagne** l'état d'erreur affiché à l'écran, il ne le remplace
+jamais : un refus qui bloque la tâche garde son refus à l'écran.
+
+### 18.5 L'isolation des suites de bout en bout, corrigée
+
+Plusieurs clients Supabase dans un **même processus** partagent la même clé de
+stockage et se renvoient une session périmée. Une suite par **processus** :
+le parcours d'inscription vit dans son propre fichier
+(`onboarding.e2e.local.test.ts`), comme le dépôt, la signalisation et le fil.
+
+**9 exécutions consécutives** de la suite complète, sans échec.
+
+### 18.6 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **349 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — **9 exécutions consécutives** sans échec |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **59/59** |
+
+---
+
+*End of document. Part 18 records the repaired onboarding journey; Part 17 the
+FAQ, the surfacing of failures, the proven messaging and the traced KYC
+decision; Part 16 the navigation and the data integrity; Part 15 the citizen
+space, the messaging and the role isolation; Part 14 the two portals and the
+working document deposit; Part 13 the alignment on the official cartography;
+Parts 0–11 remain the target.*
