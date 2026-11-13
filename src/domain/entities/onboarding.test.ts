@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_DRAFT,
   isAdult,
-  isValidCameroonPhone,
   isValidCni,
   isValidEmail,
-  normalisePhone,
   parseAmount,
+  resumeStepId,
   validateStep,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
@@ -51,30 +50,6 @@ describe("isValidEmail", () => {
     expect(isValidEmail("abanda.eric")).toBe(false);
     expect(isValidEmail("abanda.eric@")).toBe(false);
     expect(isValidEmail("")).toBe(false);
-  });
-});
-
-describe("isValidCameroonPhone", () => {
-  it("accepts the local and the international form", () => {
-    expect(isValidCameroonPhone("+237 6 99 00 00 01")).toBe(true);
-    expect(isValidCameroonPhone("699000001")).toBe(true);
-    expect(isValidCameroonPhone("237699000001")).toBe(true);
-  });
-
-  it("rejects a foreign or malformed number", () => {
-    expect(isValidCameroonPhone("+33 6 12 34 56 78")).toBe(false);
-    expect(isValidCameroonPhone("69900")).toBe(false);
-    expect(isValidCameroonPhone("")).toBe(false);
-  });
-});
-
-describe("normalisePhone", () => {
-  it("prefixes the Cameroonian code", () => {
-    expect(normalisePhone("699000001")).toBe("+237 699000001");
-  });
-
-  it("keeps an already normalised number", () => {
-    expect(normalisePhone("+237 6 99 00 00 01")).toBe("+237 6 99 00 00 01");
   });
 });
 
@@ -162,5 +137,49 @@ describe("validateStep", () => {
 
   it("always accepts the documents step", () => {
     expect(validateStep("documents", draft()).valid).toBe(true);
+  });
+
+  it("attaches each refusal to its field", () => {
+    const result = validateStep("account", draft());
+
+    expect(result.fields.email).toBe("Renseignez une adresse e-mail valide.");
+    expect(result.fields.phone).toBe("Renseignez un numéro de téléphone valide.");
+    expect(result.fields.affiliation).toBe("Indiquez votre situation bancaire.");
+  });
+
+  it("attaches the address refusal to the address", () => {
+    const result = validateStep("profile", draft({ ...validProfile, address: null }));
+
+    expect(result.fields.address).toBe("Renseignez votre adresse de résidence.");
+  });
+});
+
+describe("resumeStepId", () => {
+  it("commences par le compte", () => {
+    expect(resumeStepId(EMPTY_DRAFT)).toBe("account");
+  });
+
+  it("passe au service quand l'identité est posée", () => {
+    expect(resumeStepId(draft({ phone: "+237699000001", affiliation: "first_time" }))).toBe(
+      "service",
+    );
+  });
+
+  it("passe au dossier quand le service est choisi", () => {
+    expect(
+      resumeStepId(
+        draft({
+          phone: "+237699000001",
+          affiliation: "first_time",
+          serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
+        }),
+      ),
+    ).toBe("profile");
+  });
+
+  it("passe aux pièces quand le dossier est complet", () => {
+    expect(resumeStepId(draft({ ...validProfile, phone: "+237699000001", affiliation: "first_time", serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE" }))).toBe(
+      "documents",
+    );
   });
 });

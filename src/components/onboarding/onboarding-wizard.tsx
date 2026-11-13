@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   ONBOARDING_STEPS,
-  validateStep,
+  resumeStepId,
   type OnboardingDraft,
   type OnboardingStepId,
 } from "@/domain/entities/onboarding";
@@ -18,6 +18,17 @@ import { StepAccount } from "./steps/step-account";
 import { StepDocuments } from "./steps/step-documents";
 import { StepProfile } from "./steps/step-profile";
 import { StepService } from "./steps/step-service";
+
+/**
+ * Le parcours d'inscription — quatre étapes, un seul dossier.
+ *
+ * Deux règles tiennent l'ensemble :
+ *
+ * - **la validation a un seul propriétaire** : chaque étape vérifie ses
+ *   champs avant d'écrire, et le parcours ne revalide pas derrière elle ;
+ * - **on reprend où l'on s'est arrêté** : un visiteur qui revient retrouve
+ *   l'étape où son dossier s'est interrompu, pas la première.
+ */
 
 type OnboardingWizardProps = {
   services: ServiceSummary[];
@@ -31,44 +42,40 @@ export function OnboardingWizard({
   signedIn,
 }: OnboardingWizardProps) {
   const router = useRouter();
-  const [step, setStep] = React.useState<OnboardingStepId>("account");
+  const [step, setStep] = React.useState<OnboardingStepId>(() =>
+    resumeStepId(initialDraft),
+  );
   const [draft, setDraft] = React.useState<OnboardingDraft>(initialDraft);
-  const [errors, setErrors] = React.useState<string[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [dossierCode, setDossierCode] = React.useState<string | null>(null);
 
   const patch = React.useCallback((values: Partial<OnboardingDraft>) => {
     setDraft((current) => ({ ...current, ...values }));
-    setErrors([]);
   }, []);
 
   const stepIndex = ONBOARDING_STEPS.findIndex((item) => item.id === step);
 
-  const goNext = React.useCallback(async () => {
-    const validation = validateStep(step, draft);
-    if (!validation.valid) {
-      setErrors(validation.errors);
-      return;
-    }
-    setErrors([]);
-
+  /** L'étape suivante : le parcours n'avance qu'après une écriture réussie. */
+  const goNext = React.useCallback(() => {
     const next = ONBOARDING_STEPS[stepIndex + 1];
-    if (next) {
-      setStep(next.id);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [draft, step, stepIndex]);
+    if (!next) return;
+    setStep(next.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [stepIndex]);
 
   const goBack = React.useCallback(() => {
     const previous = ONBOARDING_STEPS[stepIndex - 1];
     if (!previous) return;
-    setErrors([]);
     setStep(previous.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [stepIndex]);
 
   const finish = React.useCallback(() => {
     router.push("/portail-client");
   }, [router]);
+
+  /** L'étape de reprise, pour le dire à l'utilisateur. */
+  const resumed = step !== "account";
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -83,6 +90,11 @@ export function OnboardingWizard({
           Quatre étapes, et votre dossier est ouvert au CFC. Vous pouvez revenir
           dessus à tout moment depuis votre portail.
         </p>
+        {resumed && (
+          <p className="caption-style text-soft">
+            Vous reprenez votre dossier là où vous l&apos;aviez laissé.
+          </p>
+        )}
       </header>
 
       <ol className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-0">
@@ -133,20 +145,6 @@ export function OnboardingWizard({
           );
         })}
       </ol>
-
-      {errors.length > 0 && (
-        <div
-          role="alert"
-          className="mb-6 flex flex-col gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 p-3 animate-in fade-in-0 slide-in-from-top-1 duration-300 ease-power3-out"
-        >
-          {errors.map((error) => (
-            <p key={error} className="flex items-start gap-2 text-xs text-destructive">
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-              {error}
-            </p>
-          ))}
-        </div>
-      )}
 
       <section className="rounded-lg border border-line-strong bg-card p-5 shadow-xs">
         {step === "account" && (
@@ -201,6 +199,9 @@ export function OnboardingWizard({
           <ArrowLeft className="size-3.5" aria-hidden />
           Précédent
         </Button>
+        <span className="caption-style text-soft">
+          Étape {stepIndex + 1} sur {ONBOARDING_STEPS.length}
+        </span>
       </footer>
     </div>
   );

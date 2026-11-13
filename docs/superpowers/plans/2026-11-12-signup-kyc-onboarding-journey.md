@@ -46,6 +46,10 @@
 | `src/domain/entities/address.ts` | Les régions et leur chef-lieu | modifié |
 | `src/domain/entities/services.ts` | Les états « déjà fournie » / « envoyée » | modifié |
 | `supabase/migrations/20260101000022_kyc_onboarding.sql` | Le parcours en base + le catalogue des services | créé |
+| `supabase/migrations/20260101000024_actor_on_user_signup.sql` | L'acteur créé avec le compte | **existe** |
+| `supabase/migrations/20260101000025_kyc_profile.sql` | La table `kyc_profiles` et ses règles | **existe** |
+| `src/domain/entities/phone.ts` | Les règles du téléphone (plans de numérotation) | **existe** |
+| `src/components/ui/phone-input.tsx` | Le champ téléphone (indicatif, recherche, drapeaux) | **existe** |
 | `src/server/actions/signup.ts` | L'inscription | créé |
 | `src/server/actions/kyc-profile.ts` | Le brouillon et la soumission du KYC | créé |
 | `src/server/actions/onboarding.ts` | Le choix de service, la transmission | modifié |
@@ -507,6 +511,12 @@ a pas de second vocabulaire."
 > (`20260101000023_service_catalogue.sql`). Les deux sont additives et
 > sans dépendance entre elles ; les scinder permet à l'inscription d'exister
 > sans attendre l'insertion d'un catalogue de démonstration.
+>
+> **La table `kyc_profiles` existe déjà** (`20260101000025_kyc_profile.sql`),
+> avec la forme décrite ci-dessous : la migration `022` s'y appuie sans la
+> recréer. De même, l'acteur est créé **avec** le compte
+> (`20260101000024_actor_on_user_signup.sql`) : le parcours n'a plus à s'en
+> charger.
 
 **Interfaces :**
 - Consomme : `public.dossiers`, `public.citizen_profiles`, `public.actors`.

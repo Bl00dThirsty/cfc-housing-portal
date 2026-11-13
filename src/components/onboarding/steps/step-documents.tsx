@@ -4,8 +4,17 @@ import { ArrowRight, Check, FileText, Info } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { reportAction } from "@/lib/action-feedback";
 import type { ServiceSummary } from "@/domain/entities/services";
 import type { OnboardingDraft } from "@/domain/entities/onboarding";
+
+/**
+ * Étape 4 — les pièces.
+ *
+ * Le catalogue documentaire est **une donnée** : la Direction Générale le
+ * fait évoluer, un dossier en cours ne perd jamais une pièce exigée. Cette
+ * étape montre donc la liste, et elle dit où déposer les pièces.
+ */
 
 type StepDocumentsProps = {
   draft: OnboardingDraft;
@@ -36,6 +45,18 @@ export function StepDocuments({
     return accumulator;
   }, {});
 
+  const required = documents.filter((doc) => doc.required).length;
+
+  const finish = () => {
+    reportAction(
+      { ok: true },
+      dossierCode
+        ? `Dossier ${dossierCode} ouvert — vous pouvez déposer vos pièces.`
+        : "Votre dossier est ouvert.",
+    );
+    onFinish();
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
@@ -59,41 +80,47 @@ export function StepDocuments({
           Aucune pièce n&apos;est encore déclarée pour ce service.
         </p>
       ) : (
-        Object.entries(grouped).map(([stage, stageDocuments]) => (
-          <section key={stage} className="flex flex-col gap-2">
-            <h3 className="eyebrow-style font-normal text-subtle">
-              {STAGE_LABELS[stage] ?? stage}
-            </h3>
-            <ul className="flex flex-col divide-y divide-line-strong rounded-md border border-line-strong">
-              {stageDocuments.map((doc) => (
-                <li
-                  key={`${stage}-${doc.docTypeCode}`}
-                  className="flex items-center justify-between gap-3 px-3 py-2.5"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                    <div className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm text-foreground">{doc.label}</span>
-                      <span className="truncate caption-style text-soft">
-                        {doc.natureLabel}
-                        {doc.issuingAuthority ? ` · ${doc.issuingAuthority}` : ""}
-                      </span>
+        <>
+          <p className="caption-style text-soft">
+            {required} pièce{required > 1 ? "s" : ""} obligatoire{required > 1 ? "s" : ""} sur{" "}
+            {documents.length}.
+          </p>
+          {Object.entries(grouped).map(([stage, stageDocuments]) => (
+            <section key={stage} className="flex flex-col gap-2">
+              <h3 className="eyebrow-style font-normal text-subtle">
+                {STAGE_LABELS[stage] ?? stage}
+              </h3>
+              <ul className="flex flex-col divide-y divide-line-strong rounded-md border border-line-strong">
+                {stageDocuments.map((doc) => (
+                  <li
+                    key={`${stage}-${doc.docTypeCode}`}
+                    className="flex items-center justify-between gap-3 px-3 py-2.5"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                      <div className="flex min-w-0 flex-col">
+                        <span className="truncate text-sm text-foreground">{doc.label}</span>
+                        <span className="truncate caption-style text-soft">
+                          {doc.natureLabel}
+                          {doc.issuingAuthority ? ` · ${doc.issuingAuthority}` : ""}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  {doc.required ? (
-                    <Badge variant="cfc" className="h-4 shrink-0 px-1.5 text-[10px]">
-                      Obligatoire
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px]">
-                      Facultatif
-                    </Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+                    {doc.required ? (
+                      <Badge variant="cfc" className="h-4 shrink-0 px-1.5 text-[10px]">
+                        Obligatoire
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px]">
+                        Facultatif
+                      </Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </>
       )}
 
       <div className="flex items-start gap-2 rounded-md border border-line-strong bg-muted/40 p-3">
@@ -112,7 +139,7 @@ export function StepDocuments({
         <Button
           variant="cfc"
           size="sm"
-          onClick={onFinish}
+          onClick={finish}
           className="gap-1.5 text-xs"
           disabled={!dossierCode && !draft.serviceCode}
         >

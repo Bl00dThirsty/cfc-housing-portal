@@ -7,6 +7,7 @@ import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import { advanceKycAction, listKycQueueAction, type KycQueueEntry } from "@/server/actions/kyc";
 import { KYC_STATE_LABELS, type KycState } from "@/domain/workflows/kyc";
+import { formatPhone } from "@/domain/entities/phone";
 
 const STATE_TONE: Record<KycState, "neutral" | "blue" | "amber" | "green" | "red" | "purple" | "teal"> = {
   pre_boarding: "neutral",
@@ -131,7 +132,7 @@ export function KycValidationQueue() {
                     {entry.fullName ?? "Emprunteur sans nom"}
                   </span>
                   <span className="truncate caption-style text-soft">
-                    {entry.email ?? "—"} · {entry.phone ?? "—"}
+                    {entry.email ?? "—"} · {entry.phone ? formatPhone(entry.phone) : "—"}
                     {entry.isDiaspora ? " · non-résident" : ""}
                     {entry.affiliation ? ` · ${entry.affiliation}` : ""}
                   </span>

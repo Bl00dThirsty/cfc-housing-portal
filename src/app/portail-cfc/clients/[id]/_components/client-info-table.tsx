@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { type ClientItem } from "@/domain/entities/client";
+import { formatPhone } from "@/domain/entities/phone";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Clock } from "lucide-react";
 
@@ -29,7 +30,7 @@ export function ClientInfoTable({ client }: ClientInfoTableProps) {
     },
     {
       label: "Téléphone & Mobile Money",
-      value: client.phone,
+      value: formatPhone(client.phone),
       isMono: true,
     },
     {

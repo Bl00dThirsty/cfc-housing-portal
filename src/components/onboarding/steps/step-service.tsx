@@ -6,9 +6,18 @@ import { ArrowRight, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { reportAction, reportError } from "@/lib/action-feedback";
 import { saveServiceAction } from "@/server/actions/onboarding";
 import type { ServiceSummary } from "@/domain/entities/services";
 import type { OnboardingDraft } from "@/domain/entities/onboarding";
+
+/**
+ * Étape 2 — le service.
+ *
+ * Le service détermine les pièces exigées et le circuit de validation : c'est
+ * le choix qui engage le dossier. Le catalogue est une donnée ; s'il est vide,
+ * l'écran le dit — il ne montre pas un formulaire sans choix.
+ */
 
 type StepServiceProps = {
   draft: OnboardingDraft;
@@ -31,20 +40,31 @@ export function StepService({
 }: StepServiceProps) {
   const [error, setError] = React.useState<string | null>(null);
 
-  const submit = async () => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
     if (!draft.serviceCode) {
       setError("Choisissez le service pour lequel vous sollicitez un prêt.");
+      reportError("Choisissez le service pour lequel vous sollicitez un prêt.");
       return;
     }
 
-    setError(null);
     setSaving(true);
     try {
       const result = await saveServiceAction(draft.serviceCode);
+
       if (!result.ok) {
+        reportAction(result);
         setError(result.error);
         return;
       }
+
+      reportAction(
+        result,
+        result.dossierCode ? `Dossier ${result.dossierCode} ouvert.` : "Dossier ouvert.",
+      );
+
       onDossierCreated(result.dossierCode ?? null);
       onNext();
     } finally {
@@ -65,7 +85,7 @@ export function StepService({
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-foreground">Quel service ?</h2>
         <p className="text-sm text-muted-foreground">
@@ -127,9 +147,9 @@ export function StepService({
 
       <div className="flex justify-end">
         <Button
+          type="submit"
           variant="cfc"
           size="sm"
-          onClick={submit}
           disabled={saving}
           className="gap-1.5 text-xs"
         >
@@ -141,6 +161,6 @@ export function StepService({
           Ouvrir mon dossier
         </Button>
       </div>
-    </div>
+    </form>
   );
 }

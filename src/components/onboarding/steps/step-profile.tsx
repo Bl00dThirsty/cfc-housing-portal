@@ -5,13 +5,32 @@ import { ArrowRight, Loader2 } from "lucide-react";
 
 import { AddressAutocomplete } from "@/components/address/address-autocomplete";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { reportAction, reportError } from "@/lib/action-feedback";
 import { saveProfileAction } from "@/server/actions/onboarding";
 import {
   parseAmount,
   validateStep,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
+
+/**
+ * Étape 3 — le dossier.
+ *
+ * Ces éléments alimentent le scoring du prêt et la décision du comité de
+ * crédit : ils sont donc vérifiés, et chaque champ dit ce qu'il lui manque.
+ *
+ * Deux saisies sont formatées à la frappe : le revenu, par groupes de trois
+ * chiffres, et le numéro de CNI, qui se saisit en majuscules.
+ */
+
+/** Le montant, lisible : « 850 000 ». */
+function formatAmountInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (!digits) return "";
+  return Number.parseInt(digits, 10).toLocaleString("fr-FR");
+}
 
 type StepProfileProps = {
   draft: OnboardingDraft;
@@ -28,16 +47,21 @@ export function StepProfile({
   saving,
   setSaving,
 }: StepProfileProps) {
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState<string | null>(null);
 
-  const submit = async () => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
     const validation = validateStep("profile", draft);
+    setFieldErrors(validation.fields);
+
     if (!validation.valid) {
-      setError(validation.errors[0]);
+      reportError("Complétez les champs signalés.");
       return;
     }
 
-    setError(null);
     setSaving(true);
     try {
       const result = await saveProfileAction({
@@ -52,18 +76,21 @@ export function StepProfile({
         existingLoans: draft.existingLoans,
       });
 
-      if (!result.ok) {
-        setError(result.error);
+      if (!reportAction(result, "Vos informations sont enregistrées.")) {
+        setError(result.ok ? null : result.error);
         return;
       }
+
       onNext();
     } finally {
       setSaving(false);
     }
   };
 
+  const capacity = parseAmount(draft.monthlyIncome);
+
   return (
-    <div className="flex flex-col gap-5">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-foreground">Votre dossier</h2>
         <p className="text-sm text-muted-foreground">
@@ -72,11 +99,20 @@ export function StepProfile({
         </p>
       </div>
 
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5 sm:col-span-2">
-          <label htmlFor="onboarding-fullname" className="eyebrow-style font-normal text-subtle">
-            Nom complet <span className="text-cfc-brown">*</span>
-          </label>
+        <Field
+          label="Nom complet"
+          htmlFor="onboarding-fullname"
+          required
+          error={fieldErrors.fullName}
+          className="sm:col-span-2"
+        >
           <Input
             id="onboarding-fullname"
             value={draft.fullName}
@@ -84,34 +120,47 @@ export function StepProfile({
             placeholder="ABANDA Eric"
             autoComplete="name"
             required
+            aria-invalid={fieldErrors.fullName ? true : undefined}
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-birthdate" className="eyebrow-style font-normal text-subtle">
-            Date de naissance <span className="text-cfc-brown">*</span>
-          </label>
+        <Field
+          label="Date de naissance"
+          htmlFor="onboarding-birthdate"
+          required
+          error={fieldErrors.birthDate}
+          hint="Vous devez être majeur pour solliciter un prêt."
+        >
           <Input
             id="onboarding-birthdate"
             type="date"
             value={draft.birthDate}
             onChange={(event) => onChange({ birthDate: event.target.value })}
+            max={new Date().toISOString().slice(0, 10)}
             required
+            aria-invalid={fieldErrors.birthDate ? true : undefined}
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-cni" className="eyebrow-style font-normal text-subtle">
-            Numéro de CNI <span className="text-cfc-brown">*</span>
-          </label>
+        <Field
+          label="Numéro de CNI"
+          htmlFor="onboarding-cni"
+          required
+          error={fieldErrors.cniNumber}
+          hint="Le numéro de votre carte nationale d'identité."
+        >
           <Input
             id="onboarding-cni"
             value={draft.cniNumber}
-            onChange={(event) => onChange({ cniNumber: event.target.value })}
+            onChange={(event) =>
+              onChange({ cniNumber: event.target.value.toUpperCase().replace(/\s/g, "") })
+            }
             placeholder="AB123456"
+            autoComplete="off"
             required
+            aria-invalid={fieldErrors.cniNumber ? true : undefined}
           />
-        </div>
+        </Field>
 
         <div className="sm:col-span-2">
           <AddressAutocomplete
@@ -121,55 +170,57 @@ export function StepProfile({
             value={draft.address}
             onChange={(address) => onChange({ address: address })}
             hint="Commencez à saisir votre quartier ou votre rue. Vous pouvez aussi saisir l'adresse manuellement."
+            error={fieldErrors.address}
           />
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-profession" className="eyebrow-style font-normal text-subtle">
-            Profession
-          </label>
+        <Field label="Profession" htmlFor="onboarding-profession">
           <Input
             id="onboarding-profession"
             value={draft.profession}
             onChange={(event) => onChange({ profession: event.target.value })}
             placeholder="Ingénieur"
+            autoComplete="organization-title"
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-employer" className="eyebrow-style font-normal text-subtle">
-            Employeur
-          </label>
+        <Field label="Employeur" htmlFor="onboarding-employer">
           <Input
             id="onboarding-employer"
             value={draft.employer}
             onChange={(event) => onChange({ employer: event.target.value })}
             placeholder="SIC"
+            autoComplete="organization"
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-income" className="eyebrow-style font-normal text-subtle">
-            Revenu mensuel net <span className="text-cfc-brown">*</span>
-          </label>
+        <Field
+          label="Revenu mensuel net"
+          htmlFor="onboarding-income"
+          required
+          error={fieldErrors.monthlyIncome}
+          hint="En francs CFA (XAF)."
+        >
           <Input
             id="onboarding-income"
             inputMode="numeric"
             value={draft.monthlyIncome}
-            onChange={(event) => onChange({ monthlyIncome: event.target.value })}
+            onChange={(event) => onChange({ monthlyIncome: formatAmountInput(event.target.value) })}
             placeholder="850 000"
             required
+            aria-invalid={fieldErrors.monthlyIncome ? true : undefined}
           />
-          <span className="caption-style text-soft">En francs CFA (XAF).</span>
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-dependants" className="eyebrow-style font-normal text-subtle">
-            Personnes à charge
-          </label>
+        <Field
+          label="Personnes à charge"
+          htmlFor="onboarding-dependants"
+          hint="Enfants, conjoints et personnes à votre charge."
+        >
           <Input
             id="onboarding-dependants"
             type="number"
+            inputMode="numeric"
             min={0}
             max={20}
             value={draft.dependants}
@@ -177,43 +228,39 @@ export function StepProfile({
               onChange({ dependants: Number.parseInt(event.target.value, 10) || 0 })
             }
           />
-        </div>
+        </Field>
 
-        <div className="flex flex-col gap-1.5 sm:col-span-2">
-          <label htmlFor="onboarding-loans" className="eyebrow-style font-normal text-subtle">
-            Crédits en cours
-          </label>
+        <Field
+          label="Crédits en cours"
+          htmlFor="onboarding-loans"
+          className="sm:col-span-2"
+          hint="Les crédits immobiliers ou de consommation que vous avez en cours. Laissez vide si vous n'en avez pas."
+        >
           <Input
             id="onboarding-loans"
             value={draft.existingLoans}
             onChange={(event) => onChange({ existingLoans: event.target.value })}
             placeholder="Aucun crédit en cours"
           />
-        </div>
+        </Field>
       </div>
 
       <p className="caption-style text-soft">
         Capacité d&apos;endettement estimée sur la base de votre revenu :{" "}
         <span className="font-medium text-foreground">
-          {parseAmount(draft.monthlyIncome) > 0
-            ? `${(Math.round((parseAmount(draft.monthlyIncome) * 0.33) / 1000) * 1000).toLocaleString("fr-FR")} FCFA`
+          {capacity > 0
+            ? `${(Math.round((capacity * 0.33) / 1000) * 1000).toLocaleString("fr-FR")} FCFA`
             : "—"}
         </span>{" "}
         (33 % du revenu net, seuil institutionnel — le montant définitif est
         arrêté par le comité de crédit).
       </p>
 
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
-
       <div className="flex justify-end">
         <Button
+          type="submit"
           variant="cfc"
           size="sm"
-          onClick={submit}
           disabled={saving}
           className="gap-1.5 text-xs"
         >
@@ -225,6 +272,6 @@ export function StepProfile({
           Enregistrer et continuer
         </Button>
       </div>
-    </div>
+    </form>
   );
 }

@@ -27,6 +27,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tag } from "@/components/ui/tag";
 import { useAuth } from "@/lib/auth-context";
+import { formatPhone } from "@/domain/entities/phone";
 
 /** Identité affichée en tête de profil. */
 export interface ProfileIdentity {
@@ -105,7 +106,7 @@ export function ProfilePanel({ identity, habilitation, dossier }: ProfilePanelPr
           <Separator className="my-1" />
           <Row label="Adresse e-mail" value={<span className="font-mono">{identity.email}</span>} />
           <Separator className="my-1" />
-          <Row label="Téléphone" value={identity.phone ?? "Non renseigné"} />
+          <Row label="Téléphone" value={identity.phone ? formatPhone(identity.phone) : "Non renseigné"} />
         </CardContent>
       </Card>
 

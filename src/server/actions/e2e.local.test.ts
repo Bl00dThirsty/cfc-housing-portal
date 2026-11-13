@@ -33,6 +33,9 @@ vi.mock("next/headers", () => ({
     getAll: () => [...cookieJar.entries()].map(([name, value]) => ({ name, value })),
     get: (name: string) => ({ name, value: cookieJar.get(name) }),
     set: (name: string, value: string) => {
+      if (!name.includes("code-verifier")) {
+        console.log(`SET ${name} (${value.length})`);
+      }
       cookieJar.set(name, value);
     },
     delete: (name: string) => {

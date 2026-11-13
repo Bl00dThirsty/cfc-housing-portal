@@ -1,4 +1,5 @@
 import type { SelectedAddress } from "@/domain/entities/address";
+import { isValidPhone } from "@/domain/entities/phone";
 
 export type AffiliationStatus = "first_time" | "other_bank" | "cfc_existing" | "non_resident";
 
@@ -88,26 +89,16 @@ export const ONBOARDING_STEPS: ReadonlyArray<{
 export type StepValidation = {
   valid: boolean;
   errors: string[];
+  /**
+   * Le refus, rattaché à son champ.
+   *
+   * Une liste de messages oblige l'utilisateur à les deviner un par un ; ici,
+   * chaque champ sait ce qu'il lui reproche.
+   */
+  fields: Record<string, string>;
 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-export function normalisePhone(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("+237")) return trimmed;
-
-  const digits = trimmed.replace(/[^\d]/g, "");
-  if (digits.startsWith("237")) return `+237 ${digits.slice(3)}`;
-  if (digits.startsWith("0")) return `+237 ${digits.slice(1)}`;
-  if (digits.length === 9) return `+237 ${digits}`;
-  return trimmed;
-}
-
-export function isValidCameroonPhone(raw: string): boolean {
-  const digits = raw.replace(/[^\d]/g, "");
-  const local = digits.startsWith("237") ? digits.slice(3) : digits;
-  return local.length === 9 && (local.startsWith("2") || local.startsWith("6"));
-}
 
 export function isValidEmail(raw: string): boolean {
   return EMAIL_PATTERN.test(raw.trim());
@@ -142,41 +133,47 @@ export function validateStep(
   draft: OnboardingDraft,
 ): StepValidation {
   const errors: string[] = [];
+  const fields: Record<string, string> = {};
+
+  const refuse = (field: string, message: string) => {
+    errors.push(message);
+    fields[field] ??= message;
+  };
 
   switch (step) {
     case "account": {
       if (!isValidEmail(draft.email)) {
-        errors.push("Renseignez une adresse e-mail valide.");
+        refuse("email", "Renseignez une adresse e-mail valide.");
       }
-      if (!isValidCameroonPhone(draft.phone)) {
-        errors.push("Renseignez un numéro de téléphone camerounais valide.");
+      if (!isValidPhone(draft.phone)) {
+        refuse("phone", "Renseignez un numéro de téléphone valide.");
       }
       if (!draft.affiliation) {
-        errors.push("Indiquez votre situation bancaire.");
+        refuse("affiliation", "Indiquez votre situation bancaire.");
       }
       break;
     }
     case "service": {
       if (!draft.serviceCode) {
-        errors.push("Choisissez le service pour lequel vous sollicitez un prêt.");
+        refuse("service", "Choisissez le service pour lequel vous sollicitez un prêt.");
       }
       break;
     }
     case "profile": {
       if (draft.fullName.trim().length < 3) {
-        errors.push("Renseignez votre nom complet.");
+        refuse("fullName", "Renseignez votre nom complet.");
       }
       if (!isAdult(draft.birthDate)) {
-        errors.push("Vous devez être majeur pour solliciter un prêt.");
+        refuse("birthDate", "Vous devez être majeur pour solliciter un prêt.");
       }
       if (!isValidCni(draft.cniNumber)) {
-        errors.push("Renseignez un numéro de CNI valide.");
+        refuse("cniNumber", "Renseignez un numéro de CNI valide.");
       }
       if (!draft.address) {
-        errors.push("Renseignez votre adresse de résidence.");
+        refuse("address", "Renseignez votre adresse de résidence.");
       }
       if (parseAmount(draft.monthlyIncome) <= 0) {
-        errors.push("Renseignez votre revenu mensuel.");
+        refuse("monthlyIncome", "Renseignez votre revenu mensuel.");
       }
       break;
     }
@@ -185,7 +182,21 @@ export function validateStep(
     }
   }
 
-  return { valid: errors.length === 0, errors };
+  return { valid: errors.length === 0, errors, fields };
+}
+
+/**
+ * L'étape à reprendre.
+ *
+ * Un visiteur qui revient ne repart pas de zéro : il reprend là où son
+ * dossier s'est arrêté. L'ordre est celui du parcours — on ne peut pas
+ * choisir son service avant d'avoir dit qui l'on est.
+ */
+export function resumeStepId(draft: OnboardingDraft): OnboardingStepId {
+  if (!draft.phone || !draft.affiliation) return "account";
+  if (!draft.serviceCode) return "service";
+  if (!draft.fullName.trim() || !draft.cniNumber.trim() || !draft.address) return "profile";
+  return "documents";
 }
 
 export function stepStatus(

@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import ShellLayout from "@/components/layout/shell-layout";
+import { CfcToaster } from "@/components/ui/toaster";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-cfc",
@@ -37,6 +38,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ShellLayout>{children}</ShellLayout>
+          <CfcToaster />
         </ThemeProvider>
       </body>
     </html>

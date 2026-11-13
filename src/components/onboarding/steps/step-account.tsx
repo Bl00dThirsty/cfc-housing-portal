@@ -1,21 +1,42 @@
 "use client";
 
 import * as React from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Info, Loader2, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { cn } from "@/lib/utils";
-import { getBrowserClient } from "@/lib/supabase/client";
-import { saveAccountAction } from "@/server/actions/onboarding";
+import { reportAction, reportError } from "@/lib/action-feedback";
+import { createAccountAction, saveAccountAction } from "@/server/actions/onboarding";
 import {
   AFFILIATION_OPTIONS,
-  isValidCameroonPhone,
-  isValidEmail,
-  normalisePhone,
+  validateStep,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
+
+/**
+ * Étape 1 — le compte.
+ *
+ * C'est ici que le compte est créé, et c'est aussi le seul endroit du parcours
+ * qui parle à Supabase Auth directement. Le reste passe par les actions
+ * serveur.
+ *
+ * Trois refus sont traités **séparément**, parce qu'ils ne se corrigent pas de
+ * la même façon :
+ *
+ * - le compte **existe déjà** : le mot de passe ne va pas, l'emprunteur doit
+ *   se connecter ;
+ * - le compte est **créé mais l'e-mail doit être confirmé** : la session
+ *   n'existe pas encore, il faut passer par la boîte de réception ;
+ * - le **refus du serveur** : il est affiché tel quel.
+ *
+ * Aucun de ces refus ne ressemble à une absence : chacun dit ce qui s'est
+ * passé et ce qu'il reste à faire.
+ */
 
 type StepAccountProps = {
   draft: OnboardingDraft;
@@ -35,74 +56,77 @@ export function StepAccount({
   setSaving,
 }: StepAccountProps) {
   const [password, setPassword] = React.useState("");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState<string | null>(null);
+  const [accountExists, setAccountExists] = React.useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = React.useState(false);
 
-  const submit = async () => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError(null);
+    setAccountExists(false);
+    setAwaitingConfirmation(false);
 
-    if (!isValidEmail(draft.email)) {
-      setError("Renseignez une adresse e-mail valide.");
+    const validation = validateStep("account", draft);
+    setFieldErrors(validation.fields);
+
+    if (!validation.valid) {
+      reportError("Complétez les champs signalés.");
       return;
     }
-    if (!isValidCameroonPhone(draft.phone)) {
-      setError("Renseignez un numéro de téléphone camerounais valide.");
-      return;
-    }
-    if (!draft.affiliation) {
-      setError("Indiquez votre situation bancaire.");
+
+    if (!signedIn && password.length < 8) {
+      setFieldErrors({ password: "Choisissez un mot de passe d'au moins 8 caractères." });
+      reportError("Choisissez un mot de passe d'au moins 8 caractères.");
       return;
     }
 
     setSaving(true);
     try {
       if (!signedIn) {
-        if (password.length < 8) {
-          setError("Choisissez un mot de passe d'au moins 8 caractères.");
-          setSaving(false);
-          return;
-        }
-
-        const supabase = getBrowserClient();
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        // La création du compte est **côté serveur** : c'est lui qui pose la
+        // session dans le cookie de la réponse. Une création faite dans le
+        // navigateur laisserait la requête suivante — celle qui enregistre la
+        // situation — sans session.
+        const result = await createAccountAction({
           email: draft.email.trim(),
           password,
+          phone: draft.phone,
+          affiliation: draft.affiliation!,
         });
 
-        if (signUpError) {
-          if (/already registered|already exists/i.test(signUpError.message)) {
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-              email: draft.email.trim(),
-              password,
-            });
-            if (signInError) {
-              setError(
-                "Un compte existe déjà avec cette adresse. Connectez-vous avec votre mot de passe.",
-              );
-              setSaving(false);
-              return;
-            }
+        if (!result.ok) {
+          if (result.code === "ACCOUNT_EXISTS") {
+            setAccountExists(true);
+            setFieldErrors({ email: result.error });
           } else {
-            setError(signUpError.message);
-            setSaving(false);
-            return;
+            setError(result.error);
           }
-        } else if (!data.session) {
-          setError(
-            "Votre compte a été créé. Confirmez votre adresse e-mail avant de continuer.",
-          );
-          setSaving(false);
+          reportError(result.error);
           return;
         }
+
+        if (result.pendingConfirmation) {
+          setAwaitingConfirmation(true);
+          reportError(
+            result.message ?? "Confirmez votre adresse e-mail pour continuer.",
+          );
+          return;
+        }
+
+        reportAction(result, result.message);
+        onNext();
+        return;
       }
 
+      // Déjà connecté : seule la situation est à enregistrer.
       const result = await saveAccountAction({
-        phone: normalisePhone(draft.phone),
+        phone: draft.phone,
         affiliation: draft.affiliation!,
       });
 
-      if (!result.ok) {
-        setError(result.error);
-        setSaving(false);
+      if (!reportAction(result, "Votre situation est enregistrée.")) {
+        setError(result.ok ? null : result.error);
         return;
       }
 
@@ -113,7 +137,7 @@ export function StepAccount({
   };
 
   return (
-    <div className="flex flex-col gap-5">
+    <form onSubmit={submit} noValidate className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h2 className="text-base font-semibold text-foreground">Qui êtes-vous ?</h2>
         <p className="text-sm text-muted-foreground">
@@ -121,53 +145,106 @@ export function StepAccount({
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-email" className="eyebrow-style font-normal text-subtle">
-            Adresse e-mail <span className="text-cfc-brown">*</span>
-          </label>
-          <Input
-            id="onboarding-email"
-            type="email"
-            autoComplete="email"
-            value={draft.email}
-            onChange={(event) => onChange({ email: event.target.value })}
-            placeholder="nom.prenom@cfc.cm"
-            required
-          />
+      {awaitingConfirmation && (
+        <div
+          role="status"
+          className="flex flex-col gap-2 rounded-md border border-cfc-gold/40 bg-cfc-lightgold/60 p-3 text-xs text-foreground"
+        >
+          <p className="flex items-start gap-2 font-medium">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-cfc-brown" aria-hidden />
+            Votre compte a été créé. Un message de confirmation vient d&apos;être
+            envoyé à {draft.email.trim()}.
+          </p>
+          <p className="text-muted-foreground">
+            Ouvrez ce message, puis{" "}
+            <Link
+              href="/login"
+              className="font-medium text-cfc-brown underline underline-offset-2 hover:text-cfc-darkbrown"
+            >
+              connectez-vous
+            </Link>{" "}
+            pour reprendre votre dossier.
+          </p>
         </div>
+      )}
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="onboarding-phone" className="eyebrow-style font-normal text-subtle">
-            Téléphone <span className="text-cfc-brown">*</span>
-          </label>
-          <Input
-            id="onboarding-phone"
-            type="tel"
-            autoComplete="tel"
-            value={draft.phone}
-            onChange={(event) => onChange({ phone: event.target.value })}
-            placeholder="+237 6 99 00 00 00"
-            required
-          />
+      {accountExists && (
+        <div
+          role="alert"
+          className="flex flex-col gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-foreground"
+        >
+          <p className="font-medium text-destructive">
+            Un compte existe déjà avec cette adresse e-mail.
+          </p>
+          <p className="text-muted-foreground">
+            Connectez-vous pour reprendre votre dossier, ou utilisez une autre
+            adresse pour créer un compte.
+          </p>
+          <Link
+            href="/login"
+            className="w-fit font-medium text-cfc-brown underline underline-offset-2 hover:text-cfc-darkbrown"
+          >
+            Se connecter
+          </Link>
         </div>
+      )}
+
+      {error && (
+        <p role="alert" className="text-xs text-destructive">
+          {error}
+        </p>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Adresse e-mail"
+          htmlFor="onboarding-email"
+          required
+          error={fieldErrors.email}
+          hint={signedIn ? undefined : "Elle sert aussi à confirmer votre compte."}
+        >
+          <div className="relative">
+            <Mail className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              id="onboarding-email"
+              type="email"
+              autoComplete="email"
+              value={draft.email}
+              onChange={(event) => onChange({ email: event.target.value })}
+              placeholder="nom.prenom@cfc.cm"
+              required
+              aria-invalid={fieldErrors.email ? true : undefined}
+            />
+          </div>
+        </Field>
+
+        <PhoneInput
+          id="onboarding-phone"
+          value={draft.phone}
+          onChange={(phone) => onChange({ phone })}
+          required
+          error={fieldErrors.phone}
+          hint="Format international — l'indicatif se choisit à gauche."
+        />
 
         {!signedIn && (
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label htmlFor="onboarding-password" className="eyebrow-style font-normal text-subtle">
-              Mot de passe <span className="text-cfc-brown">*</span>
-            </label>
+          <Field
+            label="Mot de passe"
+            htmlFor="onboarding-password"
+            required
+            error={fieldErrors.password}
+            hint="8 caractères minimum. Ce mot de passe protège vos accès au portail citoyen."
+            className="sm:col-span-2"
+          >
             <PasswordInput
               id="onboarding-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="new-password"
               placeholder="8 caractères minimum"
+              aria-invalid={fieldErrors.password ? true : undefined}
             />
-            <span className="caption-style text-soft">
-              Ce mot de passe protège vos accès au portail citoyen.
-            </span>
-          </div>
+          </Field>
         )}
       </div>
 
@@ -203,19 +280,18 @@ export function StepAccount({
             );
           })}
         </div>
+        {fieldErrors.affiliation && (
+          <p role="alert" className="text-xs text-destructive">
+            {fieldErrors.affiliation}
+          </p>
+        )}
       </fieldset>
-
-      {error && (
-        <p role="alert" className="text-xs text-destructive">
-          {error}
-        </p>
-      )}
 
       <div className="flex justify-end">
         <Button
+          type="submit"
           variant="cfc"
           size="sm"
-          onClick={submit}
           disabled={saving}
           className="gap-1.5 text-xs"
         >
@@ -227,6 +303,6 @@ export function StepAccount({
           {signedIn ? "Continuer" : "Créer mon compte et continuer"}
         </Button>
       </div>
-    </div>
+    </form>
   );
 }

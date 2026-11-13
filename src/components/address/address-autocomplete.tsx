@@ -15,6 +15,8 @@ type AddressAutocompleteProps = {
   placeholder?: string;
   required?: boolean;
   hint?: string;
+  /** Le refus, quand l'adresse manque ou ne convient pas. */
+  error?: string;
   countryCodes?: string | null;
   className?: string;
 };
@@ -29,6 +31,7 @@ export function AddressAutocomplete({
   placeholder = "Quartier, rue, ville…",
   required = false,
   hint,
+  error,
   countryCodes = "cm",
   className,
 }: AddressAutocompleteProps) {
@@ -153,7 +156,13 @@ export function AddressAutocomplete({
             <X className="size-3.5" aria-hidden />
           </button>
         </div>
-        {hint && <span className="caption-style text-soft">{hint}</span>}
+        {error ? (
+          <span role="alert" className="caption-style text-danger">
+            {error}
+          </span>
+        ) : (
+          hint && <span className="caption-style text-soft">{hint}</span>
+        )}
       </div>
     );
   }
@@ -182,6 +191,7 @@ export function AddressAutocomplete({
             open && activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined
           }
           aria-required={required || undefined}
+          aria-invalid={error ? true : undefined}
           value={query}
           placeholder={placeholder}
           onChange={(event) => {
@@ -249,7 +259,13 @@ export function AddressAutocomplete({
         </ul>
       )}
 
-      {hint && <span className="caption-style text-soft">{hint}</span>}
+      {error ? (
+        <span role="alert" className="caption-style text-danger">
+          {error}
+        </span>
+      ) : (
+        hint && <span className="caption-style text-soft">{hint}</span>
+      )}
     </div>
   );
 }
