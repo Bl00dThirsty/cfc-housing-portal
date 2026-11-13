@@ -2456,16 +2456,31 @@ Deux états restent **distincts** : un panneau sans événement n'est pas un
 panneau en erreur, et un événement qui n'atteste aucune étape n'est pas perdu
 — il est montré à part, sous « Autres événements du dossier ».
 
-### 18.7 Vérifié
+### 18.7 L'en-tête, une coque paramétrée par le rôle
+
+Le client et la console étaient **deux implémentations parallèles** d'une barre
+supérieure. Ils rendent maintenant la même coque.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| La configuration par rôle | `src/config/rbac/role-header.ts` | le libellé du pôle, la recherche scopée et les actions rapides ont **un seul** propriétaire, à côté des autres règles RBAC |
+| La coque | `src/components/layout/portal-header.tsx` | ce qui change d'un écran à l'autre est le **contenu**, pas la coque |
+| Les actions rapides | `visibleQuickActions(role)` | une action exige une **capacité** : elle n'est jamais offerte à qui ne peut pas l'accomplir |
+
+La navigation du portail citoyen n'est plus écrite deux fois : la coque place
+le contenu central **sous** la barre quand l'écran est étroit — une seule
+barre d'onglets, pas deux.
+
+### 18.8 Vérifié
 
 | Contrôle | Résultat |
 |---|---|
 | `npm run typecheck` | exit 0 |
 | `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
-| `npm test` | **361 tests** passés, 16 ignorés (e2e) |
+| `npm test` | **369 tests** passés, 16 ignorés (e2e) |
 | `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — **9 exécutions consécutives** sans échec |
 | `npm run build` | exit 0 |
-| `node scripts/smoke.mjs` | **60/60** |
+| `node scripts/smoke.mjs` | **63/63** |
 
 ---
 
