@@ -183,6 +183,23 @@ async function main() {
     !console_.body.includes("Changer de profil m") && !console_.body.includes("loginAsUser"),
   );
 
+  // L'en-tête de la console nomme le **pôle** de l'agent connecté : un
+  // en-tête identique pour les sept rôles ne dit rien de l'endroit où l'agent
+  // se trouve.
+  check(
+    "l'en-tête de la console nomme le pôle",
+    console_.body.includes("Agence commerciale"),
+    "le libellé de pôle est absent de l'en-tête",
+  );
+  // Les actions rapides sont filtrées par capacité : le guichet voit les
+  // siennes, pas celles du comité.
+  check(
+    "l'en-tête de la console propose les actions du rôle",
+    console_.body.includes("Enrôler un emprunteur") &&
+      !console_.body.includes("Dossier en délibération"),
+    "les actions rapides doivent suivre les capacités du rôle",
+  );
+
   const agentLanding = await fetchPage("/portail-cfc", agent.cookie);
   check(
     "l'agent GUICHET atterrit sur son écran de pôle",
@@ -366,6 +383,14 @@ async function checkCitizenJourney() {
     "le suivi propose de discuter d'une étape",
     tracking.body.includes("Discuter"),
     "action « Discuter » attendue sur chaque étape",
+  );
+
+  // L'en-tête citoyen offre le simulateur et la FAQ : ce sont les parcours
+  // publics que l'emprunteur vit depuis son espace.
+  check(
+    "l'en-tête citoyen porte le simulateur et la FAQ",
+    dashboard.body.includes("Simulateur") && dashboard.body.includes("FAQ"),
+    "les onglets du portail citoyen sont absents",
   );
 
   const agent = await signIn("admin@cfc.cm");
