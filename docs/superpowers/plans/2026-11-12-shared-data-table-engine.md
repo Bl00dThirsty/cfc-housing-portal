@@ -486,16 +486,31 @@ export function buildFacets<T>(
 ): FacetDef[] {
   return columns
     .filter((column) => column.filterable && column.accessor)
-    .map((column) => ({
-      id: column.key,
-      title: column.label,
-      options: distinctValues(columns, rows, column.key).map((value) => ({
-        label: value,
-        value,
-      })),
-    }));
+    .map((column) => {
+      const values = distinctValues(columns, rows, column.key);
+
+      // L'effectif de chaque option : l'agent voit « Prêt pour BET · 12 ».
+      // Il est calculé sur le jeu de lignes **complet**, comme la liste des
+      // valeurs : une option ne disparaît pas sous les yeux de l'agent parce
+      // qu'il vient de cocher une autre facette.
+      const counts = new Map<string, number>();
+      for (const row of rows) {
+        const value = cellText(column.accessor?.(row));
+        if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+      }
+
+      return {
+        id: column.key,
+        title: column.label,
+        options: values.map((value) => ({
+          label: value,
+          value,
+          count: counts.get(value) ?? 0,
+        })),
+      };
+    });
 }
-``````
+`````````
 
 - [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
 
@@ -1029,6 +1044,7 @@ Créer `src/components/data-table/use-data-table.ts` :
 
 import * as React from "react";
 
+import { formatCfcDate } from "@/domain/entities/dates";
 import {
   applyFilters,
   applyGrouping,
@@ -1103,7 +1119,19 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
   const searchValues = React.useCallback(
     (row: T): string[] =>
       columns
-        .map((column) => (column.accessor ? cellText(column.accessor(row)) : ""))
+        .flatMap((column) => {
+          if (!column.accessor) return [];
+          const value = column.accessor(row);
+
+          // Une date est cherchable sous **les deux formes** : l'ISO, que le
+          // moteur compare, et la forme française, que l'agent voit. La saisie
+          // n'est jamais normalisée : c'est la comparaison qui s'élargit.
+          if (value instanceof Date) {
+            return [cellText(value), formatCfcDate(value)];
+          }
+
+          return [cellText(value)];
+        })
         .filter(Boolean),
     [columns],
   );
@@ -1187,7 +1215,7 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
   };
 }
 export type { DataColumn };
-```
+``````
 
 - [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
@@ -1685,7 +1713,7 @@ Attendu : échec — la barre actuelle ne connaît ni `tableId` ni le regroupeme
 
 Remplacer entièrement `src/components/ui/data-table-toolbar.tsx` :
 
-```tsx
+```ts
 "use client";
 
 import * as React from "react";
@@ -1707,14 +1735,33 @@ import { cn } from "@/lib/utils";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 
 /**
+ * Le compte, accordé en nombre : « 1 ligne », « 2 lignes ».
+ *
+ * L'unité est donnée au pluriel par l'écran ; le singulier s'en déduit.
+ */
+function unitFor(count: number, unitName: string): string {
+  if (count > 1 || !unitName.endsWith("s")) return unitName;
+  return unitName.slice(0, -1);
+}
+
+/**
  * Barre d'outils du tableau — **canonique**.
  *
- * Elle porte la recherche, les facettes, le regroupement et les pastilles de
- * tri. Elle lit l'état dans le store : la table et sa barre d'outils sont
- * donc toujours d'accord, sans prop drilling ni duplication d'état.
+ * Elle porte la recherche, les facettes, le regroupement, les pastilles de
+ * tri et l'export. Elle lit l'état dans le store : la table et sa barre
+ * d'outils sont donc toujours d'accord, sans prop drilling ni duplication
+ * d'état.
  */
 export interface DataTableToolbarProps<T> {
+  /** Identifiant du tableau : il isole son état dans le store. */
   tableId: string;
+  /**
+   * Les colonnes.
+   *
+   * Le tableau **doit** avoir une identité stable : une constante de module ou
+   * un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les
+   * mémoïsations du moteur à chaque rendu.
+   */
   columns: DataColumn<T>[];
   rows: T[];
   /** Nom de l'unité, pour le compte : « 12 emprunteurs ». */
@@ -1745,6 +1792,9 @@ export function DataTableToolbar<T>({
     reset,
   } = useDataTable({ tableId, columns, rows });
 
+  // Le champ est un **champ contrôlé ordinaire** : il affiche l'état du
+  // store, et lui écrit. La saisie n'est jamais normalisée — c'est la
+  // comparaison du moteur qui s'élargit aux deux formes d'une date.
   const groupableColumns = columns.filter(
     (column) => column.groupable && column.accessor,
   );
@@ -1754,10 +1804,6 @@ export function DataTableToolbar<T>({
     Boolean(state.search.trim()) ||
     state.sorts.length > 0 ||
     state.groupBy !== null;
-
-  const handleReset = () => {
-    reset();
-  };
 
   return (
     <div
@@ -1846,7 +1892,7 @@ export function DataTableToolbar<T>({
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleReset}
+            onClick={reset}
             className="h-8 gap-1.5 px-2.5 text-[12px] text-subtle hover:text-foreground"
           >
             <span>Réinitialiser</span>
@@ -1857,7 +1903,7 @@ export function DataTableToolbar<T>({
 
       <div className="flex shrink-0 items-center gap-2.5 self-end sm:self-center">
         <span className="caption-style whitespace-nowrap font-mono text-subtle">
-          {filteredCount} {unitName}
+          {filteredCount} {unitFor(filteredCount, unitName)}
           {filteredCount !== totalCount ? (
             <span className="text-subtle/60"> / {totalCount}</span>
           ) : null}
@@ -1881,7 +1927,7 @@ export function DataTableToolbar<T>({
 }
 
 export default DataTableToolbar;
-```
+``````
 
 Dans `src/components/ui/data-table-faceted-filter.tsx`, remplacer l'export local `FilterOption` par un type dérivé du module pur — le module `lib` ne connaît pas React :
 
