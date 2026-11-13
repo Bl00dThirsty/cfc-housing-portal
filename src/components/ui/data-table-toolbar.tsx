@@ -18,29 +18,6 @@ import { cn } from "@/lib/utils";
 
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 
-/** Une date française saisie en entier dans la recherche : `JJ/MM/AAAA`. */
-const FRENCH_DATE_QUERY = /^(\d{2})\/(\d{2})\/(\d{4})$/;
-
-/**
- * Traduit une date française en forme ISO.
- *
- * Le moteur normalise une `Date` en ISO : la recherche porte donc sur
- * « 2026-01-15 ». Un agent qui tape « 15/01/2026 » — la forme **affichée**
- * par le tableau — ne trouverait rien. La barre d'outils rétablit
- * l'équivalence : une requête qui est exactement une date française devient
- * sa forme ISO.
- *
- * Le moteur, lui, reste pur et inchangé : c'est la requête qui est traduite,
- * pas la valeur.
- */
-function toIsoDateQuery(query: string): string {
-  const match = FRENCH_DATE_QUERY.exec(query.trim());
-  if (!match) return query;
-
-  const [, day, month, year] = match;
-  return `${year}-${month}-${day}`;
-}
-
 /**
  * Le compte, accordé en nombre : « 1 ligne », « 2 lignes ».
  *
@@ -99,20 +76,9 @@ export function DataTableToolbar<T>({
     reset,
   } = useDataTable({ tableId, columns, rows });
 
-  // La requête **telle que l'agent l'a écrite** : elle reste affichée, même
-  // quand le store porte sa forme normalisée (« 15/01/2026 » → « 2026-01-15 »).
-  const [query, setQuery] = React.useState(state.search);
-  // Ce que la barre a poussé dans le store : la distingue d'un changement
-  // venu d'ailleurs — une réinitialisation, par exemple.
-  const pushedQuery = React.useRef(state.search);
-
-  // Le store fait foi : quand il change ailleurs, le champ le suit.
-  React.useEffect(() => {
-    if (state.search === pushedQuery.current) return;
-    pushedQuery.current = state.search;
-    setQuery(state.search);
-  }, [state.search]);
-
+  // Le champ est un **champ contrôlé ordinaire** : il affiche l'état du
+  // store, et lui écrit. La saisie n'est jamais normalisée — c'est la
+  // comparaison du moteur qui s'élargit aux deux formes d'une date.
   const groupableColumns = columns.filter(
     (column) => column.groupable && column.accessor,
   );
@@ -122,19 +88,6 @@ export function DataTableToolbar<T>({
     Boolean(state.search.trim()) ||
     state.sorts.length > 0 ||
     state.groupBy !== null;
-
-  const handleSearchChange = (value: string) => {
-    setQuery(value);
-    const normalized = toIsoDateQuery(value);
-    pushedQuery.current = normalized;
-    setSearch(normalized);
-  };
-
-  const handleClearSearch = () => {
-    setQuery("");
-    pushedQuery.current = "";
-    setSearch("");
-  };
 
   return (
     <div
@@ -153,14 +106,14 @@ export function DataTableToolbar<T>({
             type="search"
             aria-label="Rechercher"
             placeholder="Rechercher…"
-            value={query}
-            onChange={(event) => handleSearchChange(event.target.value)}
+            value={state.search}
+            onChange={(event) => setSearch(event.target.value)}
             className="h-8 pl-8 pr-7 text-[12px]"
           />
-          {query ? (
+          {state.search ? (
             <button
               type="button"
-              onClick={handleClearSearch}
+              onClick={() => setSearch("")}
               aria-label="Effacer la recherche"
               className="absolute right-2 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-xs text-subtle hover:text-foreground"
             >

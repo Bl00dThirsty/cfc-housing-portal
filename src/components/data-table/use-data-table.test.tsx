@@ -5,6 +5,8 @@ import { useDataTable, type DataColumn } from "@/components/data-table/use-data-
 import { useDataTableStore } from "@/stores/data-table-store";
 
 type Row = { id: string; name: string; phase: string };
+type DatedRow = { id: string; due: Date };
+type TextDatedRow = { id: string; due: string };
 
 const COLUMNS: DataColumn<Row>[] = [
   { key: "name", label: "Emprunteur", accessor: (row) => row.name, filterable: true, groupable: true },
@@ -114,5 +116,49 @@ describe("useDataTable", () => {
       "committees",
       "kyc_savings",
     ]);
+  });
+
+  it("trouve une date par sa forme française et par sa forme ISO", () => {
+    const columns: DataColumn<DatedRow>[] = [
+      { key: "due", label: "Échéance", accessor: (row) => row.due },
+    ];
+    const rows: DatedRow[] = [
+      { id: "1", due: new Date("2026-01-15T00:00:00.000Z") },
+      { id: "2", due: new Date("2026-03-01T00:00:00.000Z") },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "dates", columns, rows }),
+    );
+
+    // La forme **affichée** par le tableau : « 15/01/2026 ».
+    act(() => result.current.setSearch("15/01/2026"));
+    expect(result.current.filteredCount).toBe(1);
+    expect(result.current.groups[0].rows[0].id).toBe("1");
+
+    // La forme **ISO**, que le moteur compare.
+    act(() => result.current.setSearch("2026-01-15"));
+    expect(result.current.filteredCount).toBe(1);
+    expect(result.current.groups[0].rows[0].id).toBe("1");
+  });
+
+  it("trouve une date restée en texte", () => {
+    const columns: DataColumn<TextDatedRow>[] = [
+      { key: "due", label: "Échéance", accessor: (row) => row.due },
+    ];
+    const rows: TextDatedRow[] = [
+      { id: "1", due: "15/01/2026" },
+      { id: "2", due: "01/03/2026" },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "textes", columns, rows }),
+    );
+
+    // La saisie n'est jamais normalisée : une date en texte reste trouvable
+    // par sa forme affichée.
+    act(() => result.current.setSearch("15/01/2026"));
+    expect(result.current.filteredCount).toBe(1);
+    expect(result.current.groups[0].rows[0].id).toBe("1");
   });
 });

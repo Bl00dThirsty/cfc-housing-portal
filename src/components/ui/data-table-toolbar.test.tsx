@@ -78,6 +78,9 @@ describe("barre d'outils du tableau", () => {
     expect(screen.getByText(/^1 dossier$/)).toBeInTheDocument();
     // Le champ garde ce que l'agent a tapé.
     expect(screen.getByLabelText("Rechercher")).toHaveValue("15/01/2026");
+    // Et le store porte **la même** requête : la saisie n'est jamais
+    // normalisée — c'est la comparaison du moteur qui s'élargit.
+    expect(useDataTableStore.getState().byTable.dates?.search).toBe("15/01/2026");
   });
 
   it("affiche le libellé français des facettes d'une colonne booléenne", async () => {

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { formatCfcDate } from "@/domain/entities/dates";
 import {
   applyFilters,
   applyGrouping,
@@ -76,7 +77,19 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
   const searchValues = React.useCallback(
     (row: T): string[] =>
       columns
-        .map((column) => (column.accessor ? cellText(column.accessor(row)) : ""))
+        .flatMap((column) => {
+          if (!column.accessor) return [];
+          const value = column.accessor(row);
+
+          // Une date est cherchable sous **les deux formes** : l'ISO, que le
+          // moteur compare, et la forme française, que l'agent voit. La saisie
+          // n'est jamais normalisée : c'est la comparaison qui s'élargit.
+          if (value instanceof Date) {
+            return [cellText(value), formatCfcDate(value)];
+          }
+
+          return [cellText(value)];
+        })
         .filter(Boolean),
     [columns],
   );

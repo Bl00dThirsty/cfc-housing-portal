@@ -270,12 +270,27 @@ export function buildFacets<T>(
 ): FacetDef[] {
   return columns
     .filter((column) => column.filterable && column.accessor)
-    .map((column) => ({
-      id: column.key,
-      title: column.label,
-      options: distinctValues(columns, rows, column.key).map((value) => ({
-        label: value,
-        value,
-      })),
-    }));
+    .map((column) => {
+      const values = distinctValues(columns, rows, column.key);
+
+      // L'effectif de chaque option : l'agent voit « Prêt pour BET · 12 ».
+      // Il est calculé sur le jeu de lignes **complet**, comme la liste des
+      // valeurs : une option ne disparaît pas sous les yeux de l'agent parce
+      // qu'il vient de cocher une autre facette.
+      const counts = new Map<string, number>();
+      for (const row of rows) {
+        const value = cellText(column.accessor?.(row));
+        if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+      }
+
+      return {
+        id: column.key,
+        title: column.label,
+        options: values.map((value) => ({
+          label: value,
+          value,
+          count: counts.get(value) ?? 0,
+        })),
+      };
+    });
 }

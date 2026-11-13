@@ -184,6 +184,22 @@ describe("moteur de table — règles pures", () => {
     ]);
   });
 
+  it("donne l'effectif de chaque option de facette", () => {
+    const facets = buildFacets(
+      [
+        { key: "phase", label: "Phase", filterable: true, accessor: (row: Row) => row.phase },
+      ],
+      ROWS,
+    );
+
+    // L'effectif est calculé sur le jeu de lignes **complet** : « committees »
+    // vaut 2, « kyc_savings » vaut 2.
+    expect(facets[0].options).toEqual([
+      { label: "committees", value: "committees", count: 2 },
+      { label: "kyc_savings", value: "kyc_savings", count: 2 },
+    ]);
+  });
+
   it("liste les valeurs distinctes d'une colonne", () => {
     const columns = [{ key: "phase", accessor: (row: Row) => row.phase }];
     expect(distinctValues(columns, ROWS, "phase")).toEqual(["committees", "kyc_savings"]);
