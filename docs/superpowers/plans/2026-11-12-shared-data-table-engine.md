@@ -15,6 +15,7 @@
 - **Tout le texte visible par l'utilisateur est en français** — y compris les dates : une `Date` s'affiche par `formatCfcDate`, jamais par `String(date)`, qui produirait un texte anglais en heure locale.
 - **Le tableau `columns` doit avoir une identité stable** — une constante de module ou un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les mémoïsations du moteur à chaque rendu.
 - **Une colonne dont les valeurs sont des codes internes doit fournir `groupLabel`** — sans lui, l'en-tête de groupe affiche la valeur brute (« kyc_savings · 1 »), qui n'est pas du français.
+- **Tester le tri multi-colonnes** : dans `user-event` v14, `user.click(el, { shiftKey: true })` **ne transmet pas** le modificateur à l'événement React. Il faut **maintenir** la touche : `await user.keyboard("{Shift>}")`, puis le clic, puis `await user.keyboard("{/Shift}")`. C'est ce qui permet d'ajouter une colonne de tri secondaire.
 - Charte CFC : brun (`--cfc-brown`) et or (`--cfc-gold`), pas la violet du kit de référence.
 - Un seul exemplaire par concept : un second store de tri, une seconde barre d'outils ou un second filtre est **supprimé**, jamais ajouté en parallèle.
 - Les commandes de validation, depuis `C:/Users/DTA_WorkStation/Documents/cfc-housing-portal` :
