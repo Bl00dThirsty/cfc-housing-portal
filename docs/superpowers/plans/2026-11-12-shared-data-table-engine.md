@@ -646,19 +646,33 @@ groupement ont un seul propriétaire, au lieu d'un par écran."
 
 ---
 
-## Tâche 3 — Le contrat de colonne et le hook d'orchestration
+## Tâche 3 — Le contrat de colonne, le helper de date et le hook d'orchestration
 
 **Fichiers :**
 - Créer : `src/components/data-table/types.ts`
 - Créer : `src/components/data-table/use-data-table.ts`
 - Créer : `src/components/data-table/use-data-table.test.tsx`
+- Créer : `src/domain/entities/dates.ts`
+- Créer : `src/domain/entities/dates.test.ts`
 
 **Interfaces :**
 - Consomme : `src/lib/data-table.ts`, `src/stores/data-table-store.ts`.
 - Produit :
-  - `type DataColumn<T>` — `{ key; label; accessor?; render?; sortable?; filterable?; groupable?; align?; headerClassName?; cellClassName?; groupLabel? }`
+  - `type DataColumn<T>` — `{ key; label; accessor?; render?; sortable?; filterable?; groupable?; align?; headerClassName?; cellClassName?; groupLabel?; facetLabel? }`
   - `useDataTable<T>(input: { tableId: string; columns: DataColumn<T>[]; rows: T[] }): UseDataTableResult<T>`
   - `type UseDataTableResult<T> = { state: DataTableState; groups: DataGroup<T>[]; facets: FacetDef[]; totalCount: number; filteredCount: number; setSearch; toggleSort; setFilter; setGroupBy; reset; valueOf }`
+  - `parseCfcDate(value: string): Date | null` — une date française `JJ/MM/AAAA` devient une `Date` ; `null` si la date est illisible.
+  - `formatCfcDate(value: Date): string` — l'inverse : `JJ/MM/AAAA`.
+
+> **Pourquoi un helper de date dans le domaine.** Le moteur sait trier une
+> `Date` et une chaîne ISO ; il ne devine pas un format. Or les données de
+> la plateforme sont écrites en français (`15/01/2026`) : une telle chaîne se
+> trierait **alphabétiquement**, donc dans le désordre chronologique. Le
+> domaine possède donc **un seul** lieu où une date est lue, et une colonne de
+> date fait `accessor: (row) => parseCfcDate(row.date)`.
+>
+> La `Date` produite est à **minuit UTC** : deux dates de jours différents
+> ne peuvent pas se chevaucher, quelle que soit l'heure locale du poste.
 
 - [ ] **Étape 1 : écrire le test qui échoue**
 
@@ -781,7 +795,102 @@ export interface DataColumn<T> {
   cellClassName?: string;
   /** Libellé du groupe quand la colonne sert de clé de groupement. */
   groupLabel?: (value: string) => string;
+  /**
+   * Libellé de l'option de facette.
+   *
+   * Une colonne de date produit une valeur ISO ; l'affichage peut vouloir la
+   * date française. Le libellé du groupe et celui de la facette sont donc
+   * deux points de couture distincts.
+   */
+  facetLabel?: (value: string) => string;
 }
+```
+
+Créer `src/domain/entities/dates.ts` :
+
+```ts
+/**
+ * Les dates de la plateforme.
+ *
+ * Les données CFC sont écrites en français : `15/01/2026`. Une telle chaîne
+ * se trie **alphabétiquement**, donc dans le désordre chronologique — c'est
+ * le piège. Ce module est le **seul** lieu où une date est lue.
+ *
+ * La `Date` produite est à **minuit UTC** : deux dates de jours différents ne
+ * peuvent pas se chevaucher, quelle que soit l'heure locale du poste.
+ */
+
+const FRENCH_DATE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
+/**
+ * Lit une date française `JJ/MM/AAAA`.
+ *
+ * Renvoie `null` si la date est absente ou illisible : une date illisible
+ * n'est pas une date, et se masquerait sinon dans un tri.
+ */
+export function parseCfcDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+
+  const match = FRENCH_DATE.exec(value.trim());
+  if (!match) return null;
+
+  const [, day, month, year] = match;
+  const parsed = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  );
+
+  // Une date inexistante (`31/02/2026`) est rejetée : `Date.UTC` déborde.
+  if (
+    parsed.getUTCFullYear() !== Number(year) ||
+    parsed.getUTCMonth() !== Number(month) - 1 ||
+    parsed.getUTCDate() !== Number(day)
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+/** Écrit une date au format français `JJ/MM/AAAA`. */
+export function formatCfcDate(value: Date): string {
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${value.getUTCFullYear()}`;
+}
+```
+
+Créer `src/domain/entities/dates.test.ts` :
+
+```ts
+import { describe, expect, it } from "vitest";
+
+import { formatCfcDate, parseCfcDate } from "@/domain/entities/dates";
+
+describe("dates de la plateforme", () => {
+  it("lit une date française", () => {
+    const parsed = parseCfcDate("15/01/2026");
+    expect(parsed?.toISOString()).toBe("2026-01-15T00:00:00.000Z");
+  });
+
+  it("refuse une date inexistante", () => {
+    expect(parseCfcDate("31/02/2026")).toBeNull();
+  });
+
+  it("refuse une date illisible", () => {
+    expect(parseCfcDate("hier")).toBeNull();
+    expect(parseCfcDate("")).toBeNull();
+    expect(parseCfcDate(null)).toBeNull();
+  });
+
+  it("écrit une date française", () => {
+    expect(formatCfcDate(new Date("2026-01-15T00:00:00.000Z"))).toBe("15/01/2026");
+  });
+
+  it("fait l'aller-retour", () => {
+    const parsed = parseCfcDate("03/09/2026");
+    expect(parsed && formatCfcDate(parsed)).toBe("03/09/2026");
+  });
+});
 ```
 
 Créer `src/components/data-table/use-data-table.ts` :
@@ -883,7 +992,25 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
     }));
   }, [columns, rows, searchValues, state.filters, state.groupBy, state.search, state.sorts, valueOf]);
 
-  const facets = React.useMemo(() => buildFacets(columns, rows), [columns, rows]);
+  const facets = React.useMemo(() => {
+    const built = buildFacets(columns, rows);
+
+    // Une colonne de date produit une valeur ISO ; l'option de facette
+    // peut vouloir la date française. C'est le même point de couture que
+    // pour le libellé de groupe.
+    return built.map((facet) => {
+      const column = columns.find((candidate) => candidate.key === facet.id);
+      if (!column?.facetLabel) return facet;
+
+      return {
+        ...facet,
+        options: facet.options.map((option) => ({
+          ...option,
+          label: column.facetLabel?.(option.value) ?? option.label,
+        })),
+      };
+    });
+  }, [columns, rows]);
 
   const filteredCount = React.useMemo(
     () => groups.reduce((total, group) => total + group.rows.length, 0),
@@ -908,18 +1035,22 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
 export type { DataColumn };
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```
-npx vitest run src/components/data-table/use-data-table.test.tsx
+npx vitest run src/components/data-table/use-data-table.test.tsx src/domain/entities/dates.test.ts
 ```
-Attendu : **4 tests passés**.
+Attendu : **9 tests passés** (4 pour le hook, 5 pour les dates).
 
 - [ ] **Étape 5 : committer**
 
 ```bash
-git add src/components/data-table/types.ts src/components/data-table/use-data-table.ts src/components/data-table/use-data-table.test.tsx
-git commit -m "feat(data-table): le contrat de colonne et le hook d'orchestration"
+git add src/components/data-table src/domain/entities/dates.ts src/domain/entities/dates.test.ts
+git commit -m "feat(data-table): le contrat de colonne, le helper de date et le hook
+
+Le contrat de colonne porte la valeur (tri, filtre, groupe) et le noeud
+affiché. Les dates sont lues en un seul lieu — le domaine — parce qu'une
+date française se trierait alphabétiquement sans cela."
 ```
 
 ---
@@ -2255,14 +2386,21 @@ const COLUMNS: DataColumn<SavingsRow>[] = [
   {
     key: "date",
     label: "Date",
-    accessor: (row) => row.date,
+    accessor: (row) => parseCfcDate(row.date),
+    filterable: true,
     groupable: true,
-    groupLabel: (value) => `Mois de ${value}`,
+    groupLabel: (value) => `Mois de ${formatCfcDate(new Date(value))}`,
+    facetLabel: (value) => formatCfcDate(new Date(value)),
+    render: (row) => row.date,
   },
   { key: "label", label: "Opération", accessor: (row) => row.label },
   { key: "amount", label: "Montant", accessor: (row) => row.amount, align: "right" },
 ];
 ```
+
+> La date est **lue par le domaine** (`parseCfcDate`) et **affichée** par la
+> colonne (`render`). Sans le helper, `accessor: (row) => row.date` trierait
+> `15/01/2026` alphabétiquement — donc dans le désordre chronologique.
 
 Si les sous-totaux ne peuvent pas être exprimés ainsi, la page **reste hors
 moteur** et le dit dans un commentaire d'en-tête — même règle que le kanban.
