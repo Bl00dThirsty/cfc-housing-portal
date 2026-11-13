@@ -4,12 +4,14 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getInitials } from "@/lib/utils";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { getInitials } from "@/lib/utils";
 
 export interface AgencyDossierItem {
   id: string;
@@ -22,6 +24,22 @@ export interface AgencyDossierItem {
   status: string;
   date: string;
 }
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-agency";
+
+/**
+ * Les libellés courts des agences.
+ *
+ * La donnée porte le nom complet (« Agence Yaoundé Centre ») ; la facette et
+ * l'en-tête de groupe portent le nom court — comme avant la migration.
+ */
+const AGENCY_LABELS: Record<string, string> = {
+  "Agence Yaoundé Centre": "Yaoundé Centre",
+  "Agence Douala Bonanjo": "Douala Bonanjo",
+  "Agence Bafoussam": "Bafoussam",
+  "Guichet Diaspora / Centre": "Guichet Diaspora",
+};
 
 const agenceKpis: ActorKpiItem[] = [
   {
@@ -157,69 +175,175 @@ const agenceDossiers: AgencyDossierItem[] = [
   },
 ];
 
+/**
+ * Les colonnes du tableau des dossiers de l'agence.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const AGENCY_COLUMNS: DataColumn<AgencyDossierItem>[] = [
+  {
+    key: "client",
+    label: "Emprunteur",
+    accessor: (row) => row.client,
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+  },
+  {
+    key: "agency",
+    label: "Agence de Rattachement",
+    accessor: (row) => row.agency,
+    filterable: true,
+    groupable: true,
+    groupLabel: (value) => AGENCY_LABELS[value] ?? value,
+    facetLabel: (value) => AGENCY_LABELS[value] ?? value,
+  },
+  {
+    key: "savingsAmount",
+    label: "Épargne Constituée",
+    // Le tri porte sur la **valeur** : « 4 800 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.savingsAmount.replace(/\D/g, "")),
+    render: (row) => row.savingsAmount,
+    align: "right",
+  },
+  {
+    key: "status",
+    label: "Statut Instruction",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={
+          row.status === "Prêt pour BET"
+            ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
+            : "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 h-5 px-2 text-xs font-medium"
+        }
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "date",
+    label: "Date MAJ",
+    // La source mêle des dates relatives (« Aujourd'hui, 14:30 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.date,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
+
 export default function AgenceActorPage() {
   const router = useRouter();
-  const [search, setSearch] = React.useState("");
-  const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
-  const [selectedAgencies, setSelectedAgencies] = React.useState<string[]>([]);
 
-  const statusOptions = React.useMemo(() => [
-    {
-      label: "Prêt pour BET",
-      value: "Prêt pour BET",
-      count: agenceDossiers.filter((d) => d.status === "Prêt pour BET").length,
-    },
-    {
-      label: "Épargne en cours",
-      value: "Épargne en cours",
-      count: agenceDossiers.filter((d) => d.status === "Épargne en cours").length,
-    },
-    {
-      label: "Pièces KYC en validation",
-      value: "Pièces KYC en validation",
-      count: agenceDossiers.filter((d) => d.status === "Pièces KYC en validation").length,
-    },
-  ], []);
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      row,
+      cell,
+    }: {
+      row: AgencyDossierItem;
+      cell: (key: string) => React.ReactNode;
+    }) => {
+      const openDossier = () =>
+        router.push(`/portail-cfc/clients/${row.id.replace("d", "cl-")}`);
 
-  const agencyOptions = React.useMemo(() => [
-    {
-      label: "Yaoundé Centre",
-      value: "Agence Yaoundé Centre",
-      count: agenceDossiers.filter((d) => d.agency === "Agence Yaoundé Centre").length,
+      return (
+        <TableRow
+          onClick={openDossier}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openDossier();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label={`Ouvrir le dossier client de ${row.client}`}
+          className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          <TableCell className="px-3 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <Avatar className="size-8 rounded-lg">
+                <AvatarFallback className="rounded-lg text-xs font-semibold bg-blue-500/15 text-blue-700">
+                  {getInitials(row.client)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openDossier();
+                  }}
+                  aria-label={`Ouvrir le dossier client de ${row.client}`}
+                  className="text-left font-medium hover:underline text-xs text-foreground truncate"
+                >
+                  {cell("client")}
+                </button>
+                <span className="text-[11px] text-muted-foreground truncate">
+                  {row.profession}
+                </span>
+              </div>
+            </div>
+          </TableCell>
+          <TableCell className="px-3 py-2.5">
+            <Badge
+              variant="outline"
+              className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+            >
+              {cell("ducId")}
+            </Badge>
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-foreground">
+            {cell("agency")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+            {cell("savingsAmount")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+            {cell("date")}
+          </TableCell>
+          <TableCell
+            className="text-right pr-4 py-2.5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={openDossier}
+              aria-label={`Ouvrir le dossier client de ${row.client}`}
+              className="size-8 text-muted-foreground hover:text-foreground"
+            >
+              <Eye className="size-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      );
     },
-    {
-      label: "Douala Bonanjo",
-      value: "Agence Douala Bonanjo",
-      count: agenceDossiers.filter((d) => d.agency === "Agence Douala Bonanjo").length,
-    },
-    {
-      label: "Bafoussam",
-      value: "Agence Bafoussam",
-      count: agenceDossiers.filter((d) => d.agency === "Agence Bafoussam").length,
-    },
-    {
-      label: "Guichet Diaspora",
-      value: "Guichet Diaspora / Centre",
-      count: agenceDossiers.filter((d) => d.agency === "Guichet Diaspora / Centre").length,
-    },
-  ], []);
-
-  const filtered = agenceDossiers.filter((d) => {
-    const q = search.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      d.client.toLowerCase().includes(q) ||
-      d.ducId.toLowerCase().includes(q) ||
-      d.profession.toLowerCase().includes(q) ||
-      d.agency.toLowerCase().includes(q);
-
-    const matchesStatus =
-      selectedStatuses.length === 0 || selectedStatuses.includes(d.status);
-    const matchesAgency =
-      selectedAgencies.length === 0 || selectedAgencies.includes(d.agency);
-
-    return matchesSearch && matchesStatus && matchesAgency;
-  });
+    [router],
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -235,7 +359,7 @@ export default function AgenceActorPage() {
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Agence & Réseau Commercial (CFC)
+            Agence &amp; Réseau Commercial (CFC)
           </h1>
           <p className="text-sm text-muted-foreground">
             Enrôlement citoyen, suivi des versements Épargne Habitat (MoMo/SYSTAC) et complétude du Dossier Unique Client (DUC).
@@ -256,134 +380,20 @@ export default function AgenceActorPage() {
       {/* Main Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
         <DataTableToolbar
-          searchQuery={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Rechercher par emprunteur, N° DUC ou agence..."
-          totalCount={agenceDossiers.length}
-          filteredCount={filtered.length}
+          tableId={TABLE_ID}
+          columns={AGENCY_COLUMNS}
+          rows={agenceDossiers}
           unitName="dossiers"
-          filters={[
-            {
-              id: "status",
-              title: "Statut",
-              options: statusOptions,
-              selectedValues: selectedStatuses,
-              onSelect: setSelectedStatuses,
-            },
-            {
-              id: "agency",
-              title: "Agence",
-              options: agencyOptions,
-              selectedValues: selectedAgencies,
-              onSelect: setSelectedAgencies,
-            },
-          ]}
-          onResetAll={() => {
-            setSelectedStatuses([]);
-            setSelectedAgencies([]);
-          }}
         />
 
-        {/* Table */}
-        <div className="rounded-lg border border-border/40 overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Agence de Rattachement</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Épargne Constituée</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Instruction</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date MAJ</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-xs text-muted-foreground">
-                    Aucun dossier ne correspond aux filtres sélectionnés.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    onClick={() => router.push(`/portail-cfc/clients/${item.id.replace('d', 'cl-')}`)}
-                    onKeyDown={(e) => {
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        router.push(`/portail-cfc/clients/${item.id.replace('d', 'cl-')}`);
-                      }
-                    }}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`Ouvrir le dossier client de ${item.client}`}
-                    className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-                  >
-                    <TableCell className="px-3 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar className="size-8 rounded-lg">
-                          <AvatarFallback className="rounded-lg text-xs font-semibold bg-blue-500/15 text-blue-700">
-                            {getInitials(item.client)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col min-w-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/portail-cfc/clients/${item.id.replace('d', 'cl-')}`);
-                            }}
-                            aria-label={`Ouvrir le dossier client de ${item.client}`}
-                            className="text-left font-medium hover:underline text-xs text-foreground truncate"
-                          >
-                            {item.client}
-                          </button>
-                          <span className="text-[11px] text-muted-foreground truncate">{item.profession}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5">
-                      <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                        {item.ducId}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5 text-xs text-foreground">{item.agency}</TableCell>
-                    <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                      {item.savingsAmount}
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5">
-                      <Badge
-                        variant="secondary"
-                        className={
-                          item.status === "Prêt pour BET"
-                            ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
-                            : "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 h-5 px-2 text-xs font-medium"
-                        }
-                      >
-                        {item.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.date}</TableCell>
-                    <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => router.push(`/portail-cfc/clients/${item.id.replace('d', 'cl-')}`)}
-                        aria-label={`Ouvrir le dossier client de ${item.client}`}
-                        className="size-8 text-muted-foreground hover:text-foreground"
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={AGENCY_COLUMNS}
+          rows={agenceDossiers}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun dossier ne correspond aux filtres sélectionnés."
+        />
       </div>
     </div>
   );
