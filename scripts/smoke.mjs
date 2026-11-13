@@ -108,30 +108,44 @@ async function main() {
     `status=${accueil.status}`,
   );
 
-  // L'en-tête public n'annonce que ce qui est ouvert à tous : le simulateur
-  // et la foire aux questions. L'onboarding vient après l'inscription, l'espace
-  // et le suivi après l'authentification — ils ne doivent donc pas figurer
-  // dans l'en-tête.
+  // L'en-tête public n'annonce que ce qui est ouvert à tous : le simulateur,
+  // la foire aux questions, et les deux portes du citoyen — **créer un
+  // compte** et **se connecter**. L'espace citoyen et le suivi viennent
+  // *après* l'authentification : ils ne doivent donc pas figurer dans
+  // l'en-tête.
   const login = await fetchPage("/login");
   const header = login.body.slice(0, login.body.indexOf("</header>"));
   check(
     "l'en-tête public n'annonce que les services ouverts à tous",
     header.includes("Simulateur") &&
       header.includes("FAQ") &&
-      !header.includes('href="/onboarding"') &&
+      header.includes("Créer un compte") &&
+      header.includes('href="/onboarding"') &&
+      header.includes('href="/login"') &&
       !header.includes('href="/portail-client"') &&
       !header.includes('href="/tracking"'),
-    "onglets publics : simulateur et FAQ",
+    "onglets publics : simulateur et FAQ ; portes du citoyen : créer un compte, se connecter",
   );
   check(
-    "la porte de l'agent reste accessible",
-    header.includes("/portail-cfc/login"),
-    "lien vers la porte agent attendu",
+    "l'en-tête ne répète pas la porte de l'agent",
+    !header.includes("/portail-cfc/login"),
+    "la porte de l'agent est dans le pied de page",
   );
   check(
     "le pied de page offre la porte de l'agent",
     login.body.includes("/portail-cfc/login"),
     "lien de pied de page attendu",
+  );
+
+  // Sur la page d'inscription, l'appel à l'action ne mène nulle part : on y
+  // est déjà. La même porte ne doit pas s'afficher deux fois sur la page.
+  const onboarding = await fetchPage("/onboarding");
+  const onboardingHeader = onboarding.body.slice(0, onboarding.body.indexOf("</header>"));
+  check(
+    "la page d'inscription ne répète pas l'appel à l'action",
+    !onboardingHeader.includes('href="/onboarding"') &&
+      onboardingHeader.includes('href="/login"'),
+    "seule la connexion reste dans l'en-tête",
   );
 
   // La foire aux questions est un service public, rendu et complet.

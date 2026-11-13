@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Calculator, HelpCircle, LogIn } from "lucide-react";
+import { Calculator, HelpCircle, LogIn, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,20 +11,28 @@ import { cn } from "@/lib/utils";
 /**
  * En-tête du site public.
  *
- * Il n'affiche que ce qui est **ouvert à tous** : le simulateur d'épargne.
+ * Il n'affiche que ce qui est **ouvert à tous** : le simulateur d'épargne, la
+ * FAQ, et les deux portes du citoyen — **Créer un compte** (l'appel à
+ * l'action) et **Se connecter** (le lien discret).
  *
  * Le reste du parcours est ailleurs, et c'est volontaire :
  *
- * - l'**onboarding** vient **après l'inscription**, quand le premier dossier
- *   s'ouvre ;
+ * - l'**onboarding** porte la création du compte et l'ouverture du premier
+ *   dossier : c'est la destination de l'appel à l'action ;
  * - l'**espace citoyen** et le **suivi du prêt** viennent **après
  *   l'authentification** — ils ne montrent que les données du visiteur ;
- * - l'**espace agent** a sa propre porte, signalée discrètement : un agent
- *   n'est pas un visiteur du site public.
+ * - la **porte de l'agent** n'est pas ici : elle est dans le pied de page,
+ *   à côté des autres portes du site. Un agent n'est pas un visiteur du site
+ *   public, et répéter la même porte sur la même page n'aide personne.
  */
 export default function Navbar() {
   const pathname = usePathname();
   const isAdminActive = pathname.startsWith("/portail-cfc");
+  /**
+   * Sur la page d'inscription, l'appel à l'action ne mène nulle part : on y
+   * est déjà. Seul le lien « Se connecter » reste utile.
+   */
+  const isRegistrationPath = pathname.startsWith("/onboarding");
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
@@ -84,7 +92,7 @@ export default function Navbar() {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {isAdminActive ? (
             <Link
               href="/login"
@@ -94,20 +102,25 @@ export default function Navbar() {
             </Link>
           ) : (
             <>
-              {/* La porte de l'agent : discrète, mais présente. */}
+              {/* La porte de connexion : discrète, mais toujours là. */}
               <Link
-                href="/portail-cfc/login"
-                className="hidden text-[11px] font-medium text-slate-500 underline-offset-2 transition-colors hover:text-slate-900 hover:underline sm:inline"
+                href="/login"
+                aria-label="Se connecter"
+                className="flex items-center gap-1.5 rounded-lg p-2 text-[11px] font-medium text-slate-600 transition-colors hover:text-slate-900 sm:p-1 sm:pl-2"
               >
-                Espace Agent CFC
+                <LogIn className="size-3.5 sm:hidden" aria-hidden />
+                <span className="hidden sm:inline">Se connecter</span>
               </Link>
 
-              <Button asChild variant="cfc" size="sm" className="gap-1.5 text-xs">
-                <Link href="/login">
-                  <LogIn className="size-3.5" aria-hidden />
-                  Se connecter
-                </Link>
-              </Button>
+              {/* L'appel à l'action : entrer par la création du compte. */}
+              {!isRegistrationPath && (
+                <Button asChild variant="cfc" size="sm" className="gap-1.5 text-xs">
+                  <Link href="/onboarding">
+                    <UserPlus className="size-3.5" aria-hidden />
+                    Créer un compte
+                  </Link>
+                </Button>
+              )}
             </>
           )}
         </div>
