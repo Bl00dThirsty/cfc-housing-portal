@@ -1966,16 +1966,33 @@ C'est la migration qui **démontre** le moteur et qui supprime les quatre doublo
 - Modifier : `src/components/clients/table/clients-table.tsx`
 - Modifier : `src/components/clients/table/table-columns.ts`
 - Modifier : `src/components/clients/table/client-row.tsx`
+- Modifier : `src/components/clients/detail/client-detail-sheet.tsx`
+- Modifier : `src/components/clients/command-menu/clients-command-menu.tsx`
+- Modifier : `src/app/portail-cfc/clients/_components/client-workspace-hub.tsx`
 - Supprimer : `src/stores/clients-store.ts`
 - Supprimer : `src/lib/clients-filters.ts`
 - Supprimer : `src/components/clients/toolbar/clients-toolbar.tsx`
 - Supprimer : `src/components/_common/filter-menu.tsx`
-- Modifier : `src/app/portail-cfc/clients/page.tsx`
-- Modifier : `src/lib/clients-filters.test.ts` → supprimé (les règles sont désormais testées dans `src/lib/data-table.test.ts`)
+- Supprimer : `src/lib/clients-filters.test.ts` (les règles sont désormais testées dans `src/lib/data-table.test.ts`)
 
 **Interfaces :**
 - Consomme : `DataTable`, `useDataTable`, `DataTableToolbar` (tâches 3–5).
 - Produit : le répertoire des emprunteurs piloté par le moteur ; **plus aucun** store, filtre ni barre d'outils propre aux clients.
+
+> ⚠️ **Le store `clients-store` porte trois responsabilités distinctes**, et
+> seules deux tombent avec la migration :
+>
+> | Responsabilité | Propriétaire après la tâche |
+> |---|---|
+> | Tri, filtres, recherche du tableau | **le moteur** (`useDataTable`) |
+> | Ouverture de la fiche de détail (`detailId`, `detailOpen`) | **le hub** (`client-workspace-hub.tsx`), qui est le parent commun du tableau, de la fiche et du menu |
+> | Ouverture du menu de commandes (`commandOpen`) | **le hub**, idem |
+>
+> `client-workspace-hub.tsx` rend les trois (`ClientsTable`,
+> `ClientDetailSheet`, `ClientsCommandMenu`) : c'est donc là que l'état
+> d'interface remonte, en **props**. Il ne faut pas créer un store de
+> remplacement : ce serait un second propriétaire d'état, exactement ce que
+> la migration supprime.
 
 - [ ] **Étape 1 : écrire le test qui échoue**
 
@@ -2427,28 +2444,72 @@ export function ClientRow({
 }
 ```
 
-- [ ] **Étape 4 : supprimer les doublons**
+- [ ] **Étape 4 : faire remonter l'état d'interface dans le hub**
+
+`client-workspace-hub.tsx` est le **parent commun** du tableau, de la fiche de
+détail et du menu de commandes : c'est là que l'état d'interface doit vivre.
+
+1. Dans `client-workspace-hub.tsx`, remplace l'usage du store par un état
+   local :
+
+   ```tsx
+   const [detailClientId, setDetailClientId] = React.useState<string | null>(null);
+   const [commandOpen, setCommandOpen] = React.useState(false);
+   ```
+
+   Le hub passe alors `client={...}`, `open` et `onOpenChange` à la fiche de
+   détail, et `open` / `onOpenChange` au menu de commandes.
+
+2. Dans `client-detail-sheet.tsx`, remplace la lecture du store par des props :
+
+   ```tsx
+   type ClientDetailSheetProps = {
+     client: ClientItem | null;
+     open: boolean;
+     onOpenChange: (open: boolean) => void;
+   };
+   ```
+
+3. Dans `clients-command-menu.tsx`, de même : `open` et `onOpenChange` en
+   props, à la place de `commandOpen` / `setCommandOpen` / `openDetail`.
+
+4. Le hub rend la barre **canonique** à la place de l'ancienne :
+
+   ```tsx
+   <DataTableToolbar tableId="portail-cfc-clients" columns={CLIENT_COLUMNS} rows={clientsData} />
+   ```
+
+   ⚠️ Les colonnes déclarées ici et celles du tableau doivent être **les
+   mêmes** : les déclare une seule fois, dans un module partagé par les deux
+   (`table-columns.ts` fait déjà ce travail — utilise-le).
+
+- [ ] **Étape 5 : supprimer les doublons**
 
 ```bash
 git rm src/stores/clients-store.ts src/lib/clients-filters.ts src/lib/clients-filters.test.ts
 git rm src/components/clients/toolbar/clients-toolbar.tsx src/components/_common/filter-menu.tsx
 ```
 
-Puis, dans `src/app/portail-cfc/clients/page.tsx`, retirer l'import et l'usage de `ClientsToolbar`.
-
 Vérifier qu'aucun fichier ne référence encore les modules supprimés :
+
+```
+rg "clients-store|clients-filters|_common/filter-menu|clients/toolbar" src
+```
+
+Attendu : **aucune** occurrence. Puis :
 
 ```
 npx tsc --noEmit
 ```
 Attendu : exit 0.
 
-- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+- [ ] **Étape 6 : lancer les tests et vérifier qu'ils passent**
 
 ```
 npx vitest run src/components/clients/table/clients-table.test.tsx src/lib/data-table.test.ts
 ```
-Attendu : **4** tests passés (1 pour les clients, 3 pour le moteur — adapter le compte au fichier de test réellement écrit).
+Attendu : les tests du répertoire passent (1 pour les clients, plus ceux du
+moteur — adapter le compte au fichier réellement écrit).
 
 - [ ] **Étape 6 : committer**
 
