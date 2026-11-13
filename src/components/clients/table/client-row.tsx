@@ -101,7 +101,11 @@ export function ClientRow({
           }}
           className="flex min-w-0 flex-col items-start truncate text-left"
         >
-          {cell("name")}
+          {/* Le nom porte sa propre typographie : sans ce `<span>`, il
+              hériterait du 14 px du tableau, à côté de cellules en 12 px. */}
+          <span className="truncate text-xs font-medium text-foreground">
+            {cell("name")}
+          </span>
           <span className="truncate font-mono text-[10px] text-soft">{client.ducId}</span>
         </button>
       </TableCell>
@@ -114,13 +118,13 @@ export function ClientRow({
       </TableCell>
 
       <TableCell role="cell" className={cn(CLIENT_TABLE_CELL_CLASS, "justify-start")}>
-        <Tag tone="blue" size="sm">
+        <Tag tone="blue" size="sm" className="text-xs">
           {cell("phase")}
         </Tag>
       </TableCell>
 
       <TableCell role="cell" className={cn(CLIENT_TABLE_CELL_CLASS, "justify-start")}>
-        <Tag tone={STATUS_TONE[client.status]} size="sm">
+        <Tag tone={STATUS_TONE[client.status]} size="sm" className="text-xs">
           {cell("status")}
         </Tag>
       </TableCell>

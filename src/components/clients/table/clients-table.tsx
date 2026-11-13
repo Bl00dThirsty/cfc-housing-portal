@@ -3,12 +3,15 @@
 import * as React from "react";
 
 import { DataTable } from "@/components/data-table/data-table";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Button } from "@/components/ui/button";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { downloadCsv } from "@/lib/csv";
 
 import { ClientRow } from "./client-row";
 import {
   CLIENT_COLUMNS,
+  CLIENT_INITIAL_SORT,
   CLIENT_TABLE_CELL_CLASS,
   CLIENT_TABLE_GRID_CLASS,
   CLIENT_TABLE_ROW_CLASS,
@@ -44,6 +47,40 @@ export function ClientsTable({
 }: ClientsTableProps) {
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   *
+   * La sélection multiple est un état du tableau, pas du moteur ; c'est le
+   * moteur qui connaît les lignes affichées, et il l'expose ici.
+   */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: CLIENT_COLUMNS,
+    rows: clients,
+    initialSort: CLIENT_INITIAL_SORT,
+  });
+
+  /**
+   * Les lignes du tableau, dans leur ordre d'affichage.
+   *
+   * Le moteur a appliqué la recherche, les facettes et le tri — dont le
+   * **tri d'ouverture**, tant qu'aucun tri n'a été choisi. Le tableau reçoit
+   * donc ses lignes déjà ordonnées ; son propre moteur les réordonnera si
+   * l'agent choisit un tri.
+   */
+  const visibleClients = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
+
+  const visibleIds = React.useMemo(
+    () => visibleClients.map((client) => client.id),
+    [visibleClients],
+  );
+
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+
   const handleExport = () => {
     downloadCsv(
       "emprunteurs-cfc.csv",
@@ -72,12 +109,24 @@ export function ClientsTable({
         unitName="emprunteurs"
         searchPlaceholder="Rechercher un emprunteur, un DUC ou une agence..."
         onExport={handleExport}
-      />
+      >
+        {/* L'action de sélection : la barre canonique n'a pas de case à
+            cocher d'en-tête, elle accueille une action d'écran. */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={visibleIds.length === 0}
+          onClick={() => setSelectedIds(allVisibleSelected ? [] : visibleIds)}
+          className="h-8 gap-1.5 text-[12px]"
+        >
+          {allVisibleSelected ? "Tout désélectionner" : "Tout sélectionner"}
+        </Button>
+      </DataTableToolbar>
 
       <DataTable
         tableId={TABLE_ID}
         columns={CLIENT_COLUMNS}
-        rows={clients}
+        rows={visibleClients}
         getRowId={(client) => client.id}
         emptyLabel="Aucun emprunteur ne correspond aux filtres appliqués."
         tableClassName={CLIENT_TABLE_GRID_CLASS}

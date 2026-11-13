@@ -1,18 +1,22 @@
 import type { DataColumn } from "@/components/data-table/types";
+import { agencyLabel } from "@/domain/entities/agencies";
 import type { ClientItem } from "@/domain/entities/client";
+import type { SortRule } from "@/lib/data-table";
 
 /**
  * Les colonnes du répertoire.
  *
  * La grille s'aligne par **sous-grille** CSS : huit colonnes de largeur
  * `max-content`, les lignes reprenant le découpage par `grid-cols-subgrid`.
- * L'alignement de chaque colonne est porté par `cellClassName` ; la ligne
- * (`client-row.tsx`) en reprend les mêmes classes, car elle possède sa
- * propre mise en page.
  *
  * ⚠️ Ces colonnes sont une **constante de module** : le moteur mémoïse sur
  * leur identité, et une écriture en ligne dans le JSX l'invaliderait à
  * chaque rendu.
+ *
+ * ⚠️ Aucune colonne ne déclare `cellClassName` : le moteur ne l'applique
+ * qu'aux lignes qu'il rend lui-même. Ici, c'est `client-row.tsx` qui possède
+ * la mise en page — les classes d'alignement y vivent, et l'alignement des
+ * **en-têtes** est porté par `align`, que le moteur honore sur le `<th>`.
  */
 export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
   {
@@ -22,9 +26,11 @@ export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
     // Le DUC est affiché **sous le nom** dans la ligne : il n'est pas une
     // colonne, mais il reste trouvable par la recherche.
     searchValues: (row) => [row.ducId],
-    filterable: true,
-    groupable: true,
-    cellClassName: "justify-start",
+    // Ni facette ni regroupement : une facette « Emprunteur » listerait une
+    // option par emprunteur, et le regroupement produirait autant de
+    // groupes d'une ligne. L'écran de l'agence fait de même.
+    filterable: false,
+    groupable: false,
   },
   {
     key: "agency",
@@ -32,7 +38,10 @@ export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
     accessor: (row) => row.agency,
     filterable: true,
     groupable: true,
-    cellClassName: "justify-start",
+    // La donnée porte le nom complet ; la facette et l'en-tête de groupe
+    // portent le nom court — comme l'écran de l'agence.
+    groupLabel: (value) => agencyLabel(value),
+    facetLabel: (value) => agencyLabel(value),
   },
   {
     key: "phase",
@@ -40,7 +49,6 @@ export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
     accessor: (row) => row.phase,
     filterable: true,
     groupable: true,
-    cellClassName: "justify-start",
   },
   {
     key: "status",
@@ -48,7 +56,6 @@ export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
     accessor: (row) => row.status,
     filterable: true,
     groupable: true,
-    cellClassName: "justify-start",
   },
   {
     key: "loanAmount",
@@ -57,14 +64,14 @@ export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
     // son montant, pas alphabétiquement.
     accessor: (row) => Number(row.loanAmount.replace(/\D/g, "")),
     render: (row) => row.loanAmount,
-    cellClassName: "justify-end tabular-nums",
+    align: "right",
   },
   {
     key: "savingsCurrent",
     label: "Épargne",
     accessor: (row) => Number(row.savingsCurrent.replace(/\D/g, "")),
     render: (row) => row.savingsCurrent,
-    cellClassName: "justify-end tabular-nums",
+    align: "right",
   },
   {
     key: "completionPercent",
@@ -73,7 +80,7 @@ export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
     // L'affichage porte le pourcentage ; la valeur reste le nombre, que le
     // moteur trie.
     render: (row) => `${row.completionPercent}%`,
-    cellClassName: "justify-center",
+    align: "center",
   },
   {
     // La colonne d'actions n'est ni triable ni filtrable : elle porte un
@@ -81,8 +88,18 @@ export const CLIENT_COLUMNS: DataColumn<ClientItem>[] = [
     key: "action",
     label: "Action",
     sortable: false,
-    cellClassName: "justify-center",
+    align: "center",
   },
+];
+
+/**
+ * Le tri d'ouverture du répertoire : l'emprunteur le plus avancé d'abord.
+ *
+ * C'est un tri **initial**, pas un état : il s'applique tant qu'aucun tri
+ * n'a été choisi, et un clic sur un en-tête le remplace.
+ */
+export const CLIENT_INITIAL_SORT: readonly SortRule[] = [
+  { key: "completionPercent", dir: "desc" },
 ];
 
 /** La grille du répertoire : huit colonnes, alignées par sous-grille. */

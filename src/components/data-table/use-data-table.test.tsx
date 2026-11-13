@@ -8,6 +8,7 @@ type Row = { id: string; name: string; phase: string };
 type DatedRow = { id: string; due: Date };
 type TextDatedRow = { id: string; due: string };
 type EmployeRow = { id: string; name: string; profession: string };
+type AmountRow = { id: string; amount: number };
 
 const COLUMNS: DataColumn<Row>[] = [
   { key: "name", label: "Emprunteur", accessor: (row) => row.name, filterable: true, groupable: true },
@@ -193,5 +194,82 @@ describe("useDataTable", () => {
     act(() => result.current.setSearch("15/01/2026"));
     expect(result.current.filteredCount).toBe(1);
     expect(result.current.groups[0].rows[0].id).toBe("1");
+  });
+
+  it("trie une colonne numérique par sa valeur, pas par son écriture", () => {
+    const columns: DataColumn<AmountRow>[] = [
+      { key: "amount", label: "Montant", accessor: (row) => row.amount },
+    ];
+    const rows: AmountRow[] = [
+      { id: "1", amount: 1000000 },
+      { id: "2", amount: 900000 },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "montants", columns, rows }),
+    );
+
+    act(() => result.current.toggleSort("amount", false));
+
+    // « 1000000 » est alphabétiquement avant « 900000 » : le tri doit
+    // comparer les nombres, pas leurs chaînes.
+    expect(result.current.groups[0].rows.map((row) => row.id)).toEqual(["2", "1"]);
+  });
+
+  it("applique le tri initial de l'écran", () => {
+    const columns: DataColumn<Row>[] = [
+      { key: "name", label: "Emprunteur", accessor: (row) => row.name },
+    ];
+    const rows: Row[] = [
+      { id: "1", name: "ÉBAH", phase: "kyc_savings" },
+      { id: "2", name: "FOTSO", phase: "kyc_savings" },
+      { id: "3", name: "NGUEMA", phase: "committees" },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({
+        tableId: "tri-initial",
+        columns,
+        rows,
+        initialSort: [{ key: "name", dir: "desc" }],
+      }),
+    );
+
+    // Le tri initial est l'ordre d'ouverture du tableau : il **dérive**,
+    // il n'est pas stocké.
+    expect(result.current.groups[0].rows.map((row) => row.name)).toEqual([
+      "NGUEMA",
+      "FOTSO",
+      "ÉBAH",
+    ]);
+  });
+
+  it("laisse le tri choisi par l'agent primer sur le tri initial", () => {
+    const columns: DataColumn<Row>[] = [
+      { key: "name", label: "Emprunteur", accessor: (row) => row.name },
+    ];
+    const rows: Row[] = [
+      { id: "1", name: "ÉBAH", phase: "kyc_savings" },
+      { id: "2", name: "FOTSO", phase: "kyc_savings" },
+      { id: "3", name: "NGUEMA", phase: "committees" },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({
+        tableId: "tri-choisi",
+        columns,
+        rows,
+        initialSort: [{ key: "name", dir: "desc" }],
+      }),
+    );
+
+    // Le clic sur un en-tête remplace le tri d'ouverture : il est croissant.
+    act(() => result.current.toggleSort("name", false));
+
+    expect(result.current.groups[0].rows.map((row) => row.name)).toEqual([
+      "ÉBAH",
+      "FOTSO",
+      "NGUEMA",
+    ]);
   });
 });

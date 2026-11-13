@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { agencyLabel } from "@/domain/entities/agencies";
 import { getInitials } from "@/lib/utils";
 
 export interface AgencyDossierItem {
@@ -27,19 +28,6 @@ export interface AgencyDossierItem {
 
 /** Identifiant du tableau dans le store : il isole son état. */
 const TABLE_ID = "portail-cfc-agency";
-
-/**
- * Les libellés courts des agences.
- *
- * La donnée porte le nom complet (« Agence Yaoundé Centre ») ; la facette et
- * l'en-tête de groupe portent le nom court — comme avant la migration.
- */
-const AGENCY_LABELS: Record<string, string> = {
-  "Agence Yaoundé Centre": "Yaoundé Centre",
-  "Agence Douala Bonanjo": "Douala Bonanjo",
-  "Agence Bafoussam": "Bafoussam",
-  "Guichet Diaspora / Centre": "Guichet Diaspora",
-};
 
 const agenceKpis: ActorKpiItem[] = [
   {
@@ -202,8 +190,10 @@ const AGENCY_COLUMNS: DataColumn<AgencyDossierItem>[] = [
     accessor: (row) => row.agency,
     filterable: true,
     groupable: true,
-    groupLabel: (value) => AGENCY_LABELS[value] ?? value,
-    facetLabel: (value) => AGENCY_LABELS[value] ?? value,
+    // La donnée porte le nom complet ; la facette et l'en-tête de groupe
+    // portent le nom court — comme avant la migration.
+    groupLabel: (value) => agencyLabel(value),
+    facetLabel: (value) => agencyLabel(value),
   },
   {
     key: "savingsAmount",
