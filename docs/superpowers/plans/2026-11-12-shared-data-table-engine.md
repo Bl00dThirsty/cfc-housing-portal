@@ -950,12 +950,13 @@ export interface UseDataTableResult<T> {
 export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult<T> {
   const { tableId, columns, rows } = input;
 
-  const state = useDataTableStore((store) => tableState(store, tableId));
   // ⚠️ `tableState` doit renvoyer une **référence stable** pour un tableau
   // donné : zustand 5 compare les snapshots avec `Object.is` et ne mémoïse pas
   // le sélecteur. Un sélecteur qui alloue un objet à chaque appel déclencherait
   // l'avertissement « getSnapshot should be cached » de React et une tempête
-  // de rendu sur les 44 tableaux.  const setSearch = useDataTableStore((store) => store.setSearch);
+  // de rendu sur les 44 tableaux.
+  const state = useDataTableStore((store) => tableState(store, tableId));
+  const setSearch = useDataTableStore((store) => store.setSearch);
   const toggleSortAction = useDataTableStore((store) => store.toggleSort);
   const setFilterAction = useDataTableStore((store) => store.setFilter);
   const setGroupByAction = useDataTableStore((store) => store.setGroupBy);
