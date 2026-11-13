@@ -1214,11 +1214,14 @@ date française se trierait alphabétiquement sans cela."
 - Créer : `src/components/data-table/data-table.test.tsx`
 
 **Interfaces :**
-- Consomme : `useDataTable`, `DataColumn` (tâche 3) ; `ui/table` ; `ui/badge`.
+- Consomme : `useDataTable`, `DataColumn` (tâche 3) ; `ui/table` ; `formatCfcDate` (`@/domain/entities/dates`).
 - Produit :
   - `DataTable<T>(props: DataTableProps<T>)`
-  - `type DataTableProps<T> = { tableId: string; columns: DataColumn<T>[]; rows: T[]; getRowId: (row: T) => string; renderRow?: (context: { row: T; cell: (key: string) => React.ReactNode }) => React.ReactNode; emptyLabel?: string; className?: string }`
-  - `type DataTableSortButtonProps` — interne.
+  - `type DataTableProps<T> = { tableId: string; columns: DataColumn<T>[]; rows: T[]; getRowId: (row: T) => string; renderRow?: (context: { row: T; cell: (key: string) => React.ReactNode }) => React.ReactNode; emptyLabel?: string; className?: string; tableClassName?: string; rowClassName?: string; headClassName?: string; cellClassName?: string }`
+  - Les quatre classes de mise en page (`tableClassName`, `rowClassName`, `headClassName`, `cellClassName`) portent la disposition d'un tableau qui s'aligne par **sous-grille** CSS : le moteur ne connaît pas la mise en page, il la porte.
+  - `export type { DataColumn }` — ré-exporté, pour que les consommateurs n'aient qu'un seul point d'entrée.
+
+> La section « Interfaces » ci-dessus ne reprend **pas** `ui/badge` : le composant ne l'utilise pas, et l'importer serait une erreur de lint (import inutilisé).
 
 - [ ] **Étape 1 : écrire le test qui échoue**
 
@@ -1240,6 +1243,9 @@ const COLUMNS: DataColumn<Row>[] = [
 ];
 
 const ROWS: Row[] = [
+  // L'ordre de la source n'est **pas** l'ordre alphabétique : un test de tri
+  // doit pouvoir échouer si le tri ne se fait pas.
+  { id: "3", name: "NGUEMA", phase: "committees" },
   { id: "1", name: "ÉBAH", phase: "kyc_savings" },
   { id: "2", name: "FOTSO", phase: "committees" },
 ];
@@ -1270,10 +1276,30 @@ describe("DataTable", () => {
     const user = userEvent.setup();
     renderTable();
 
+    // Avant le clic, les lignes sont dans l'ordre de la source — **pas**
+    // dans l'ordre alphabétique : l'assertion d'après prouve que le tri a
+    // eu lieu.
+    const before = screen.getAllByRole("row")[1];
+    expect(within(before).getByText("NGUEMA")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /Emprunteur/ }));
 
-    const body = screen.getAllByRole("row")[1];
-    expect(within(body).getByText("ÉBAH")).toBeInTheDocument();
+    const after = screen.getAllByRole("row")[1];
+    expect(within(after).getByText("ÉBAH")).toBeInTheDocument();
+  });
+
+  it("annonce la direction du tri à l'assistance technique", async () => {
+    const user = userEvent.setup();
+    renderTable();
+
+    const header = screen.getByRole("columnheader", { name: /Emprunteur/ });
+    expect(header).toHaveAttribute("aria-sort", "none");
+
+    await user.click(screen.getByRole("button", { name: /Emprunteur/ }));
+    expect(screen.getByRole("columnheader", { name: /Emprunteur/ })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
   });
 
   it("affiche le message quand aucune ligne ne correspond", () => {
@@ -1411,6 +1437,17 @@ export function DataTable<T>({
                   <TableHead
                     key={column.key}
                     scope="col"
+                    // L'assistance technique doit entendre l'état du tri :
+                    // sans `aria-sort`, la colonne triée est muette.
+                    aria-sort={
+                      !sortable
+                        ? undefined
+                        : rule?.dir === "asc"
+                          ? "ascending"
+                          : rule?.dir === "desc"
+                            ? "descending"
+                            : "none"
+                    }
                     className={cn(
                       headClassName,
                       column.headerClassName,
