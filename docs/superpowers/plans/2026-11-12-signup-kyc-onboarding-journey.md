@@ -497,32 +497,36 @@ a pas de second vocabulaire."
 
 ---
 
-## Tâche 2 — La base : le parcours et le catalogue des services
+## Tâche 2 — La base du parcours
 
 **Fichiers :**
 - Créer : `supabase/migrations/20260101000022_kyc_onboarding.sql`
 
+> **La migration est scindée en deux.** `022` porte le **parcours** (profil,
+> DUC, conseiller, séquence) ; le **catalogue des services** part dans `023`
+> (`20260101000023_service_catalogue.sql`). Les deux sont additives et
+> sans dépendance entre elles ; les scinder permet à l'inscription d'exister
+> sans attendre l'insertion d'un catalogue de démonstration.
+
 **Interfaces :**
-- Consomme : `public.dossiers`, `public.citizen_profiles`, `ref.service`,
-  `ref.product`, `ref.product_rate`, `ref.document_type`,
-  `ref.service_document_requirement`.
-- Produit : les tables du parcours et le catalogue des services demandés.
+- Consomme : `public.dossiers`, `public.citizen_profiles`, `public.actors`.
+- Produit : les tables du parcours.
 
-- [ ] **Étape 1 : lire le schéma de référence avant d'écrire**
+- [ ] **Étape 1 : lire le schéma avant d'écrire**
 
 ```
-rg -n "create table.*ref\.(service|product|product_rate|document_type|service_document_requirement)" supabase/migrations
+rg -n "create table.*public\.(dossiers|citizen_profiles|actors)" supabase/migrations
 ```
-Le catalogue existe déjà : **on ne le recrée pas**, on l'étend. Vérifie
-notamment les colonnes réelles de `ref.product_rate` et de `ref.document_type`
-avant d'écrire les `insert`.
 
-- [ ] **Étape 2 : écrire la migration**
+`citizen_profiles` porte déjà `cni_raw` (et sa colonne générée `cni_normalised`,
+**unique**) : l'inscription s'y appuie, elle n'a pas à créer sa colonne.
+
+- [ ] **Étape 2 : écrire la migration du parcours**
 
 Créer `supabase/migrations/20260101000022_kyc_onboarding.sql` :
 
 ```sql
--- 022 — Parcours du demandeur : KYC, activation du DUC, catalogue.
+-- 022 — Parcours du demandeur : profil KYC, activation du DUC, conseiller.
 --
 -- Trois décisions structurantes :
 --
@@ -535,8 +539,9 @@ Créer `supabase/migrations/20260101000022_kyc_onboarding.sql` :
 --    propriétaire et une machine à états. On ne crée pas de second
 --    vocabulaire ; `kyc_profiles` ne porte que le **contenu** du parcours.
 --
--- 3. Le catalogue des services est une **donnée** : il rejoint les tables
---    de référence existantes, lues par une seule requête.
+-- 3. La numérotation des DUC passe par une **séquence**, pas par un compteur
+--    lu puis incrémenté : deux inscriptions simultanées ne peuvent pas
+--    obtenir le même numéro.
 
 set search_path = public, extensions;
 
@@ -572,7 +577,7 @@ create index if not exists kyc_profiles_updated_idx
   on public.kyc_profiles (updated_at desc) where deleted_at is null;
 
 -- ---------------------------------------------------------------------------
--- Le dossier : activation, avancement du parcours, conseiller
+-- Le dossier : activation, avancement du parcours, situation antérieure
 -- ---------------------------------------------------------------------------
 
 alter table public.dossiers
@@ -606,8 +611,6 @@ create index if not exists dossiers_onboarding_state_idx
 -- La numérotation des DUC
 -- ---------------------------------------------------------------------------
 
--- Une séquence, pas un compteur lu puis incrémenté : deux inscriptions
--- simultanées ne peuvent pas obtenir le même numéro.
 create sequence if not exists public.duc_code_seq as bigint start 1;
 
 comment on sequence public.duc_code_seq is
@@ -697,42 +700,6 @@ create policy kyc_documents_write on public.kyc_documents for all to authenticat
   with check (citizen_id = (select auth.uid()));
 ```
 
-⚠️ **Le catalogue des services** ne se trouve **pas** dans cette migration
-telle quelle : il est écrit en **deux parties**, et le partie « catalogue »
-décrite ci-dessous doit être vérifiée contre le schéma réel avant d'être
-ajoutée.
-
-- **Étape 2 bis — le catalogue.** Dans la même migration 022, ajouter :
-  1. `alter table ref.service add column if not exists audience text;` — l'audience
-     n'existait pas, et une carte de service doit dire à qui il s'adresse ;
-  2. les **six services** du cahier des charges, en `insert … on conflict (code)
-     do update` : `PRET_FONCIER_CLASSIQUE_JEUNE`, `PRET_FONCIER_CLASSIQUE_ACQUEREUR`,
-     `PRET_FONCIER_CLASSIQUE_SOCIAL`, `PRET_FONCIER_LOCATIF_ORDINAIRE`,
-     `PRET_FONCIER_LOCATIF_SOCIAL`, `PROMO_FONCIER` ;
-  3. les **produits** correspondants dans `ref.product` (apport minimal, durée
-     maximale) ;
-  4. les **barèmes** dans `ref.product_rate` (le taux indicatif des cartes) ;
-  5. les **types de documents** manquants dans `ref.document_type` (attestation
-     d'immatriculation, acte de mariage ou certificat de célibat, attestation
-     d'emploi, RIB et relevés, bulletin n°3 du casier judiciaire, CV, titre
-     foncier, certificat d'urbanisme, permis de construire, études techniques,
-     formulaire signé, planning, plan de financement, étude de rentabilité,
-     bilan financier, contrat de promotion, arrêté de lotissement, cahier des
-     charges, étude de marché, état de pré-commercialisation, CV et références
-     des partenaires, dossier fiscal, contrats de partenariat) ;
-  6. les **exigences de pièces** dans `ref.service_document_requirement`,
-     par service et par catégorie — le classique, le locatif (qui reprend le
-     classique et ajoute casier judiciaire, CV et justificatifs de revenus) et
-     le promo (qui reprend le locatif et ajoute les pièces du programme).
-
-  ⚠️ Le détail des pièces est long : il est dans la spécification, section 2.5.
-  Lis-la et reporte-la **fidèlement**. N'invente pas de code de document : le
-  `code` est la **clé** attendue par `ref.document_type` et par le composant
-  de dépôt ; emploie des codes en majuscules, sans accent, sans espace.
-
-  ⚠️ Le CTD (prêt aux collectivités) **n'est pas** ajouté : il n'est pas
-  destiné aux particuliers.
-
 - [ ] **Étape 3 : appliquer et vérifier**
 
 ```
@@ -745,7 +712,7 @@ npm run typecheck && npm run lint && npm test
 
 ```bash
 git add supabase/migrations/20260101000022_kyc_onboarding.sql
-git commit -m "feat(kyc): la base du parcours et le catalogue des services
+git commit -m "feat(kyc): la base du parcours — profil, DUC, consentement
 
 Le profil porte le **contenu** du parcours et le consentement daté par le
 serveur ; l'**état** du KYC reste dans citizen_profiles.kyc_state, qui a
@@ -754,10 +721,82 @@ déjà son propriétaire et sa machine à états.
 L'activation du DUC est un champ distinct de dossiers.status, qui porte
 l'avancement du traitement.
 
-Le catalogue des services rejoint les tables de référence existantes : le
-catalogue est une donnée, pas une constante de code. La numérotation des
-DUC passe par une séquence, pour que deux inscriptions simultanées ne
-puissent pas obtenir le même numéro."
+La numérotation des DUC passe par une séquence, pour que deux inscriptions
+simultanées ne puissent pas obtenir le même numéro."
+```
+
+---
+
+## Tâche 2 bis — Le catalogue des services
+
+**Fichiers :**
+- Créer : `supabase/migrations/20260101000023_service_catalogue.sql`
+
+**Interfaces :**
+- Consomme : `ref.service`, `ref.product`, `ref.product_rate`,
+  `ref.document_type`, `ref.service_document_requirement`.
+- Produit : le catalogue demandé par le cahier des charges.
+
+- [ ] **Étape 1 : lire le schéma de référence avant d'écrire**
+
+```
+rg -n "create table.*ref\.(service|product|product_rate|document_type|service_document_requirement)" supabase/migrations
+```
+Le catalogue existe déjà : **on ne le recrée pas**, on l'étend. Vérifie
+notamment les colonnes réelles de `ref.product_rate` et de `ref.document_type`
+avant d'écrire les `insert`.
+
+- [ ] **Étape 2 : écrire la migration**
+
+Dans `023` :
+
+1. `alter table ref.service add column if not exists audience text;` — l'audience
+   n'existait pas, et une carte de service doit dire à qui il s'adresse ;
+2. les **six services** du cahier des charges, en `insert … on conflict (code)
+   do update` : `PRET_FONCIER_CLASSIQUE_JEUNE`, `PRET_FONCIER_CLASSIQUE_ACQUEREUR`,
+   `PRET_FONCIER_CLASSIQUE_SOCIAL`, `PRET_FONCIER_LOCATIF_ORDINAIRE`,
+   `PRET_FONCIER_LOCATIF_SOCIAL`, `PROMO_FONCIER` ;
+3. les **produits** correspondants dans `ref.product` (apport minimal, durée
+   maximale) ;
+4. les **barèmes** dans `ref.product_rate` (le taux indicatif des cartes) ;
+5. les **types de documents** manquants dans `ref.document_type` (attestation
+   d'immatriculation, acte de mariage ou certificat de célibat, attestation
+   d'emploi, RIB et relevés, bulletin n°3 du casier judiciaire, CV, titre
+   foncier, certificat d'urbanisme, permis de construire, études techniques,
+   formulaire signé, planning, plan de financement, étude de rentabilité,
+   bilan financier, contrat de promotion, arrêté de lotissement, cahier des
+   charges, étude de marché, état de pré-commercialisation, CV et références
+   des partenaires, dossier fiscal, contrats de partenariat) ;
+6. les **exigences de pièces** dans `ref.service_document_requirement`,
+   par service et par catégorie — le classique, le locatif (qui reprend le
+   classique et ajoute casier judiciaire, CV et justificatifs de revenus) et
+   le promo (qui reprend le locatif et ajoute les pièces du programme).
+
+⚠️ Le détail des pièces est long : il est dans la spécification, section 2.5.
+Lis-la et reporte-la **fidèlement**. N'invente pas de code de document : le
+`code` est la **clé** attendue par `ref.document_type` et par le composant
+de dépôt ; emploie des codes en majuscules, sans accent, sans espace.
+
+⚠️ Le CTD (prêt aux collectivités) **n'est pas** ajouté : il n'est pas
+destiné aux particuliers.
+
+- [ ] **Étape 3 : appliquer et vérifier**
+
+```
+supabase db reset --local
+node scripts/seed-dev-users.mjs
+npm run typecheck && npm run lint && npm test
+```
+
+- [ ] **Étape 4 : committer**
+
+```bash
+git add supabase/migrations/20260101000023_service_catalogue.sql
+git commit -m "feat(catalogue): les services du cahier des charges
+
+Le catalogue est une **donnée** : il rejoint les tables de référence
+existantes, lues par une seule requête. L'audience est ajoutée — une carte
+de service doit dire à qui il s'adresse."
 ```
 
 ---
@@ -771,10 +810,20 @@ puissent pas obtenir le même numéro."
 - Créer : `src/server/actions/signup.test.ts`
 - Créer : `src/components/signup/signup-form.tsx`
 - Créer : `src/app/inscription/page.tsx`
+- Modifier : `src/components/auth/sign-in-form.tsx` — la porte « Créer un compte »
+- Modifier : `src/components/layout/navbar.tsx` — le bouton public devient « Créer mon compte »
+- Modifier : `src/components/onboarding/steps/step-account.tsx` — plus de création de compte ici
+- Modifier : `src/domain/entities/onboarding.ts` — l'étape « compte » disparaît
 
 **Interfaces :**
 - Consomme : `src/lib/auth-context.tsx`, `src/server/supabase/server.ts`.
 - Produit : `CAMEROON_REGIONS`, `signupAction(input)`, `validateSignupInput(input)`.
+
+> **Une seule porte de création de compte.** L'inscription se fait sur
+> `/inscription`. L'assistant d'onboarding ne crée plus de compte : son étape
+> « Votre compte » disparaît, et le parcours commence à « Votre service ».
+> Sans cela, deux écrans créeraient un compte — et la règle « un seul
+> exemplaire par concept » serait violée au premier jour.
 
 - [ ] **Étape 1 : étendre la géographie existante**
 
@@ -885,19 +934,69 @@ case, état de chargement et protection contre le double clic.
 Créer `src/app/inscription/page.tsx` : rend le formulaire, avec un lien vers
 `/login` (« J'ai déjà un compte »).
 
-- [ ] **Étape 5 : vérifier et committer**
+- [ ] **Étape 5 : les deux portes vers l'inscription**
+
+L'inscription doit être **visible**, et l'en-tête public doit la mettre en
+avant. La demande est explicite : le bouton « Se connecter » de l'en-tête
+devient le bouton de création de compte, et la page de connexion offre la
+même porte.
+
+**5.1 — La page de connexion.** Dans `src/components/auth/sign-in-form.tsx`,
+ajoute sous le formulaire un bouton **« Créer un compte »** qui mène à
+`/inscription`.
+
+⚠️ `SignInForm` sert aux **deux** audiences (`citizen` et `staff`). Un agent
+ne s'inscrit pas : les rôles sont attribués par la CFC. Le bouton n'apparaît
+donc que pour l'audience **citoyen** — conditionne-le sur `audience === "citizen"`
+(ou sur une entrée de `COPY`, comme `allowSignup`).
+
+**5.2 — L'en-tête public.** Dans `src/components/layout/navbar.tsx` :
+
+- le **bouton principal** devient **« Créer mon compte »** et pointe vers
+  `/inscription` ;
+- « Se connecter » devient un **lien discret** vers `/login` — le compte
+  existant garde sa porte, sans voler la vedette à l'inscription ;
+- le lien « Espace Agent CFC » **disparaît de l'en-tête** : il est **déjà**
+  dans le pied de page (`src/components/layout/footer.tsx`). Les deux à côté
+  l'un de l'autre faisaient double emploi.
+
+⚠️ L'en-tête affiche déjà un lien « Espace Agent CFC » **discret**, et le
+pied de page aussi : c'est cette redondance que la demande supprime. Ne
+supprime **pas** celui du pied de page.
+
+**5.3 — L'assistant d'onboarding n crée plus de compte.** L'étape « Votre
+compte » disparaît de `ONBOARDING_STEPS` (`src/domain/entities/onboarding.ts`),
+le rendu correspondant est retiré de `onboarding-wizard.tsx`, et
+`src/components/onboarding/steps/step-account.tsx` est **supprimé**. Ce qui
+restait de cette étape — le **téléphone** et la **situation** — est déplacé
+dans l'étape « Votre dossier » (`step-profile.tsx`), qui conserve son nom.
+
+`saveAccountAction` (`src/server/actions/onboarding.ts`) n'écrit plus que le
+téléphone et la situation : **renomme-la** en `saveSituationAction`, et
+fais-la appeler par `step-profile.tsx`. Elle n'a plus à créer de compte — donc
+plus de `signUp` côté client.
+
+- [ ] **Étape 6 : vérifier et committer**
 
 ```
 npm run typecheck && npm run lint && npm test
+node scripts/smoke.mjs
 ```
 ```bash
-git add src/domain/entities/address.ts src/domain/entities/services.ts src/server/actions/signup.ts src/server/actions/signup.test.ts src/components/signup src/app/inscription
-git commit -m "feat(signup): l'inscription, volontairement courte
+git add src/domain/entities/address.ts src/domain/entities/services.ts src/server/actions/signup.ts src/server/actions/signup.test.ts src/components/signup src/app/inscription src/components/auth/sign-in-form.tsx src/components/layout/navbar.tsx src/components/onboarding src/domain/entities/onboarding.ts src/server/actions/onboarding.ts
+git commit -m "feat(signup): l'inscription, volontairement courte, et ses deux portes
 
 Compte particulier seul actif, entreprise affichée mais désactivée, e-mail
 et CNI uniques, mot de passe avec confirmation et robustesse, consentement
 daté par le serveur, DUC généré par une séquence au format DUC-AAAA-NNNNN
 avec le statut « non activé ».
+
+L'inscription est désormais visible : un bouton sur la page de connexion, et
+le bouton principal de l'en-tête public. « Se connecter » devient un lien
+discret, et la porte de l'agent reste au pied de page — elle était déjà là.
+
+L'assistant d'onboarding ne crée plus de compte : l'inscription est la seule
+porte qui en ouvre un.
 
 Les régions prolongent la géographie existante ; les états « déjà fournie »
 et « envoyée » prolongent le vocabulaire des pièces."
