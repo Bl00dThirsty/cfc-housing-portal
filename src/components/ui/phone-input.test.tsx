@@ -78,4 +78,23 @@ describe("champ téléphone", () => {
     expect(onChange).toHaveBeenLastCalledWith("");
     expect(input).toHaveValue("");
   });
+
+  it("propose les pays avec leurs drapeaux, et sait les rechercher", async () => {
+    const user = userEvent.setup();
+
+    render(<PhoneInput id="phone" value="" onChange={() => undefined} />);
+
+    await user.click(
+      screen.getByRole("button", { name: /pays et indicatif du numéro/i }),
+    );
+
+    // Le champ de recherche est là, et les drapeaux avec les pays.
+    const search = await screen.findByPlaceholderText(/rechercher un pays/i);
+    expect(search).toBeInTheDocument();
+    expect(await screen.findByText("🇫🇷")).toBeInTheDocument();
+
+    await user.type(search, "Nigeria");
+    expect(await screen.findByText("Nigeria")).toBeInTheDocument();
+    expect(screen.queryByText("France")).not.toBeInTheDocument();
+  });
 });
