@@ -12,14 +12,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { FacetOption } from "@/lib/data-table";
 import { cn } from "@/lib/utils";
 
-export interface FilterOption {
-  label: string;
-  value: string;
-  count?: number;
+/**
+ * Une option de facette : la valeur du module pur, plus l'icône d'affichage.
+ *
+ * Le module pur ne connaît pas React : l'icône est donc ajoutée ici, et
+ * nulle part ailleurs.
+ */
+export type FilterOption = FacetOption & {
   icon?: React.ComponentType<{ className?: string }>;
-}
+};
 
 export interface DataTableFacetedFilterProps {
   title: string;
