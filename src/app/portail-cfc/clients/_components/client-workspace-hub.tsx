@@ -33,7 +33,6 @@ import { ClientSavingsPassbook } from "./client-savings-passbook";
 import { ClientsCommandMenu } from "@/components/clients/command-menu/clients-command-menu";
 import { ClientDetailSheet } from "@/components/clients/detail/client-detail-sheet";
 import { ClientsTable } from "@/components/clients/table/clients-table";
-import { ClientsToolbar } from "@/components/clients/toolbar/clients-toolbar";
 import { type ClientItem, clientsData } from "@/domain/entities/client";
 
 export function ClientWorkspaceHub() {
@@ -51,6 +50,17 @@ export function ClientWorkspaceHub() {
     clientParam || clientsData[0].id
   );
 
+  /**
+   * L'état d'interface du répertoire.
+   *
+   * Il vit ici, dans le **parent commun** du tableau, de la fiche de détail
+   * et du menu de commandes : ces trois-là sont ses enfants, ils ne peuvent
+   * pas la partager autrement. La fiche ouverte est portée par son identifiant
+   * — `null` signifie « aucune fiche ouverte ».
+   */
+  const [detailClientId, setDetailClientId] = React.useState<string | null>(null);
+  const [commandOpen, setCommandOpen] = React.useState(false);
+
   // Sync state if query params change
   React.useEffect(() => {
     if (tabParam === "kanban" || tabParam === "duc" || tabParam === "clients" || tabParam === "epargne") {
@@ -67,6 +77,26 @@ export function ClientWorkspaceHub() {
   const handleSelectClient = (client: ClientItem) => {
     setSelectedClientId(client.id);
   };
+
+  /**
+   * L'activation d'un emprunteur : il devient l'emprunteur courant et sa
+   * fiche s'ouvre. C'est ce que faisait la ligne du répertoire avant la
+   * migration ; le hub en est désormais le seul propriétaire.
+   */
+  const handleOpenClient = React.useCallback((client: ClientItem) => {
+    setSelectedClientId(client.id);
+    setDetailClientId(client.id);
+  }, []);
+
+  /** Fermer la fiche : le hub oublie l'emprunteur ouvert. */
+  const handleDetailOpenChange = React.useCallback((open: boolean) => {
+    if (!open) setDetailClientId(null);
+  }, []);
+
+  const detailClient = React.useMemo(
+    () => clientsData.find((client) => client.id === detailClientId) ?? null,
+    [detailClientId],
+  );
 
   const handleOpenKanban = (client: ClientItem) => {
     setSelectedClientId(client.id);
@@ -202,11 +232,10 @@ export function ClientWorkspaceHub() {
 
         {/* Tab 1: Répertoire Emprunteurs */}
         <TabsContent value="clients" className="space-y-3 focus-visible:outline-none">
-          <ClientsToolbar clients={clientsData} />
           <ClientsTable
             clients={clientsData}
             selectedClientId={selectedClientId}
-            onSelectClient={handleSelectClient}
+            onSelectClient={handleOpenClient}
             onOpenKanban={handleOpenKanban}
             onOpenDuc={handleOpenDuc}
             onOpenEpargne={handleOpenEpargne}
@@ -237,13 +266,20 @@ export function ClientWorkspaceHub() {
       </Tabs>
 
       <ClientDetailSheet
-        clients={clientsData}
+        client={detailClient}
+        open={detailClientId !== null}
+        onOpenChange={handleDetailOpenChange}
         onOpenKanban={handleOpenKanban}
         onOpenDuc={handleOpenDuc}
         onOpenEpargne={handleOpenEpargne}
       />
 
-      <ClientsCommandMenu clients={clientsData} onSelect={handleSelectClient} />
+      <ClientsCommandMenu
+        clients={clientsData}
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        onSelect={handleOpenClient}
+      />
     </div>
   );
 }

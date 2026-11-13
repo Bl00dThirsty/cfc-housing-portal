@@ -19,13 +19,22 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn, getInitials } from "@/lib/utils";
-import { useClientsStore } from "@/stores/clients-store";
 
 import { DetailSection } from "./detail-section";
 import type { ClientItem } from "@/domain/entities/client";
 
 type ClientDetailSheetProps = {
-  clients: ClientItem[];
+  /**
+   * L'emprunteur dont la fiche est ouverte.
+   *
+   * L'état d'interface vit dans le hub, qui en est le parent commun : la
+   * fiche ne possède plus de store, elle reçoit son sujet.
+   */
+  client: ClientItem | null;
+  /** La fiche est-elle ouverte ? */
+  open: boolean;
+  /** Fermer la fiche : le hub décide de l'oublier. */
+  onOpenChange: (open: boolean) => void;
   onOpenKanban: (client: ClientItem) => void;
   onOpenDuc: (client: ClientItem) => void;
   onOpenEpargne: (client: ClientItem) => void;
@@ -49,23 +58,17 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function ClientDetailSheet({
-  clients,
+  client,
+  open,
+  onOpenChange,
   onOpenKanban,
   onOpenDuc,
   onOpenEpargne,
 }: ClientDetailSheetProps) {
   const router = useRouter();
-  const detailId = useClientsStore((state) => state.detailId);
-  const detailOpen = useClientsStore((state) => state.detailOpen);
-  const closeDetail = useClientsStore((state) => state.closeDetail);
-
-  const client = clients.find((item) => item.id === detailId);
 
   return (
-    <Sheet
-      open={detailOpen && client !== undefined}
-      onOpenChange={(open) => !open && closeDetail()}
-    >
+    <Sheet open={open && client !== null} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
         className="flex flex-col gap-0 p-0 sm:w-[560px] sm:max-w-[560px]"
@@ -215,7 +218,7 @@ export function ClientDetailSheet({
                   size="sm"
                   className="gap-1.5 text-xs"
                   onClick={() => {
-                    closeDetail();
+                    onOpenChange(false);
                     onOpenEpargne(client);
                   }}
                 >
@@ -227,7 +230,7 @@ export function ClientDetailSheet({
                   size="sm"
                   className="gap-1.5 text-xs"
                   onClick={() => {
-                    closeDetail();
+                    onOpenChange(false);
                     onOpenDuc(client);
                   }}
                 >
@@ -239,7 +242,7 @@ export function ClientDetailSheet({
                   size="sm"
                   className="gap-1.5 text-xs"
                   onClick={() => {
-                    closeDetail();
+                    onOpenChange(false);
                     onOpenKanban(client);
                   }}
                 >
@@ -251,7 +254,7 @@ export function ClientDetailSheet({
                   size="sm"
                   className="gap-1.5 text-xs"
                   onClick={() => {
-                    closeDetail();
+                    onOpenChange(false);
                     router.push(`/portail-cfc/clients/${client.id}`);
                   }}
                 >

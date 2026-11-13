@@ -12,22 +12,25 @@ import {
   CommandList,
   Kbd,
 } from "@/components/ui/command";
-import { useClientsStore } from "@/stores/clients-store";
 
 import type { ClientItem } from "@/domain/entities/client";
 
 type ClientsCommandMenuProps = {
   clients: ClientItem[];
+  /** Le menu est-il ouvert ? L'état d'interface vit dans le hub. */
+  open: boolean;
+  /** Ouvrir ou fermer le menu. */
+  onOpenChange: (open: boolean) => void;
+  /** L'emprunteur retenu : le hub décide ce que le choix signifie. */
   onSelect: (client: ClientItem) => void;
 };
 
 export function ClientsCommandMenu({
   clients,
+  open,
+  onOpenChange,
   onSelect,
 }: ClientsCommandMenuProps) {
-  const commandOpen = useClientsStore((state) => state.commandOpen);
-  const setCommandOpen = useClientsStore((state) => state.setCommandOpen);
-  const openDetail = useClientsStore((state) => state.openDetail);
   const [query, setQuery] = React.useState("");
 
   React.useEffect(() => {
@@ -36,22 +39,22 @@ export function ClientsCommandMenu({
       if (!event.metaKey && !event.ctrlKey) return;
       if (event.altKey || event.shiftKey) return;
       event.preventDefault();
-      setCommandOpen(!commandOpen);
+      onOpenChange(!open);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [commandOpen, setCommandOpen]);
+  }, [open, onOpenChange]);
 
   const run = (action: () => void) => {
-    setCommandOpen(false);
+    onOpenChange(false);
     setQuery("");
     action();
   };
 
   return (
     <CommandDialog
-      open={commandOpen}
-      onOpenChange={setCommandOpen}
+      open={open}
+      onOpenChange={onOpenChange}
       title="Recherche rapide des emprunteurs"
       description="Tapez pour rechercher un emprunteur par nom, numéro de dossier ou agence."
     >
@@ -78,7 +81,6 @@ export function ClientsCommandMenu({
                 onSelect={() =>
                   run(() => {
                     onSelect(client);
-                    openDetail(client.id);
                   })
                 }
               >

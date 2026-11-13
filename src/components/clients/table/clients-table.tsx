@@ -2,28 +2,21 @@
 
 import * as React from "react";
 
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { filterClients } from "@/lib/clients-filters";
-import { cn } from "@/lib/utils";
-import { useClientsStore } from "@/stores/clients-store";
+import { DataTable } from "@/components/data-table/data-table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { downloadCsv } from "@/lib/csv";
 
 import { ClientRow } from "./client-row";
 import {
+  CLIENT_COLUMNS,
   CLIENT_TABLE_CELL_CLASS,
   CLIENT_TABLE_GRID_CLASS,
   CLIENT_TABLE_ROW_CLASS,
-  clientColumnClass,
 } from "./table-columns";
 import type { ClientItem } from "@/domain/entities/client";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-clients";
 
 type ClientsTableProps = {
   clients: ClientItem[];
@@ -34,6 +27,13 @@ type ClientsTableProps = {
   onOpenEpargne: (client: ClientItem) => void;
 };
 
+/**
+ * Le répertoire des emprunteurs.
+ *
+ * La table, sa barre d'outils et son export partagent le **même** moteur : le
+ * tri, la recherche et les facettes sont ceux du portail entier, pas ceux de
+ * cet écran.
+ */
 export function ClientsTable({
   clients,
   selectedClientId,
@@ -42,155 +42,67 @@ export function ClientsTable({
   onOpenDuc,
   onOpenEpargne,
 }: ClientsTableProps) {
-  const sortBy = useClientsStore((state) => state.sortBy);
-  const phase = useClientsStore((state) => state.phase);
-  const agency = useClientsStore((state) => state.agency);
-  const status = useClientsStore((state) => state.status);
-  const search = useClientsStore((state) => state.search);
-  const selectedIds = useClientsStore((state) => state.selectedIds);
-  const toggleSelected = useClientsStore((state) => state.toggleSelected);
-  const setSelected = useClientsStore((state) => state.setSelected);
-  const openDetail = useClientsStore((state) => state.openDetail);
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
-  const visible = React.useMemo(
-    () => filterClients(clients, { sortBy, phase, agency, status, search }),
-    [clients, sortBy, phase, agency, status, search],
-  );
-
-  const allSelected = visible.length > 0 && selectedIds.length === visible.length;
-  const someSelected = selectedIds.length > 0 && !allSelected;
-
-  const handleOpen = (client: ClientItem) => {
-    onSelectClient(client);
-    openDetail(client.id);
+  const handleExport = () => {
+    downloadCsv(
+      "emprunteurs-cfc.csv",
+      [
+        ["DUC", "Emprunteur", "Agence", "Phase", "Statut", "Montant", "Épargne", "Avancement %"],
+        ...clients.map((client) => [
+          client.ducId,
+          client.name,
+          client.agency,
+          client.phase,
+          client.status,
+          client.loanAmount,
+          client.savingsCurrent,
+          client.completionPercent,
+        ]),
+      ],
+    );
   };
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs">
-      <ScrollArea orientation="both" className="min-h-0 flex-1">
-        <Table containerClassName="contents" className={CLIENT_TABLE_GRID_CLASS}>
-          <TableHeader role="rowgroup" className="contents">
-            <TableRow role="row" className={CLIENT_TABLE_ROW_CLASS}>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "gap-2",
-                  clientColumnClass("name"),
-                )}
-              >
-                <Checkbox
-                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                  onCheckedChange={(checked) =>
-                    setSelected(checked === true ? visible.map((c) => c.id) : [])
-                  }
-                  aria-label="Tout sélectionner"
-                  className="shrink-0"
-                />
-                <span className="eyebrow-style font-normal text-subtle">Emprunteur</span>
-              </TableHead>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "eyebrow-style font-normal text-subtle",
-                  clientColumnClass("agency"),
-                )}
-              >
-                Agence
-              </TableHead>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "eyebrow-style font-normal text-subtle",
-                  clientColumnClass("phase"),
-                )}
-              >
-                Phase
-              </TableHead>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "eyebrow-style font-normal text-subtle",
-                  clientColumnClass("status"),
-                )}
-              >
-                Statut
-              </TableHead>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "eyebrow-style font-normal text-subtle",
-                  clientColumnClass("loanAmount"),
-                )}
-              >
-                Montant
-              </TableHead>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "eyebrow-style font-normal text-subtle",
-                  clientColumnClass("savingsCurrent"),
-                )}
-              >
-                Épargne
-              </TableHead>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "eyebrow-style font-normal text-subtle",
-                  clientColumnClass("completionPercent"),
-                )}
-              >
-                Avancement
-              </TableHead>
-              <TableHead
-                role="columnheader"
-                className={cn(
-                  CLIENT_TABLE_CELL_CLASS,
-                  "eyebrow-style font-normal text-subtle",
-                  clientColumnClass("action"),
-                )}
-              >
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
+    <div className="flex min-h-0 flex-col gap-2">
+      <DataTableToolbar
+        tableId={TABLE_ID}
+        columns={CLIENT_COLUMNS}
+        rows={clients}
+        unitName="emprunteurs"
+        searchPlaceholder="Rechercher un emprunteur, un DUC ou une agence..."
+        onExport={handleExport}
+      />
 
-          <TableBody role="rowgroup" className="contents">
-            {visible.length === 0 ? (
-              <TableRow role="row" className={CLIENT_TABLE_ROW_CLASS}>
-                <TableCell
-                  role="cell"
-                  colSpan={8}
-                  className="col-span-full flex h-[120px] items-center justify-center text-xs text-muted-foreground"
-                >
-                  Aucun emprunteur ne correspond aux filtres appliqués.
-                </TableCell>
-              </TableRow>
-            ) : (
-              visible.map((client) => (
-                <ClientRow
-                  key={client.id}
-                  client={client}
-                  selected={selectedIds.includes(client.id)}
-                  active={client.id === selectedClientId}
-                  onToggle={toggleSelected}
-                  onOpen={handleOpen}
-                  onOpenKanban={onOpenKanban}
-                  onOpenDuc={onOpenDuc}
-                  onOpenEpargne={onOpenEpargne}
-                />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </ScrollArea>
+      <DataTable
+        tableId={TABLE_ID}
+        columns={CLIENT_COLUMNS}
+        rows={clients}
+        getRowId={(client) => client.id}
+        emptyLabel="Aucun emprunteur ne correspond aux filtres appliqués."
+        tableClassName={CLIENT_TABLE_GRID_CLASS}
+        rowClassName={CLIENT_TABLE_ROW_CLASS}
+        cellClassName={CLIENT_TABLE_CELL_CLASS}
+        renderRow={({ row, cell }) => (
+          <ClientRow
+            client={row}
+            cell={cell}
+            selected={selectedIds.includes(row.id)}
+            active={row.id === selectedClientId}
+            onToggle={(id) =>
+              setSelectedIds((current) =>
+                current.includes(id)
+                  ? current.filter((selected) => selected !== id)
+                  : [...current, id],
+              )
+            }
+            onOpen={() => onSelectClient(row)}
+            onOpenKanban={() => onOpenKanban(row)}
+            onOpenDuc={() => onOpenDuc(row)}
+            onOpenEpargne={() => onOpenEpargne(row)}
+          />
+        )}
+      />
     </div>
   );
 }
