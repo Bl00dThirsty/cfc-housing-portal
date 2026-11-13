@@ -14,6 +14,7 @@ import {
   CREDIT_PROCESS_STEPS,
   PROCESS_PHASE_LABELS,
   type CreditPhase,
+  type DossierEvent,
 } from "@/domain/entities/processes";
 
 /** État d'une étape dans le parcours de l'emprunteur. */
@@ -165,4 +166,89 @@ export function processProgress(steps: readonly IndexedStep[]): number {
  */
 export function currentStepOf(steps: readonly IndexedStep[]): IndexedStep | null {
   return steps.find((step) => step.status === "current") ?? steps.find((step) => step.status === "pending") ?? null;
+}
+
+/**
+ * Les événements du journal qui attestent chaque étape du circuit.
+ *
+ * Le mapping est une **décision métier** : il appartient au domaine, pas à
+ * l'écran. Un événement qui porte `step_code` dans sa charge utile est
+ * attribué à cette étape **quelle que soit son type** — c'est ce qui permet
+ * à une pièce déposée ou à un message de support d'atterrir sur la bonne
+ * étape du parcours.
+ */
+export const STEP_EVENT_TYPES: Record<string, readonly string[]> = {
+  "CRD-01": [
+    "KYC_SUBMITTED",
+    "KYC_APPROVED",
+    "KYC_REJECTED",
+    "kyc.state_changed",
+    "DOCUMENT_REQUESTED",
+    "DOCUMENT_UPLOADED",
+    "document.uploaded",
+  ],
+  "CRD-02": ["KYC_SUBMITTED", "KYC_APPROVED", "KYC_REJECTED", "kyc.state_changed", "DOSSIER_UPDATED"],
+  "CRD-03": ["DOCUMENT_REQUESTED", "DOCUMENT_UPLOADED", "document.uploaded", "DOSSIER_UPDATED"],
+  "CRD-04": [
+    "DOCUMENT_UPLOADED",
+    "document.uploaded",
+    "DOCUMENT_VALIDATED",
+    "document.validated",
+  ],
+  "CRD-06": ["DOCUMENT_VALIDATED", "document.validated", "DOSSIER_UPDATED"],
+  "CRD-07": ["COMMITTEE_DECISION", "committee.decision"],
+  "CRD-08": ["COMMITTEE_DECISION", "committee.decision", "DOSSIER_UPDATED"],
+  "CRD-09": ["COMMITTEE_DECISION", "committee.decision"],
+  "CRD-10": ["LOAN_OFFER_ISSUED", "loan_offer.issued"],
+  "GAR-01": [
+    "DOCUMENT_VALIDATED",
+    "document.validated",
+    "MAINLEVEE_READY",
+    "mainlevee.ready",
+  ],
+  "CRD-11": ["LOAN_OFFER_ISSUED", "loan_offer.issued", "DOSSIER_UPDATED"],
+  "CRD-12": ["DISBURSEMENT_RELEASED", "disbursement.released"],
+  "CRD-13": ["DISBURSEMENT_RELEASED", "disbursement.released", "DOSSIER_UPDATED"],
+};
+
+/** Le code d'étape qu'un événement porte éventuellement dans sa charge utile. */
+function stepCodeOf(event: DossierEvent): string | null {
+  const value = event.payload?.step_code;
+  return typeof value === "string" ? value : null;
+}
+
+/**
+ * Les événements qui attestent une étape, du plus récent au plus ancien.
+ *
+ * Deux règles d'attribution, dans cet ordre :
+ * 1. l'événement **correspond** s'il porte le code de l'étape dans sa charge
+ *    utile — quelle que soit son type ;
+ * 2. l'événement **correspond** si son type figure dans le mapping de l'étape.
+ */
+export function eventsForStep(
+  events: readonly DossierEvent[],
+  stepCode: string,
+): DossierEvent[] {
+  const types = STEP_EVENT_TYPES[stepCode] ?? [];
+
+  return events
+    .filter(
+      (event) => stepCodeOf(event) === stepCode || types.includes(event.event_type),
+    )
+    .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+}
+
+/**
+ * Les événements qui n'attestent aucune des étapes données.
+ *
+ * Un événement sans correspondance n'est **jamais perdu** : il est montré à
+ * part, sous « Autres événements du dossier ».
+ */
+export function unassignedEvents(
+  events: readonly DossierEvent[],
+  stepCodes: readonly string[],
+): DossierEvent[] {
+  return events
+    .filter((event) => !stepCodes.some((code) => eventsForStep([event], code).length > 0))
+    .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
 }

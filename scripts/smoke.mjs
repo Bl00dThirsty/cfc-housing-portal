@@ -339,6 +339,11 @@ async function checkCitizenJourney() {
     tracking.body.includes("CRD-01"),
     "codes d'étape (CRD-…) attendus",
   );
+  check(
+    "le suivi rend chaque étape cliquable",
+    tracking.body.includes("aria-expanded"),
+    "les étapes du parcours doivent ouvrir leur historique",
+  );
 
   const profile = await fetchPage("/portail-client/profil", citizen.cookie);
   check("le profil citoyen est servi", profile.status === 200, `status=${profile.status}`);

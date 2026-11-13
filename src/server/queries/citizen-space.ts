@@ -66,6 +66,13 @@ export type CitizenTracking = {
   progress: number;
   /** Pièces attendues, avec leur état. */
   checklist: ChecklistItem[];
+  /**
+   * Le journal du dossier.
+   *
+   * Il est déjà lu pour indexer les étapes : l'exposer évite une seconde
+   * lecture et permet au panneau d'étape de dire qui a fait quoi, quand.
+   */
+  events: DossierEvent[];
 };
 
 export async function getCitizenSpace(userId: string): Promise<{
@@ -205,6 +212,7 @@ export async function getCitizenTracking(userId: string): Promise<{
       steps: space.steps,
       progress: processProgress(space.steps),
       checklist: space.checklist,
+      events: space.events,
     },
   };
 }

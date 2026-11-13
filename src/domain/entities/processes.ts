@@ -347,6 +347,32 @@ export function eventLabel(eventType: string): string {
   return DOSSIER_EVENT_LABELS[eventType] ?? eventType.replace(/[._]/g, " ");
 }
 
+/**
+ * Les rôles du journal, en langage lisible.
+ *
+ * Pour l'emprunteur, « qui » est un **rôle** : un nom de personne n'a pas
+ * à quitter la banque. C'est un usage interne du dossier ; la console, elle,
+ * peut afficher l'agent.
+ */
+export const ACTOR_ROLE_LABELS: Record<string, string> = {
+  CITIZEN: "Emprunteur",
+  GUICHET: "Agence",
+  GESTIONNAIRE: "Gestionnaire",
+  RISQUES_BET: "Risques & BET",
+  NOTAIRE: "Notaire",
+  COMITE: "Comité de crédit",
+  DIASPORA: "Guichet diaspora",
+  ADMIN: "Administration",
+  SERVICE: "Service interne",
+  SYSTEM: "Plateforme",
+};
+
+/** Le libellé lisible d'un rôle ; « Acteur » quand le rôle est inconnu ou absent. */
+export function actorRoleLabel(role: string | null): string {
+  if (!role) return "Acteur";
+  return ACTOR_ROLE_LABELS[role] ?? "Acteur";
+}
+
 /** Libellé d'une phase du circuit de crédit. */
 export function phaseLabel(phase: string | null): string {
   if (!phase) return "—";
