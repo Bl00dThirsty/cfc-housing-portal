@@ -2439,22 +2439,39 @@ le parcours d'inscription vit dans son propre fichier
 
 **9 exécutions consécutives** de la suite complète, sans échec.
 
-### 18.6 Vérifié
+### 18.6 Le suivi devient cliquable
+
+Le suivi n'était qu'une **frise** : l'emprunteur voyait où il en était, mais
+pas ce qui s'était passé. Chaque étape est maintenant un **bouton** qui ouvre
+le journal de cette étape du parcours — qui a fait quoi, quand.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le mapping étape ↔ événements | `src/domain/workflows/tracking.ts` (`STEP_EVENT_TYPES`, `eventsForStep`, `unassignedEvents`) | c'est une décision **métier** : elle est dans le domaine, pas dans l'écran |
+| « Qui » est un rôle | `src/domain/entities/processes.ts` (`actorRoleLabel`) | un nom de personne n'a pas à quitter la banque |
+| Le panneau | `src/components/tracking/step-detail-drawer.tsx` | il est **partagé** par les portails ; seul le citizen l'utilise aujourd'hui |
+| Le journal exposé au suivi | `CitizenTracking.events` | le journal était déjà lu pour indexer les étapes : l'exposer évite une seconde lecture |
+
+Deux états restent **distincts** : un panneau sans événement n'est pas un
+panneau en erreur, et un événement qui n'atteste aucune étape n'est pas perdu
+— il est montré à part, sous « Autres événements du dossier ».
+
+### 18.7 Vérifié
 
 | Contrôle | Résultat |
 |---|---|
 | `npm run typecheck` | exit 0 |
 | `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
-| `npm test` | **349 tests** passés, 16 ignorés (e2e) |
+| `npm test` | **361 tests** passés, 16 ignorés (e2e) |
 | `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — **9 exécutions consécutives** sans échec |
 | `npm run build` | exit 0 |
-| `node scripts/smoke.mjs` | **59/59** |
+| `node scripts/smoke.mjs` | **60/60** |
 
 ---
 
-*End of document. Part 18 records the repaired onboarding journey; Part 17 the
-FAQ, the surfacing of failures, the proven messaging and the traced KYC
-decision; Part 16 the navigation and the data integrity; Part 15 the citizen
-space, the messaging and the role isolation; Part 14 the two portals and the
-working document deposit; Part 13 the alignment on the official cartography;
-Parts 0–11 remain the target.*
+*End of document. Part 18 records the repaired onboarding journey and the
+interactive tracker; Part 17 the FAQ, the surfacing of failures, the proven
+messaging and the traced KYC decision; Part 16 the navigation and the data
+integrity; Part 15 the citizen space, the messaging and the role isolation;
+Part 14 the two portals and the working document deposit; Part 13 the
+alignment on the official cartography; Parts 0–11 remain the target.*
