@@ -4,12 +4,25 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Download, Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
-import { promotersData as promoters } from "@/domain/entities/promoters";
+import { Progress } from "@/components/ui/progress";
+import { TableCell, TableRow } from "@/components/ui/table";
+import {
+  promotersData as promoters,
+  type PromoterItem,
+} from "@/domain/entities/promoters";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-agency-promoters";
+
+/** Le taux de commercialisation d'un programme, en pourcentage. */
+function occupancyPercent(row: PromoterItem): number {
+  return Math.round(((row.total - row.available) / row.total) * 100);
+}
 
 const promotersKpis: ActorKpiItem[] = [
   {
@@ -54,37 +67,174 @@ const promotersKpis: ActorKpiItem[] = [
   },
 ];
 
+/**
+ * Les colonnes du tableau des programmes immobiliers.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const PROMOTER_COLUMNS: DataColumn<PromoterItem>[] = [
+  {
+    key: "name",
+    label: "Promoteur / SIC",
+    accessor: (row) => row.name,
+  },
+  {
+    key: "programme",
+    label: "Programme Immobilier",
+    accessor: (row) => row.programme,
+  },
+  {
+    key: "city",
+    label: "Ville",
+    accessor: (row) => row.city,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "availability",
+    label: "Disponibilité",
+    // Le tri porte sur le **taux de commercialisation** : « 8 / 30 » ne se
+    // compare pas, « 73 % » se compare.
+    accessor: (row) => occupancyPercent(row),
+    render: (row) => (
+      <div className="flex flex-col gap-1 min-w-[100px]">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="font-semibold text-foreground">
+            {row.available} / {row.total}
+          </span>
+          <span className="text-muted-foreground">{occupancyPercent(row)}%</span>
+        </div>
+        <Progress value={occupancyPercent(row)} className="h-1.5" />
+      </div>
+    ),
+  },
+  {
+    key: "priceRange",
+    label: "Fourchette Prix",
+    accessor: (row) => row.priceRange,
+    // Une fourchette ne se compare pas : « 18 – 35 M FCFA » contre
+    // « 8 – 15 M FCFA » se rangerait par son premier chiffre.
+    sortable: false,
+  },
+  {
+    key: "status",
+    label: "Statut",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={
+          row.status === "Active"
+            ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium border-transparent"
+            : "bg-slate-500/10 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300 h-5 px-2 text-xs font-medium border-transparent"
+        }
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "updated",
+    label: "MAJ",
+    // La source mêle des dates relatives (« Aujourd'hui ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.updated,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
+
 export default function PromotersPage() {
   const router = useRouter();
-  const [search, setSearch] = React.useState("");
-  const [selectedStatuses, setSelectedStatuses] = React.useState<string[]>([]);
-  const [selectedCities, setSelectedCities] = React.useState<string[]>([]);
 
-  const statusOptions = React.useMemo(() => [
-    { label: "Active", value: "Active", count: promoters.filter((p) => p.status === "Active").length },
-    { label: "Complet", value: "Complet", count: promoters.filter((p) => p.status === "Complet").length },
-  ], []);
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      row,
+      cell,
+    }: {
+      row: PromoterItem;
+      cell: (key: string) => React.ReactNode;
+    }) => {
+      const openProgramme = () =>
+        router.push(`/portail-cfc/actors/agency/promoters/${row.id}`);
 
-  const cityOptions = React.useMemo(() => [
-    { label: "Yaoundé", value: "Yaoundé", count: promoters.filter((p) => p.city === "Yaoundé").length },
-    { label: "Douala", value: "Douala", count: promoters.filter((p) => p.city === "Douala").length },
-  ], []);
-
-  const filtered = promoters.filter((p) => {
-    const q = search.toLowerCase().trim();
-    const matchesSearch =
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.programme.toLowerCase().includes(q) ||
-      p.city.toLowerCase().includes(q);
-
-    const matchesStatus =
-      selectedStatuses.length === 0 || selectedStatuses.includes(p.status);
-    const matchesCity =
-      selectedCities.length === 0 || selectedCities.includes(p.city);
-
-    return matchesSearch && matchesStatus && matchesCity;
-  });
+      return (
+        <TableRow
+          onClick={openProgramme}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openProgramme();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label={`Ouvrir le programme ${row.name}`}
+          className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          <TableCell className="px-3 py-2.5">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                openProgramme();
+              }}
+              aria-label={`Ouvrir le programme ${row.name}`}
+              className="text-left font-medium hover:underline text-xs text-foreground"
+            >
+              {cell("name")}
+            </button>
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[200px]">
+            <span className="truncate block font-medium">{cell("programme")}</span>
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-foreground">
+            {cell("city")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5">{cell("availability")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-xs font-mono text-foreground whitespace-nowrap">
+            {cell("priceRange")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+            {cell("updated")}
+          </TableCell>
+          <TableCell
+            className="text-right pr-4 py-2.5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={openProgramme}
+              aria-label={`Ouvrir le programme ${row.name}`}
+              className="size-8 text-muted-foreground hover:text-foreground"
+            >
+              <Eye className="size-4" />
+            </Button>
+          </TableCell>
+        </TableRow>
+      );
+    },
+    [router],
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -121,137 +271,20 @@ export default function PromotersPage() {
       {/* Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
         <DataTableToolbar
-          searchQuery={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Rechercher par promoteur, programme ou ville..."
-          totalCount={promoters.length}
-          filteredCount={filtered.length}
+          tableId={TABLE_ID}
+          columns={PROMOTER_COLUMNS}
+          rows={promoters}
           unitName="programmes"
-          filters={[
-            {
-              id: "status",
-              title: "Statut",
-              options: statusOptions,
-              selectedValues: selectedStatuses,
-              onSelect: setSelectedStatuses,
-            },
-            {
-              id: "city",
-              title: "Ville",
-              options: cityOptions,
-              selectedValues: selectedCities,
-              onSelect: setSelectedCities,
-            },
-          ]}
-          onResetAll={() => {
-            setSelectedStatuses([]);
-            setSelectedCities([]);
-          }}
         />
 
-        <div className="rounded-lg border border-border/40 overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Promoteur / SIC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Programme Immobilier</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Ville</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Disponibilité</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Fourchette Prix</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">MAJ</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-xs text-muted-foreground">
-                    Aucun programme immobilier ne correspond aux critères sélectionnés.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((item) => {
-                  const occupancyPercent = Math.round(((item.total - item.available) / item.total) * 100);
-                  return (
-                    <TableRow
-                      key={item.id}
-                      onClick={() => router.push(`/portail-cfc/actors/agency/promoters/${item.id}`)}
-                      onKeyDown={(e) => {
-                        if (e.target !== e.currentTarget) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          router.push(`/portail-cfc/actors/agency/promoters/${item.id}`);
-                        }
-                      }}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Ouvrir le programme ${item.name}`}
-                      className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
-                    >
-                      <TableCell className="px-3 py-2.5">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/portail-cfc/actors/agency/promoters/${item.id}`);
-                          }}
-                          aria-label={`Ouvrir le programme ${item.name}`}
-                          className="text-left font-medium hover:underline text-xs text-foreground"
-                        >
-                          {item.name}
-                        </button>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[200px]">
-                        <span className="truncate block font-medium">{item.programme}</span>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-xs text-foreground">{item.city}</TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <div className="flex flex-col gap-1 min-w-[100px]">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-semibold text-foreground">{item.available} / {item.total}</span>
-                            <span className="text-muted-foreground">{occupancyPercent}%</span>
-                          </div>
-                          <Progress
-                            value={occupancyPercent}
-                            className="h-1.5"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-xs font-mono text-foreground whitespace-nowrap">
-                        {item.priceRange}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <Badge
-                          variant="secondary"
-                          className={
-                            item.status === "Active"
-                              ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium border-transparent"
-                              : "bg-slate-500/10 text-slate-600 dark:bg-slate-500/15 dark:text-slate-300 h-5 px-2 text-xs font-medium border-transparent"
-                          }
-                        >
-                          {item.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.updated}</TableCell>
-                      <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => router.push(`/portail-cfc/actors/agency/promoters/${item.id}`)}
-                          aria-label={`Ouvrir le programme ${item.name}`}
-                          className="size-8 text-muted-foreground hover:text-foreground"
-                        >
-                          <Eye className="size-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={PROMOTER_COLUMNS}
+          rows={promoters}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun programme immobilier ne correspond aux critères sélectionnés."
+        />
       </div>
     </div>
   );
