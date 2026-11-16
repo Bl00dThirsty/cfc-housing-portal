@@ -2575,10 +2575,84 @@ plus tiré au sort, et le code du DUC est unique parmi les dossiers actifs.
 
 ---
 
-*End of document. Part 19 records the shared data-table engine and the single
-account door; Part 18 the repaired onboarding journey and the interactive
-tracker; Part 17 the FAQ, the surfacing of failures, the proven messaging and
-the traced KYC decision; Part 16 the navigation and the data integrity; Part
-15 the citizen space, the messaging and the role isolation; Part 14 the two
-portals and the working document deposit; Part 13 the alignment on the
-official cartography; Parts 0–11 remain the target.*
+## PART 20 — LE KYC EN QUATRE ÉCRANS, ET L'ÉTAT QUI N'APPARTIENT PAS AU CITOYEN (2026-11-16)
+
+### 20.1 Quatre écrans, une seule déclaration
+
+Le demandeur ne remplit plus un formulaire unique : il déclare qui il est,
+écran par écran — **identité**, **résidence et contact**, **situation
+professionnelle**, **conformité et déclaration** — puis il relit, et il
+transmet.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le profil du demandeur | `src/domain/entities/kyc.ts` | les formes des quatre groupes de déclarations |
+| Les règles | `src/domain/entities/kyc-profile.ts` | champs bloquants, validation, badge — un module **pur** |
+| La forme **stockée** | `toStoredProfile` / `fromStoredProfile` | les colonnes JSONB sont en `snake_case` ; la traduction vit dans le domaine, **une fois** |
+| L'écran | `src/components/kyc/kyc-wizard.tsx` | progression, brouillon auto-sauvegardé, champs bloquants annoncés, récapitulatif |
+
+Le brouillon est **conservé automatiquement** : un déclarant n'a pas à
+valider pour que ses saisies restent. Le « Continuer » est **désactivé**
+tant qu'un champ bloquant manque, et il dit **lequel**.
+
+L'identité que l'inscription a portée est **pré-remplie** : le demandeur la
+vérifie, il ne la ressaisit pas.
+
+### 20.2 L'état du KYC n'appartient pas au citoyen
+
+La RLS de `citizen_profiles` n'interdisait pas au citoyen d'écrire
+**n'importe quelle colonne** de sa ligne — y compris `kyc_state`. Un
+demandeur pouvait donc s'accorder l'approbation lui-même, sans passer par
+le contrôle de filtrage.
+
+Deux corrections, et une seule idée : **l'état a un propriétaire**.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le garde-fou | `private.guard_citizen_profile_update()` | un citoyen ne peut pas écrire `kyc_state` ; un agent, si |
+| La soumission | `public.submit_kyc_profile()` | horodatage et transition **en une opération**, par la base |
+| L'écriture système | `app.system_update` | une valeur tenue par la plateforme n'est pas une déclaration du citoyen |
+
+La soumission mène à `document_verification`, **pas** à `approval_pending` :
+le contrôle de filtrage est une grille, et aucun dossier ne sort de
+`screening_pending` sans décision de contrôle écrite. Le conseiller reste
+le maître de la suite.
+
+### 20.3 Le choix du service, et ses trois issues
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| La carte de service | `src/components/onboarding/service-picker.tsx` | elle est lue du **catalogue** : public, audience, apport, durée, taux, pièces |
+| La fenêtre | `PRIOR_CLIENT_CASES` | trois situations, et chacune décide de la suite |
+| La suspension | `dossiers.onboarding_state = 'suspension'` | le demandeur n'est pas encore client du CFC : six mois d'ancienneté |
+| Le conseiller | `dossiers.advisor` | il est **dérivé de l'identifiant** : le même demandeur retrouve le même conseiller |
+| L'espace d'attente | `src/components/portail-client/onboarding-waiting.tsx` | un dossier en attente n'a **rien** à montrer : ni graphiques, ni dépôt |
+
+### 20.4 L'en-tête public sait qui le regarde
+
+Il demande la session au navigateur et n'offre plus « Se connecter » à
+quelqu'un qui l'est déjà : un visiteur connecté trouve « Mon espace », et un
+visiteur anonyme trouve les deux portes.
+
+### 20.5 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **397 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — dont la tentative de s'auto-approuver, **refusée par la base**, et les deux issues de la fenêtre du service |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **67/67** |
+
+---
+
+*End of document. Part 20 records the four KYC screens, the state the citizen
+does not own, and the three outcomes of the service choice; Part 19 the shared
+data-table engine and the single account door; Part 18 the repaired onboarding
+journey and the interactive tracker; Part 17 the FAQ, the surfacing of
+failures, the proven messaging and the traced KYC decision; Part 16 the
+navigation and the data integrity; Part 15 the citizen space, the messaging and
+the role isolation; Part 14 the two portals and the working document deposit;
+Part 13 the alignment on the official cartography; Parts 0–11 remain the
+target.*
