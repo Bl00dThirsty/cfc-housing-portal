@@ -55,6 +55,7 @@ type KycProfileRow = {
 };
 
 type DossierRow = {
+  id: string;
   duc_code: string;
   service_code: string | null;
   name: string | null;
@@ -93,7 +94,7 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
     supabase
       .from("dossiers")
       .select(
-        "duc_code, service_code, name, cni_raw, birth_date, phone, email, address, profession, employer, monthly_income, is_diaspora",
+        "id, duc_code, service_code, name, cni_raw, birth_date, phone, email, address, profession, employer, monthly_income, is_diaspora",
       )
       .eq("citizen_id", userId)
       .is("deleted_at", null)
@@ -140,6 +141,7 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
 
   return {
     serviceCode: dossier?.service_code ?? null,
+    dossierId: dossier?.id ?? null,
     fullName: profile?.full_name ?? dossier?.name ?? "",
     phone: profile?.phone ?? dossier?.phone ?? "",
     affiliation:
@@ -267,57 +269,81 @@ export async function setPriorClientCaseAction(input: {
   }
 
   const supabase = await createServerSupabaseClient();
-  const { userId } = citizen;
 
-  const { data: dossier } = await supabase
-    .from("dossiers")
-    .select("id, duc_code")
-    .eq("citizen_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Le conseiller est calculé par le domaine — il est l'unique propriétaire de
+  // la rotation — et la transition est appliquée par la base.
+  const advisor = advisorForSequence(advisorIndexFor(citizen.userId));
 
-  if (!dossier) {
-    return { ok: false, error: "Votre dossier n'est pas encore ouvert." };
+  const { error } = await supabase.rpc("set_prior_client_case", {
+    p_case: input.priorClientCase,
+    p_advisor: advisor.name,
+  });
+
+  if (error) {
+    if (/no_dossier/.test(error.message)) {
+      return { ok: false, error: "Votre dossier n'est pas encore ouvert." };
+    }
+    if (/unknown_prior_client_case/.test(error.message)) {
+      return { ok: false, error: "Situation inconnue." };
+    }
+    return { ok: false, error: error.message };
   }
 
   if (priorCase.eligible) {
     // Déjà servi au CFC : la suite est le dépôt des pièces.
-    const { error } = await supabase
-      .from("dossiers")
-      .update({
-        prior_client_case: priorCase.value,
-        onboarding_state: "documents",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", dossier.id);
-
-    if (error) return { ok: false, error: error.message };
-
     return { ok: true, message: "Votre dossier passe au dépôt des pièces." };
   }
 
   // Pas encore client du CFC : un conseiller est affecté, et l'onboarding est
   // en pause jusqu'à son activation du DUC.
-  const advisor = advisorForSequence(advisorIndexFor(userId));
-
-  const { error } = await supabase
-    .from("dossiers")
-    .update({
-      prior_client_case: priorCase.value,
-      onboarding_state: "suspension",
-      advisor: advisor.name,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", dossier.id);
-
-  if (error) return { ok: false, error: error.message };
-
   return {
     ok: true,
     advisor: advisor.name,
     message: `Votre dossier est transmis à ${advisor.name}.`,
+  };
+}
+
+/**
+ * Transmet le dossier au conseiller.
+ *
+ * La transmission est **atomique** et **journalisée** : le dossier passe en
+ * examen, le conseiller est affecté, et l'événement est écrit dans la
+ * chronologie du dossier. Le demandeur peut ne pas avoir toutes les pièces :
+ * « passer pour l'instant » ne bloque pas, il se dit.
+ */
+export async function submitServiceApplicationAction(): Promise<
+  OnboardingResult & { advisor?: string }
+> {
+  const citizen = await currentCitizen();
+  if (!citizen) {
+    return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const advisor = advisorForSequence(advisorIndexFor(citizen.userId));
+
+  const { data, error } = await supabase.rpc("submit_service_application", {
+    p_advisor: advisor.name,
+  });
+
+  if (error) {
+    if (/no_dossier/.test(error.message)) {
+      return { ok: false, error: "Votre dossier n'est pas encore ouvert." };
+    }
+    if (/onboarding_suspended/.test(error.message)) {
+      return {
+        ok: false,
+        error:
+          "Votre dossier est en pause : un conseiller doit vous orienter avant qu'il puisse être examiné.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  return {
+    ok: true,
+    advisor: typeof data === "string" ? data : advisor.name,
+    message: "Votre dossier est transmis.",
   };
 }
 

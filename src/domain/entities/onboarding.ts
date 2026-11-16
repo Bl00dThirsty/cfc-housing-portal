@@ -45,6 +45,8 @@ export const ONBOARDING_STEPS: ReadonlyArray<{
 export type OnboardingDraft = {
   /** Le service choisi : il commande les pièces exigées. */
   serviceCode: string | null;
+  /** Le dossier ouvert par l'inscription — il reçoit les pièces déposées. */
+  dossierId: string | null;
   /** Le nom du demandeur — il vient du compte. */
   fullName: string;
   /** Le téléphone de contact — il vient du compte. */
@@ -60,6 +62,7 @@ export { EMPTY_KYC_PROFILE, fromStoredProfile };
 
 export const EMPTY_DRAFT: OnboardingDraft = {
   serviceCode: null,
+  dossierId: null,
   fullName: "",
   phone: "",
   affiliation: null,

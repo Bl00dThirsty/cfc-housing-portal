@@ -13,6 +13,8 @@ export type RequiredDocument = {
   natureCode: string;
   natureLabel: string;
   issuingAuthority: string | null;
+  /** La catégorie de la pièce : emprunteur, projet, programme ou partenaires. */
+  category: string | null;
   required: boolean;
   minCount: number;
   stage: string;
@@ -54,6 +56,8 @@ export type DocumentTypeSummary = {
   label: string;
   nature_code: string;
   issuing_authority: string | null;
+  /** La catégorie de la pièce : emprunteur, projet, programme ou partenaires. */
+  category: string | null;
   validity_months: number | null;
   accepted_mime: string[];
   max_size_bytes: number;
@@ -168,11 +172,14 @@ export function checklistStatusFor(raw: string | null | undefined): ChecklistSta
  *
  * Une pièce déjà fournie au KYC (CNI, bulletins, RIB) est marquée
  * « déjà fournie » : elle n'est **jamais** demandée deux fois.
+ *
+ * La fonction est **générique** : elle ne connaît que le code de la pièce
+ * et son état. La checklist du dossier et la liste des pièces du service
+ * l'utilisent tous les deux, sans dupliquer la règle.
  */
-export function markProvidedDocuments(
-  requirements: ChecklistItem[],
-  providedCodes: readonly string[],
-): ChecklistItem[] {
+export function markProvidedDocuments<
+  T extends { docTypeCode: string; status: ChecklistStatus },
+>(requirements: readonly T[], providedCodes: readonly string[]): T[] {
   const provided = new Set(providedCodes);
   return requirements.map((item) =>
     provided.has(item.docTypeCode) && item.status === "missing"

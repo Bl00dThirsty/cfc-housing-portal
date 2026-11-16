@@ -22,6 +22,47 @@ import { isValidPhone } from "./phone";
 
 export type { KycBadge, KycProfile };
 
+/**
+ * Les pièces du KYC — facultatives.
+ *
+ * Ce ne sont pas les pièces du **service** : ce sont celles qui font la
+ * preuve de l'identité et de la situation du demandeur. Elles sont marquées
+ * « déjà fournie » dans la liste d'un service, et ne sont jamais demandées
+ * deux fois.
+ *
+ * Les codes sont ceux du référentiel `ref.document_type` : la pièce du KYC
+ * et l'exigence du service parlent le même langage.
+ */
+export type KycDocumentDefinition = {
+  code: string;
+  label: string;
+  /** La catégorie de la pièce, telle que le service regroupe les siennes. */
+  category: "emprunteur" | "projet" | "partenaires";
+};
+
+export const KYC_DOCUMENTS: readonly KycDocumentDefinition[] = [
+  {
+    code: "CNI_BIOMETRIQUE",
+    label: "CNI recto-verso",
+    category: "emprunteur",
+  },
+  {
+    code: "PROOF_OF_RESIDENCE",
+    label: "Justificatif de domicile de moins de trois mois",
+    category: "emprunteur",
+  },
+  {
+    code: "INCOME_ATTESTATION",
+    label: "Justificatif de revenus",
+    category: "emprunteur",
+  },
+];
+
+/** Les codes des pièces du KYC — la liste, pour la recherche. */
+export const KYC_DOCUMENT_CODES: readonly string[] = KYC_DOCUMENTS.map(
+  (document) => document.code,
+);
+
 /** Un profil vide — le point de départ d'un brouillon. */
 export const EMPTY_KYC_PROFILE: KycProfile = {
   identity: {

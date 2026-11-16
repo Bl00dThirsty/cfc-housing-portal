@@ -33,6 +33,7 @@ import {
 } from "@/domain/entities/onboarding";
 import type { KycProfile } from "@/domain/entities/kyc";
 
+import { KycDocuments } from "@/components/kyc/kyc-documents";
 import { KycIdentityStep } from "./steps/kyc-identity";
 import { KycResidenceStep } from "./steps/kyc-residence";
 import { KycEmploymentStep } from "./steps/kyc-employment";
@@ -85,6 +86,10 @@ export interface KycWizardProps {
   /** La situation bancaire — elle vient du compte. */
   affiliation: AffiliationStatus | null;
   onAffiliationChange: (value: AffiliationStatus) => void;
+  /** Le dossier qui reçoit les pièces déposées. */
+  dossierId: string | null;
+  /** Les pièces déjà fournies : elles ne sont jamais demandées deux fois. */
+  providedCodes: readonly string[];
   /** Le parcours passe à l'étape suivante. */
   onNext: () => void;
 }
@@ -97,6 +102,8 @@ export function KycWizard({
   onPhoneChange,
   affiliation,
   onAffiliationChange,
+  dossierId,
+  providedCodes,
   onNext,
 }: KycWizardProps) {
   /** L'écran courant : 0 à 3, puis le récapitulatif. */
@@ -109,6 +116,7 @@ export function KycWizard({
   const draft: OnboardingDraft = React.useMemo(
     () => ({
       serviceCode: null,
+      dossierId: null,
       fullName,
       phone,
       affiliation,
@@ -318,7 +326,14 @@ export function KycWizard({
           />
         )}
 
-        {isSummary && <Summary profile={profile} phone={phone} fullName={fullName} />}
+        {isSummary && (
+          <>
+            <Summary profile={profile} phone={phone} fullName={fullName} />
+
+            {/* Les pièces du KYC : facultatives, et déposées ici. */}
+            <KycDocuments dossierId={dossierId} providedCodes={providedCodes} />
+          </>
+        )}
       </div>
 
       {/* La navigation ------------------------------------------------- */}

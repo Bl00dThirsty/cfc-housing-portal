@@ -16,8 +16,8 @@ import {
 import type { ServiceSummary } from "@/domain/entities/services";
 
 import { KycWizard } from "@/components/kyc/kyc-wizard";
+import { ServiceDocuments } from "@/components/onboarding/service-documents";
 import { ServicePicker } from "@/components/onboarding/service-picker";
-import { StepDocuments } from "./steps/step-documents";
 
 /**
  * Le parcours du dossier — trois étapes, un seul dossier.
@@ -37,12 +37,18 @@ type OnboardingWizardProps = {
   services: ServiceSummary[];
   initialDraft: OnboardingDraft;
   signedIn: boolean;
+  /** Les pièces déjà fournies au KYC : elles ne sont jamais demandées deux fois. */
+  providedCodes: readonly string[];
+  /** Les pièces déjà envoyées par le demandeur. */
+  sentCodes: readonly string[];
 };
 
 export function OnboardingWizard({
   services,
   initialDraft,
   signedIn,
+  providedCodes,
+  sentCodes,
 }: OnboardingWizardProps) {
   const router = useRouter();
   const [step, setStep] = React.useState<OnboardingStepId>(() =>
@@ -50,13 +56,18 @@ export function OnboardingWizard({
   );
   const [draft, setDraft] = React.useState<OnboardingDraft>(initialDraft);
   const [saving, setSaving] = React.useState(false);
-  const [dossierCode, setDossierCode] = React.useState<string | null>(null);
 
   const patch = React.useCallback((values: Partial<OnboardingDraft>) => {
     setDraft((current) => ({ ...current, ...values }));
   }, []);
 
   const stepIndex = ONBOARDING_STEPS.findIndex((item) => item.id === step);
+
+  /** Le service choisi — il porte les pièces exigées. */
+  const service = React.useMemo(
+    () => services.find((item) => item.code === draft.serviceCode) ?? null,
+    [draft.serviceCode, services],
+  );
 
   /** L'étape suivante : le parcours n'avance qu'après une écriture réussie. */
   const goNext = React.useCallback(() => {
@@ -181,6 +192,8 @@ export function OnboardingWizard({
             onPhoneChange={(phone) => patch({ phone })}
             affiliation={draft.affiliation}
             onAffiliationChange={(affiliation) => patch({ affiliation })}
+            dossierId={draft.dossierId}
+            providedCodes={providedCodes}
             onNext={goNext}
           />
         )}
@@ -190,18 +203,28 @@ export function OnboardingWizard({
             onNext={goNext}
             saving={saving}
             setSaving={setSaving}
-            onDossierCreated={setDossierCode}
           />
         )}
-        {step === "documents" && (
-          <StepDocuments
-            draft={draft}
-            services={services}
-            dossierCode={dossierCode}
-            onBack={goBack}
-            onFinish={finish}
-          />
-        )}
+        {step === "documents" &&
+          (service ? (
+            <ServiceDocuments
+              service={service}
+              dossierId={draft.dossierId}
+              providedCodes={providedCodes}
+              sentCodes={sentCodes}
+              onFinish={finish}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-base font-semibold text-foreground">
+                Aucun service choisi
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Revenez à l&apos;étape précédente pour choisir le service dont
+                vous souhaitez déposer les pièces.
+              </p>
+            </div>
+          ))}
       </section>
 
       <footer className="mt-6 flex items-center justify-between gap-3">

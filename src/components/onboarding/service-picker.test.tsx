@@ -36,6 +36,7 @@ const services: ServiceSummary[] = [
         natureCode: "IDENTITE",
         natureLabel: "Identité",
         issuingAuthority: "DGSN",
+        category: "emprunteur",
         required: true,
         minCount: 1,
         stage: "ONBOARDING",
@@ -69,7 +70,6 @@ describe("le choix du service", () => {
         onNext={() => {}}
         saving={false}
         setSaving={() => {}}
-        onDossierCreated={() => {}}
       />,
     );
 
@@ -89,7 +89,6 @@ describe("le choix du service", () => {
         onNext={() => {}}
         saving={false}
         setSaving={() => {}}
-        onDossierCreated={() => {}}
       />,
     );
 
@@ -117,7 +116,6 @@ describe("le choix du service", () => {
         onNext={onNext}
         saving={false}
         setSaving={() => {}}
-        onDossierCreated={() => {}}
       />,
     );
 
@@ -142,7 +140,6 @@ describe("le choix du service", () => {
         onNext={onNext}
         saving={false}
         setSaving={() => {}}
-        onDossierCreated={() => {}}
       />,
     );
 

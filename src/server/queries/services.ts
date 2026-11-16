@@ -45,7 +45,7 @@ export async function listServices(): Promise<ServiceSummary[]> {
       .is("deleted_at", null),
     ref
       .from("document_type")
-      .select("code, label, nature_code, issuing_authority")
+      .select("code, label, nature_code, issuing_authority, category")
       .is("deleted_at", null),
     ref.from("document_nature").select("code, label").is("deleted_at", null),
     // Les produits portent l'apport minimal et la durée maximale : ce sont
@@ -133,6 +133,7 @@ export async function listServices(): Promise<ServiceSummary[]> {
           natureCode: document?.nature_code ?? "AUTRE",
           natureLabel: nature?.label ?? document?.nature_code ?? "Autre",
           issuingAuthority: document?.issuing_authority ?? null,
+          category: document?.category ?? null,
           required: requirement.required,
           minCount: requirement.min_count,
           stage: requirement.stage,

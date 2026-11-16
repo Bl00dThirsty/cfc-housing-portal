@@ -45,7 +45,6 @@ type ServicePickerProps = {
   onNext: () => void;
   saving: boolean;
   setSaving: (saving: boolean) => void;
-  onDossierCreated: (code: string | null) => void;
 };
 
 export function ServicePicker({
@@ -53,7 +52,6 @@ export function ServicePicker({
   onNext,
   saving,
   setSaving,
-  onDossierCreated,
 }: ServicePickerProps) {
   const [selected, setSelected] = React.useState<ServiceSummary | null>(null);
   const [caseOpen, setCaseOpen] = React.useState(false);
@@ -75,9 +73,7 @@ export function ServicePicker({
         return;
       }
 
-      onDossierCreated(result.dossierCode ?? null);
-      setCaseOpen(true);
-    } finally {
+      setCaseOpen(true);    } finally {
       setSaving(false);
     }
   };
