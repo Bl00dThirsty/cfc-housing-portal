@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { AnalyticsKpiStrip } from "./_components/analytics-kpi-strip";
+import { PoleKpiStrip } from "@/components/portail-cfc/pole-kpi-strip";
 import { AnalyticsToolbar } from "./_components/analytics-toolbar";
 import { RealtimeVisitors } from "./_components/realtime-visitors";
 import { TopPages } from "./_components/top-pages";
@@ -40,7 +40,7 @@ export default function Page() {
         </div>
 
         <TabsContent value="overview" className="flex flex-col gap-4">
-          <AnalyticsKpiStrip />
+          <PoleKpiStrip />
 
           <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-12">
             <div className="xl:col-span-7">
