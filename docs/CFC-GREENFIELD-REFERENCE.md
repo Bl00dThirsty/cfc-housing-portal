@@ -2484,9 +2484,101 @@ barre d'onglets, pas deux.
 
 ---
 
-*End of document. Part 18 records the repaired onboarding journey and the
-interactive tracker; Part 17 the FAQ, the surfacing of failures, the proven
-messaging and the traced KYC decision; Part 16 the navigation and the data
-integrity; Part 15 the citizen space, the messaging and the role isolation;
-Part 14 the two portals and the working document deposit; Part 13 the
-alignment on the official cartography; Parts 0–11 remain the target.*
+## PART 19 — LE MOTEUR DE TABLE, ET LA PORTE UNIQUE D'INSCRIPTION (2026-11-16)
+
+### 19.1 Un seul moteur pour tous les tableaux
+
+L'agent disposait de **quarante-deux tableaux** écrits à la main : chacun
+avait sa recherche, son tri, ses filtres, sa pagination. Le portail citoyen
+en avait déjà un, piloté par un moteur — et il rendait mieux que les autres.
+
+La migration ne change pas le rendu des écrans : elle change **qui** possède
+le tri, la recherche et les facettes.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Les règles | `src/lib/data-table.ts` | module **pur** : ni React, ni base, ni store |
+| L'état par tableau | `src/stores/data-table-store.ts` | un `tableId` isole l'état ; le store est le **seul** propriétaire du tri choisi |
+| Le tableau | `src/components/data-table/data-table.tsx` | il rend, et rien d'autre : une ligne fournie **possède** sa mise en page |
+| La barre d'outils | `src/components/ui/data-table-toolbar.tsx` | elle est **canonique** : recherche, facettes, regroupement, tri, compte, export |
+
+Les colonnes sont des **constantes de module** : le moteur mémoïse sur leur
+identité, et une écriture en ligne dans le JSX l'invaliderait à chaque rendu.
+
+Le tri porte sur la **valeur**, jamais sur la forme affichée : un montant
+« 18 500 000 FCFA » se compare par son montant, une date française par son
+horodatage. Sans cette distinction, le tri devenait alphabétique — et donc
+faux.
+
+Le **kanban** reste hors du moteur, et le dit dans son fichier : c'est une
+grille de colonnes dans lesquelles on glisse des cartes, pas un tableau de
+lignes. Le tri, les facettes et le groupement n'y ont pas de sens.
+
+### 19.2 La porte unique d'inscription
+
+Il y avait **deux** endroits qui ouvraient un compte : l'étape « Votre
+compte » de l'assistant, et (aujourd'hui) `/inscription`. Deux portes, c'est
+un seul concept dupliqué — et c'est la première cause de désaccord entre
+deux écrans.
+
+Il n'y en a plus qu'une.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| La porte | `src/app/inscription` | `/inscription` — la **seule** qui ouvre un compte et le premier dossier |
+| L'action | `src/server/actions/signup.ts` | tout se passe **côté serveur**, dans une seule requête : compte, profil, dossier, consentement |
+| Le consentement | `kyc_profiles.consent_at` | daté par le **serveur** : la date du navigateur n'est pas une preuve |
+| Le code du DUC | `public.next_duc_code()` | une **séquence** : deux inscriptions simultanées ne peuvent pas obtenir le même code |
+| L'assistant | `src/components/onboarding/onboarding-wizard.tsx` | il suppose le demandeur **connecté** ; il ne crée plus de compte |
+
+L'assistant de dossier est passé de quatre étapes à trois : le dossier vient
+**avant** le service — on ne choisit pas un prêt avant d'avoir dit qui l'on
+est. Le téléphone et la situation bancaire, qui vivaient dans l'étape de
+compte, ont rejoint l'étape « Votre dossier ».
+
+Le compte entreprise est **affiché mais désactivé** : la porte existe, elle
+n'est pas ouverte. Un demandeur ne doit pas avoir à deviner qu'elle existe.
+
+### 19.3 Le domaine du parcours, et sa base
+
+Le domaine du demandeur est écrit (`src/domain/entities/kyc-profile.ts`) :
+cas « déjà client », rotation des conseillers, durées d'ancienneté, champs
+bloquants, validation du profil, badge du citoyen.
+
+Le badge KYC à quatre valeurs est une **projection** de la machine à états
+existante : l'état reste la propriété de `citizen_profiles.kyc_state`, il
+n'y a pas de second vocabulaire.
+
+La base porte le parcours (migrations 022, 023, 026) :
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Les pièces déclarées | `public.kyc_documents` | seuls le nom, le type, la taille et la date : les octets restent dans le coffre |
+| L'activation du DUC | `dossiers.duc_status` | **distincte** de `status`, qui porte l'avancement du traitement |
+| L'avancement du parcours | `dossiers.onboarding_state` | KYC, service, pièces, examen, pause, actif |
+| Le catalogue des services | `ref.service`, `ref.product`, `ref.product_rate` | une **donnée** : audience, produits, barèmes et exigences de pièces y sont déclarés |
+| La catégorie d'une pièce | `ref.document_type.category` | le regroupement est déclaratif, pas écrit dans l'écran |
+
+La numérotation des DUC passe désormais par une **séquence** : le code n'est
+plus tiré au sort, et le code du DUC est unique parmi les dossiers actifs.
+
+### 19.4 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **404 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — dont le parcours d'inscription complet, de bout en bout |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **66/66** |
+
+---
+
+*End of document. Part 19 records the shared data-table engine and the single
+account door; Part 18 the repaired onboarding journey and the interactive
+tracker; Part 17 the FAQ, the surfacing of failures, the proven messaging and
+the traced KYC decision; Part 16 the navigation and the data integrity; Part
+15 the citizen space, the messaging and the role isolation; Part 14 the two
+portals and the working document deposit; Part 13 the alignment on the
+official cartography; Parts 0–11 remain the target.*
