@@ -8,7 +8,7 @@ const toastMock = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: toastMock }));
 
-import { reportAction, reportError } from "@/lib/action-feedback";
+import { reportAction, reportError, reportOutcome } from "@/lib/action-feedback";
 
 describe("retour d'action", () => {
   beforeEach(() => {
@@ -41,5 +41,33 @@ describe("retour d'action", () => {
     reportError("Le transfert a échoué.");
 
     expect(toastMock.error).toHaveBeenCalledWith("Le transfert a échoué.");
+  });
+});
+
+describe("retour d'action à message unique", () => {
+  beforeEach(() => {
+    toastMock.success.mockReset();
+    toastMock.error.mockReset();
+    toastMock.message.mockReset();
+  });
+
+  it("dit le message de la réussite", () => {
+    const ok = reportOutcome({ ok: true, message: "Version 3 publiée." });
+
+    expect(ok).toBe(true);
+    expect(toastMock.success).toHaveBeenCalledWith("Version 3 publiée.");
+  });
+
+  it("préfère le message de succès fourni", () => {
+    reportOutcome({ ok: true, message: "Version 3 publiée." }, "Modèle enregistré.");
+
+    expect(toastMock.success).toHaveBeenCalledWith("Modèle enregistré.");
+  });
+
+  it("dit le message du refus", () => {
+    const ok = reportOutcome({ ok: false, message: "Objet obligatoire." });
+
+    expect(ok).toBe(false);
+    expect(toastMock.error).toHaveBeenCalledWith("Objet obligatoire.");
   });
 });

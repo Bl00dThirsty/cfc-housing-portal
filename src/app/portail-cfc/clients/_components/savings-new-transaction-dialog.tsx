@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { reportError } from "@/lib/action-feedback";
 import {
   Select,
   SelectContent,
@@ -80,7 +81,11 @@ export function SavingsNewTransactionDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const numericAmount = parseFloat(amount.replace(/\s/g, "").replace(/,/g, "."));
-    if (isNaN(numericAmount) || numericAmount <= 0) return;
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      // Le refus se dit : un montant muet ne s'explique pas.
+      reportError("Le montant doit être un nombre supérieur à zéro.");
+      return;
+    }
 
     const autoRef =
       reference ||

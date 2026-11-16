@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
+import { cn, formatFCFA } from "@/lib/utils";
 
 import type {
   ClientItem,
@@ -50,15 +51,17 @@ import type {
   SavingsTransactionType,
 } from "@/domain/entities/client";
 import {
+  buildSavingsCsv,
+  buildSavingsStatementHtml,
+  SAVINGS_CSV_BOM,
+  savingsStatementFilename,
+} from "./savings-statement";
+import {
   SavingsNewTransactionDialog,
   type NewTransactionPayload,
 } from "./savings-new-transaction-dialog";
 
 /* ── Helpers ────────────────────────────────────────────────────── */
-
-function formatFCFA(n: number): string {
-  return n.toLocaleString("fr-FR") + " FCFA";
-}
 
 const channelConfig: Record<
   SavingsChannel,
@@ -218,6 +221,60 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
     setLocalTransactions((prev) => [newTx, ...prev]);
     setLocalBalance(newBalance);
     setPage(1);
+
+    toast.success(
+      isDeposit ? "Versement enregistré." : "Retrait enregistré.",
+      { description: `${formatFCFA(payload.amount)} — ${payload.channel}.` },
+    );
+  };
+
+  /**
+   * Exporte les opérations **affichées** — celles que l'agent voit.
+   *
+   * Le fichier porte les mêmes lignes que le tableau, jamais le carnet
+   * complet : un export qui ne correspond pas à l'écran trompte l'agent.
+   */
+  const handleExportCsv = () => {
+    if (filtered.length === 0) {
+      toast.error("Aucune opération à exporter.");
+      return;
+    }
+
+    const csv = buildSavingsCsv(filtered);
+    const blob = new Blob([SAVINGS_CSV_BOM, csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = savingsStatementFilename(passbook.accountNumber);
+    link.click();
+    URL.revokeObjectURL(url);
+
+    toast.success("Relevé exporté.", {
+      description: `${filtered.length} opération${filtered.length > 1 ? "s" : ""} au format CSV.`,
+    });
+  };
+
+  /** Ouvre le relevé imprimable dans une fenêtre dédiée. */
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank", "width=960,height=720");
+    if (!printWindow) {
+      toast.error("La fenêtre d'impression a été bloquée par le navigateur.");
+      return;
+    }
+
+    printWindow.document.write(
+      buildSavingsStatementHtml({
+        accountNumber: passbook.accountNumber,
+        clientName: client.name,
+        balance: localBalance,
+        transactions: filtered,
+      }),
+    );
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+
+    toast.success("Relevé prêt pour l'impression.");
   };
 
   /* ── KPI cards data ──────────────────────────────── */
@@ -284,7 +341,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
               size="sm"
               variant="outline"
               className="h-7 text-xs gap-1.5 rounded-md"
-              onClick={() => {}}
+              onClick={handlePrint}
             >
               <Printer className="size-3" />
               Imprimer relevé
@@ -293,7 +350,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
               size="sm"
               variant="outline"
               className="h-7 text-xs gap-1.5 rounded-md"
-              onClick={() => {}}
+              onClick={handleExportCsv}
             >
               <Download className="size-3" />
               Exporter CSV

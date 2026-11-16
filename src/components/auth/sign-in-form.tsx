@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Separator } from "@/components/ui/separator";
 import { landingPathForRole } from "@/config/rbac/sidebar-by-role";
+import { reportAction } from "@/lib/action-feedback";
 import { useAuth } from "@/lib/auth-context";
 
 export type SignInAudience = "citizen" | "staff";
@@ -104,6 +105,9 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
 
     if (mode === "password") {
       const result = await signIn(email, password);
+      // Le toast **accompagne** l'écran : le refus reste affiché sous le
+      // formulaire, il ne se perd pas dans un coin de l'interface.
+      reportAction(result, "Connexion réussie — bienvenue.");
       if (!result.ok) {
         setError(result.error);
         setSubmitting(false);

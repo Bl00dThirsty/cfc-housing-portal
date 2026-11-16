@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { getBrowserClient } from "@/lib/supabase/client";
 
@@ -73,7 +74,13 @@ export function useRealtimeChat({ roomName, username, onSend }: UseRealtimeChatP
 
     newChannel
       .on("broadcast", { event: EVENT_MESSAGE_TYPE }, (payload) => {
-        setMessages((current) => [...current, payload.payload as ChatMessage]);
+        const received = payload.payload as ChatMessage;
+        // Un message **reçu** se dit. Celui que l'utilisateur vient
+        // d'envoyer ne le doit pas : il l'a déjà sous les yeux.
+        if (received.user.name !== username) {
+          toast.info(`Nouveau message de ${received.user.name}`);
+        }
+        setMessages((current) => [...current, received]);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {

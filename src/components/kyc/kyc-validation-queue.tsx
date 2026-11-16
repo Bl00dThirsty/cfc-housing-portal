@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import { AlertCircle, ArrowRight, Loader2, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import { Tag } from "@/components/ui/tag";
+import { reportError } from "@/lib/action-feedback";
 import { cn } from "@/lib/utils";
 import { advanceKycAction, listKycQueueAction, type KycQueueEntry } from "@/server/actions/kyc";
 import { KYC_STATE_LABELS, type KycState } from "@/domain/workflows/kyc";
@@ -59,6 +61,7 @@ export function KycValidationQueue() {
         setError(null);
       } else {
         setError(result.error);
+        reportError(result.error);
       }
       setLoading(false);
     });
@@ -76,9 +79,17 @@ export function KycValidationQueue() {
       setPendingId(null);
       if (!result.ok) {
         setError(result.error);
+        reportError(result.error);
         return;
       }
       setMessage({ text: result.message, journaled: result.journaled });
+      // Une décision **journalisée** est acquise. Une décision appliquée sans
+      // trace est un défaut : elle se dit comme telle, jamais comme un succès.
+      if (result.journaled) {
+        toast.success(result.message);
+      } else {
+        toast.warning(result.message);
+      }
       refresh();
     });
   };

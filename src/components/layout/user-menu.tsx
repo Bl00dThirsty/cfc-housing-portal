@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth-context";
+import { reportError } from "@/lib/action-feedback";
 
 export interface UserMenuProps {
   /** Page de profil de l'utilisateur, propre à son portail. */
@@ -37,6 +38,7 @@ export function UserMenu({ profileHref }: UserMenuProps) {
 
   const handleLogout = async () => {
     await signOut();
+    reportError("Vous êtes déconnecté.");
     router.replace("/login");
     router.refresh();
   };

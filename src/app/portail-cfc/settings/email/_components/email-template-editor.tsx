@@ -4,6 +4,7 @@ import * as React from "react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, Send, Save, ToggleLeft } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { reportOutcome } from "@/lib/action-feedback";
 import { renderTemplate } from "@/server/email/render";
 import {
   sendEmailAction,
@@ -88,7 +90,16 @@ export function EmailTemplateEditor({
   const [showText, setShowText] = useState(false);
   const [testRecipient, setTestRecipient] = useState("");
   const [busy, setBusy] = useState<"save" | "toggle" | "test" | null>(null);
-  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  /**
+   * Retour affiché sous l'en-tête.
+   *
+   * Trois tonalités : une réussite, un refus, et l'**abstention** — un envoi
+   * journalisé « skipped » faute de messagerie configurée n'est pas un échec.
+   */
+  const [feedback, setFeedback] = useState<{
+    tone: "success" | "error" | "warning";
+    message: string;
+  } | null>(null);
 
   /** Valeurs injectées dans l'aperçu. */
   const previewVariables = useMemo(() => {
@@ -119,7 +130,8 @@ export function EmailTemplateEditor({
     });
 
     setBusy(null);
-    setFeedback({ ok: result.ok, message: result.message });
+    setFeedback({ tone: result.ok ? "success" : "error", message: result.message });
+    reportOutcome(result);
     if (result.ok) router.refresh();
   };
 
@@ -130,7 +142,8 @@ export function EmailTemplateEditor({
     const result = await toggleEmailTemplateAction(template.code, !template.isActive);
 
     setBusy(null);
-    setFeedback({ ok: result.ok, message: result.message });
+    setFeedback({ tone: result.ok ? "success" : "error", message: result.message });
+    reportOutcome(result);
     if (result.ok) router.refresh();
   };
 
@@ -145,13 +158,30 @@ export function EmailTemplateEditor({
     });
 
     setBusy(null);
-    setFeedback({
-      ok: result.status === "sent",
-      message:
-        result.status === "sent"
-          ? `Message envoyé à ${testRecipient}.`
-          : `Envoi non abouti (${result.status}) : ${result.error ?? "cause inconnue."}`,
-    });
+
+    if (result.status === "sent") {
+      const message = `Message envoyé à ${testRecipient}.`;
+      setFeedback({ tone: "success", message });
+      toast.success(message);
+      return;
+    }
+
+    if (result.status === "failed") {
+      const message = `Envoi non abouti (${result.status}) : ${
+        result.error ?? "cause inconnue."
+      }`;
+      setFeedback({ tone: "error", message });
+      toast.error(message);
+      return;
+    }
+
+    // « skipped » (aucune messagerie configurée) et « queued » (accepté mais
+    // pas encore expédié) ne sont pas des refus : le message le dit.
+    const message = `Envoi journalisé sans expédition (${result.status}) : ${
+      result.error ?? "aucune messagerie configurée."
+    }`;
+    setFeedback({ tone: "warning", message });
+    toast.warning(message);
   };
 
   return (
@@ -204,10 +234,13 @@ export function EmailTemplateEditor({
 
       {feedback && (
         <div
+          role={feedback.tone === "error" ? "alert" : "status"}
           className={`rounded-md border px-3 py-2 text-xs ${
-            feedback.ok
+            feedback.tone === "success"
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-              : "border-destructive/30 bg-destructive/10 text-destructive"
+              : feedback.tone === "warning"
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                : "border-destructive/30 bg-destructive/10 text-destructive"
           }`}
         >
           {feedback.message}

@@ -29,3 +29,23 @@ export function reportAction(
 export function reportError(error: string): void {
   toast.error(error);
 }
+
+/**
+ * Le retour d'action, dans la variante `{ ok, message }`.
+ *
+ * Le catalogue des modèles d'e-mail porte un message **unique** : il vaut
+ * pour la réussite comme pour le refus. Ce helper le dit tel quel, sans
+ * avoir à réécrire la même chaîne des deux côtés.
+ */
+export function reportOutcome(
+  result: { ok: boolean; message: string },
+  successMessage?: string,
+): boolean {
+  if (!result.ok) {
+    toast.error(result.message);
+    return false;
+  }
+
+  toast.success(successMessage ?? result.message);
+  return true;
+}

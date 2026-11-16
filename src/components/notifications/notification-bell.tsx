@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Bell, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { CountBadge } from "@/components/ui/count-badge";
@@ -68,7 +69,13 @@ export function NotificationBell({ className }: { className?: string }) {
             table: "notifications",
             filter: `recipient_user_id=eq.${userId}`,
           },
-          () => {
+          (payload) => {
+            // Une notification qui arrive se dit : l'utilisateur n'a pas à
+            // ouvrir la cloche pour apprendre qu'il a reçu quelque chose.
+            const inserted = payload.new as { title?: string } | undefined;
+            if (inserted?.title) {
+              toast.info(inserted.title, { description: "Nouvelle notification" });
+            }
             void load();
           },
         )
