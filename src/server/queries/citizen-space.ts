@@ -31,6 +31,10 @@ export type CitizenSpace = {
   currentPhase: string | null;
   completionPercent: number | null;
   status: string | null;
+  /** L'avancement du parcours : KYC, service, pièces, examen, pause. */
+  onboardingState: string | null;
+  /** Le conseiller qui examine le dossier, s'il y en a un. */
+  advisor: string | null;
   events: DossierEvent[];
   checklist: ChecklistItem[];
   documentCount: number;
@@ -86,7 +90,7 @@ export async function getCitizenSpace(userId: string): Promise<{
   const { data: dossier, error: dossierError } = await supabase
     .from("dossiers")
     .select(
-      "id, duc_code, service_code, current_phase, completion_percent, status, loan_amount, rate, duration_years, monthly_payment, savings_target, savings_current, savings_percent, debt_ratio",
+      "id, duc_code, service_code, current_phase, completion_percent, status, onboarding_state, advisor, loan_amount, rate, duration_years, monthly_payment, savings_target, savings_current, savings_percent, debt_ratio",
     )
     .eq("citizen_id", userId)
     .is("deleted_at", null)
@@ -167,6 +171,8 @@ export async function getCitizenSpace(userId: string): Promise<{
       completionPercent:
         dossier.completion_percent === null ? null : Number(dossier.completion_percent),
       status: dossier.status as string | null,
+      onboardingState: (dossier.onboarding_state as string | null) ?? null,
+      advisor: (dossier.advisor as string | null) ?? null,
       events: (eventsResult.data ?? []) as DossierEvent[],
       checklist,
       documentCount: documentsResult.count ?? 0,

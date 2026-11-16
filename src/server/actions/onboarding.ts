@@ -7,6 +7,11 @@ import {
   type AffiliationStatus,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
+import {
+  advisorForSequence,
+  PRIOR_CLIENT_CASES,
+  type PriorClientCase,
+} from "@/domain/entities/kyc-profile";
 
 export type OnboardingResult =
   | { ok: true; message?: string; dossierCode?: string }
@@ -150,8 +155,7 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
  * Le compte, lui, est ouvert par `/inscription` : cette action ne crée plus
  * de compte, elle ne complète que le dossier d'un demandeur déjà connecté.
  */
-export async function saveServiceAction(serviceCode: string): Promise<OnboardingResult> {
-  const citizen = await currentCitizen();
+export async function saveServiceAction(serviceCode: string): Promise<OnboardingResult> {  const citizen = await currentCitizen();
   if (!citizen) {
     return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
   }
@@ -222,4 +226,139 @@ export async function saveServiceAction(serviceCode: string): Promise<Onboarding
  * (`src/server/actions/kyc-profile.ts`) : il n'y a qu'une action qui écrit
  * les déclarations, et elle écrit aussi la copie de travail du dossier.
  */
+
+/**
+ * L'index de rotation du conseiller.
+ *
+ * Il est **dérivé de l'identifiant** du demandeur : un même demandeur
+ * retrouve toujours le même conseiller, et deux inscriptions simultanées ne
+ * se partagent pas le même. Un compteur lu puis incrémenté ferait les deux.
+ */
+function advisorIndexFor(citizenId: string): number {
+  let hash = 0;
+  for (let index = 0; index < citizenId.length; index += 1) {
+    hash = (hash * 31 + citizenId.charCodeAt(index)) % 1_000_003;
+  }
+  return hash;
+}
+
+/**
+ * Enregistre la situation du demandeur face au service choisi.
+ *
+ * Trois issues, et elles ne se corrigent pas de la même façon :
+ *
+ * - le demandeur a déjà bénéficié de ce service **au CFC** : il passe au
+ *   dépôt des pièces ;
+ * - il ne l'a jamais eu, ou chez un autre établissement : il doit d'abord
+ *   être client du CFC pendant six mois. Son cas est transmis à un
+ *   conseiller, et l'onboarding est **mis en pause**.
+ */
+export async function setPriorClientCaseAction(input: {
+  priorClientCase: PriorClientCase;
+}): Promise<OnboardingResult & { advisor?: string }> {
+  const citizen = await currentCitizen();
+  if (!citizen) {
+    return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
+  }
+
+  const priorCase = PRIOR_CLIENT_CASES.find((item) => item.value === input.priorClientCase);
+  if (!priorCase) {
+    return { ok: false, error: "Situation inconnue." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { userId } = citizen;
+
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("id, duc_code")
+    .eq("citizen_id", userId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!dossier) {
+    return { ok: false, error: "Votre dossier n'est pas encore ouvert." };
+  }
+
+  if (priorCase.eligible) {
+    // Déjà servi au CFC : la suite est le dépôt des pièces.
+    const { error } = await supabase
+      .from("dossiers")
+      .update({
+        prior_client_case: priorCase.value,
+        onboarding_state: "documents",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", dossier.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    return { ok: true, message: "Votre dossier passe au dépôt des pièces." };
+  }
+
+  // Pas encore client du CFC : un conseiller est affecté, et l'onboarding est
+  // en pause jusqu'à son activation du DUC.
+  const advisor = advisorForSequence(advisorIndexFor(userId));
+
+  const { error } = await supabase
+    .from("dossiers")
+    .update({
+      prior_client_case: priorCase.value,
+      onboarding_state: "suspension",
+      advisor: advisor.name,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", dossier.id);
+
+  if (error) return { ok: false, error: error.message };
+
+  return {
+    ok: true,
+    advisor: advisor.name,
+    message: `Votre dossier est transmis à ${advisor.name}.`,
+  };
+}
+
+/**
+ * Le dossier attend-il l'examen d'un conseiller ?
+ *
+ * C'est la question que pose l'espace citoyen avant d'afficher quoi que ce
+ * soit : un dossier en pause n'a pas de fonctionnalités à montrer, seulement
+ * un message et un nom.
+ */
+export async function loadOnboardingState(): Promise<{
+  onboardingState: string | null;
+  advisor: string | null;
+  dossierCode: string | null;
+}> {
+  const citizen = await currentCitizen();
+  if (!citizen) {
+    return { onboardingState: null, advisor: null, dossierCode: null };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  const { data } = await supabase
+    .from("dossiers")
+    .select("duc_code, onboarding_state, advisor")
+    .eq("citizen_id", citizen.userId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const dossier = (data ?? null) as {
+    duc_code: string | null;
+    onboarding_state: string | null;
+    advisor: string | null;
+  } | null;
+
+  return {
+    onboardingState: dossier?.onboarding_state ?? null,
+    advisor: dossier?.advisor ?? null,
+    dossierCode: dossier?.duc_code ?? null,
+  };
+}
 

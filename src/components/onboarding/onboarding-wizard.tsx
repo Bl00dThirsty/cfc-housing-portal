@@ -16,8 +16,8 @@ import {
 import type { ServiceSummary } from "@/domain/entities/services";
 
 import { KycWizard } from "@/components/kyc/kyc-wizard";
+import { ServicePicker } from "@/components/onboarding/service-picker";
 import { StepDocuments } from "./steps/step-documents";
-import { StepService } from "./steps/step-service";
 
 /**
  * Le parcours du dossier — trois étapes, un seul dossier.
@@ -185,9 +185,7 @@ export function OnboardingWizard({
           />
         )}
         {step === "service" && (
-          <StepService
-            draft={draft}
-            onChange={patch}
+          <ServicePicker
             services={services}
             onNext={goNext}
             saving={saving}

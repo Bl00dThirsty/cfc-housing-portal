@@ -7,6 +7,7 @@ import { CitizenDashboard } from "@/components/portail-client/dashboard/dashboar
 import { buildDashboardModel } from "@/components/portail-client/dashboard/dashboard-model";
 import DucFileManager from "@/components/portail-client/duc-file-manager";
 import DocumentDropzone from "@/components/portail-client/document-dropzone";
+import { OnboardingWaiting } from "@/components/portail-client/onboarding-waiting";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { SupportChat } from "@/components/support/support-chat";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +114,17 @@ export default async function CitizenPortalPage({
     finance: space.finance,
   });
 
+  /**
+   * Le dossier attend-il un conseiller ?
+   *
+   * En pause ou en examen, l'espace citoyen n'a **rien** à montrer : ni
+   * graphiques, ni dépôt de pièces. Un tableau de bord vide serait un mensonge.
+   * L'écran d'attente dit ce qui se passe et **qui** l'examine — et la
+   * conversation reste ouverte, pour joindre le conseiller.
+   */
+  const isAwaitingAdvisor =
+    space.onboardingState === "suspension" || space.onboardingState === "en_examen";
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -137,14 +149,24 @@ export default async function CitizenPortalPage({
         <NotificationBell />
       </header>
 
-      <CitizenDashboard model={dashboard} />
+      {isAwaitingAdvisor ? (
+        <OnboardingWaiting
+          advisor={space.advisor}
+          ducCode={space.ducCode}
+          isUnderReview={space.onboardingState === "en_examen"}
+        />
+      ) : (
+        <>
+          <CitizenDashboard model={dashboard} />
 
-      <DossierPhaseCard
-        currentPhase={space.currentPhase}
-        completionPercent={space.completionPercent}
-        status={space.status}
-        serviceLabel={space.serviceLabel}
-      />
+          <DossierPhaseCard
+            currentPhase={space.currentPhase}
+            completionPercent={space.completionPercent}
+            status={space.status}
+            serviceLabel={space.serviceLabel}
+          />
+        </>
+      )}
 
       <Tabs defaultValue={anchor ? "messages" : "suivi"} className="w-full">
         <TabsList className="flex w-full flex-wrap gap-1 border border-line-strong bg-muted/40 p-1">

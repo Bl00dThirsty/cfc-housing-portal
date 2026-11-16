@@ -35,6 +35,7 @@ import {
 import {
   loadOnboardingDraft,
   saveServiceAction,
+  setPriorClientCaseAction,
 } from "@/server/actions/onboarding";
 import {
   saveKycDraftAction,
@@ -363,6 +364,41 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     expect(dossier?.cni_raw).toBe("AB123456");
     expect(dossier?.profession).toBe("Ingénieur");
     expect(dossier?.employer).toBe("SIC");
+
+    // --- La situation du demandeur face au service ----------------------
+    // Jamais servi : le dossier est mis en pause, un conseiller est affecté.
+    const suspended = await setPriorClientCaseAction({
+      priorClientCase: "premiere_fois",
+    });
+
+    expect(suspended.ok, suspended.ok ? "" : suspended.error).toBe(true);
+    expect(suspended.advisor).toBeTruthy();
+
+    const { data: pausedDossier } = await admin
+      .from("dossiers")
+      .select("onboarding_state, advisor, prior_client_case")
+      .eq("duc_code", service.dossierCode!)
+      .single();
+
+    expect(pausedDossier?.onboarding_state).toBe("suspension");
+    expect(pausedDossier?.prior_client_case).toBe("premiere_fois");
+    expect(pausedDossier?.advisor).toBeTruthy();
+
+    // Déjà servi au CFC : la suite est le dépôt des pièces.
+    const eligible = await setPriorClientCaseAction({
+      priorClientCase: "deja_au_cfc",
+    });
+
+    expect(eligible.ok, eligible.ok ? "" : eligible.error).toBe(true);
+
+    const { data: eligibleDossier } = await admin
+      .from("dossiers")
+      .select("onboarding_state, prior_client_case")
+      .eq("duc_code", service.dossierCode!)
+      .single();
+
+    expect(eligibleDossier?.onboarding_state).toBe("documents");
+    expect(eligibleDossier?.prior_client_case).toBe("deja_au_cfc");
 
     // --- La reprise : le parcours sait où l'emprunteur s'est arrêté -------
     const resumed = await loadOnboardingDraft();

@@ -18,10 +18,28 @@ export type RequiredDocument = {
   stage: string;
 };
 
+/** Un produit d'un service : l'apport, la durée, le taux. */
+export type ServiceProduct = {
+  code: string;
+  label: string;
+  /** L'apport minimal, en pourcentage du prix. */
+  minApportPercent: number | null;
+  /** La durée maximale, en années. */
+  maxDurationYears: number | null;
+  /** Le taux indicatif, en pourcentage annuel. */
+  indicativeRate: number | null;
+  /** Le taux d'épargne, en pourcentage. */
+  savingsRate: number | null;
+};
+
 export type ServiceSummary = {
   code: string;
   label: string;
   description: string | null;
+  /** À qui le service s'adresse — il est affiché sur la carte. */
+  audience: string | null;
+  /** Les produits du service : apport, durée, taux. */
+  products: ServiceProduct[];
   documents: RequiredDocument[];
 };
 
