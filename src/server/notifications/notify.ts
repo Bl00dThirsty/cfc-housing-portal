@@ -101,6 +101,22 @@ export const DOMAIN_EVENT_NOTIFICATIONS: Record<string, NotificationSignal> = {
     type: "document.requested",
     body: "Déposez la pièce depuis votre espace emprunteur pour faire avancer votre dossier.",
   },
+  APPLICATION_SUBMITTED: {
+    type: "dossier.updated",
+    body: "Votre dossier est transmis : un conseiller l'instruit désormais.",
+  },
+  APPLICATION_SUSPENDED: {
+    type: "dossier.updated",
+    body: "Votre dossier attend l'orientation de votre conseiller.",
+  },
+  DUC_ACTIVATED: {
+    type: "dossier.updated",
+    body: "Votre dossier est activé : vous pouvez commencer votre demande de prêt.",
+  },
+  DUC_REFUSED: {
+    type: "dossier.updated",
+    body: "Votre dossier n'est pas encore activé : le motif est indiqué dans votre dossier.",
+  },
   DOCUMENT_VALIDATED: {
     type: "document.validated",
     body: "Votre dossier progresse : cette pièce est définitivement retenue.",

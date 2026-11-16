@@ -213,6 +213,109 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     ].join("\n"),
   },
 
+  APPLICATION_SUBMITTED: {
+    code: "APPLICATION_SUBMITTED",
+    label: "Transmission du dossier au conseiller",
+    eventType: "APPLICATION_SUBMITTED",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien"],
+    subject: "Votre dossier est transmis au conseiller — {{reference}}",
+    html: wrapHtml(
+      "Votre dossier est transmis",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Votre dossier (référence {{reference}}, DUC {{duc}}) a été transmis à {{conseiller}} le {{date}}. Il instruit désormais votre demande.</p>",
+        "<p style=\"margin:0 0 12px 0;\">Vous pouvez suivre l'avancement et échanger avec lui depuis votre espace.</p>",
+        cta("Suivre mon dossier", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Votre dossier (référence {{reference}}, DUC {{duc}}) a été transmis à {{conseiller}} le {{date}}. Il instruit désormais votre demande.",
+      "",
+      "Suivre mon dossier : {{lien}}",
+    ].join("\n"),
+  },
+
+  APPLICATION_SUSPENDED: {
+    code: "APPLICATION_SUSPENDED",
+    label: "Dossier en attente d'orientation",
+    eventType: "APPLICATION_SUSPENDED",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien"],
+    subject: "Votre dossier attend l'orientation de votre conseiller — {{reference}}",
+    html: wrapHtml(
+      "Votre dossier attend votre conseiller",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Pour ce service, il faut être client du Crédit Foncier du Cameroun depuis au moins six mois — donc avoir tenu un carnet d'épargne logement. Votre dossier (référence {{reference}}, DUC {{duc}}) n'est pas perdu : il a été transmis à {{conseiller}} le {{date}}, qui vous recontactera pour vous orienter.</p>",
+        cta("Suivre mon dossier", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Pour ce service, il faut être client du Crédit Foncier du Cameroun depuis au moins six mois — donc avoir tenu un carnet d'épargne logement. Votre dossier (référence {{reference}}, DUC {{duc}}) n'est pas perdu : il a été transmis à {{conseiller}} le {{date}}, qui vous recontactera pour vous orienter.",
+      "",
+      "Suivre mon dossier : {{lien}}",
+    ].join("\n"),
+  },
+
+  DUC_ACTIVATED: {
+    code: "DUC_ACTIVATED",
+    label: "Dossier activé",
+    eventType: "DUC_ACTIVATED",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien"],
+    subject: "Votre dossier est activé — vous pouvez demander un prêt — {{reference}}",
+    html: wrapHtml(
+      "Votre dossier est activé",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Votre dossier (référence {{reference}}, DUC {{duc}}) a été activé le {{date}} par {{conseiller}}. Vous êtes désormais client du CFC : vous pouvez commencer votre demande de prêt et constituer votre épargne logement.</p>",
+        cta("Commencer ma demande de prêt", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Votre dossier (référence {{reference}}, DUC {{duc}}) a été activé le {{date}} par {{conseiller}}. Vous êtes désormais client du CFC : vous pouvez commencer votre demande de prêt et constituer votre épargne logement.",
+      "",
+      "Commencer ma demande de prêt : {{lien}}",
+    ].join("\n"),
+  },
+
+  DUC_REFUSED: {
+    code: "DUC_REFUSED",
+    label: "Éligibilité refusée",
+    eventType: "DUC_REFUSED",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "motif", "date", "lien"],
+    subject: "Votre dossier ne peut pas être activé pour l'instant — {{reference}}",
+    html: wrapHtml(
+      "Votre dossier n'est pas encore activé",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Après examen de votre dossier (référence {{reference}}, DUC {{duc}}) le {{date}}, {{conseiller}} ne peut pas encore l'activer.</p>",
+        "<p style=\"margin:0 0 12px 0;\"><strong>Motif :</strong> {{motif}}</p>",
+        "<p style=\"margin:0 0 12px 0;\">Il vous recontactera pour lever les points bloquants. Vous pouvez dès à présent lui écrire depuis votre espace.</p>",
+        cta("Voir mon dossier", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Après examen de votre dossier (référence {{reference}}, DUC {{duc}}) le {{date}}, {{conseiller}} ne peut pas encore l'activer.",
+      "",
+      "Motif : {{motif}}",
+      "",
+      "Il vous recontactera pour lever les points bloquants.",
+      "",
+      "Voir mon dossier : {{lien}}",
+    ].join("\n"),
+  },
+
   DOCUMENT_REQUESTED: {
     code: "DOCUMENT_REQUESTED",
     label: "Pièce justificative demandée",
