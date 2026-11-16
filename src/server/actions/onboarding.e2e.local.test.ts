@@ -22,19 +22,24 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
+  ANON_KEY,
   applyServerEnv,
   ensureE2eCitizen,
   serviceClient,
   signInWithCookie,
+  SUPABASE_URL,
 } from "@/server/testing/e2e-accounts";
 
 import {
   loadOnboardingDraft,
-  saveProfileAction,
   saveServiceAction,
 } from "@/server/actions/onboarding";
+import {
+  saveKycDraftAction,
+  submitKycAction,
+} from "@/server/actions/kyc-profile";
 import { signupAction } from "@/server/actions/signup";
 import { resumeStepId } from "@/domain/entities/onboarding";
 
@@ -146,10 +151,9 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // le refus que l'emprunteur rencontrait (« votre session a expiré »)
     // quand le compte était créé dans le navigateur.
     const draft = await loadOnboardingDraft();
-    expect(draft.email).toBe(fresh);
     expect(draft.phone).toBe("+237699000001");
     expect(draft.fullName).toBe("ABANDA Eric");
-    expect(draft.cniNumber).toBe("AB123456");
+    expect(draft.profile.identity.idDocumentNumber).toBe("AB123456");
 
     // L'emprunteur existe côté serveur, avec son acteur…
     const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -175,7 +179,169 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     expect(profile?.email).toBe(fresh);
     expect(profile?.full_name).toBe("ABANDA Eric");
 
-    // --- Étape 2 : le service --------------------------------------------
+    // --- Étape 2 : le KYC ------------------------------------------------
+    // Le demandeur déclare ses informations : elles sont **conservées**
+    // immédiatement, et l'état du dossier n'est pas encore touché.
+    const saved = await saveKycDraftAction({
+      profile: {
+        identity: {
+          birthDate: "1988-04-12",
+          birthPlaceCity: "Douala",
+          birthPlaceCountry: "Cameroun",
+          nationality: "Cameroun",
+          familyStatus: "marié(e)",
+          idDocumentType: "CNI",
+          idDocumentNumber: "AB123456",
+          idDocumentIssuedAt: "2020-01-10",
+          idDocumentExpiresAt: "2030-01-09",
+          idDocumentIssuer: "Délégation",
+          niu: "NIU-001",
+        },
+        residence: {
+          country: "Cameroun",
+          region: "Littoral",
+          city: "Douala",
+          neighbourhood: "Akwa",
+          landmark: "Face pharmacie du Port",
+          postalBox: null,
+          occupationStatus: "propriétaire",
+          emergencyContact: null,
+        },
+        employment: {
+          status: "CDI",
+          profession: "Ingénieur",
+          employer: "SIC",
+          sector: "BTP",
+          contractType: "CDI",
+          hiredAt: "2019-06-01",
+          incomeBand: "800 000 – 1 500 000",
+          incomeOrigin: "salaire",
+          declaredIncome: 850000,
+        },
+        compliance: {
+          politicallyExposed: false,
+          pepReason: null,
+          businessRelationship: "financement immobilier",
+          taxResidence: "Cameroun",
+          honourAttestation: true,
+          honourMention: "Lu et approuvé",
+          acceptedAt: null,
+          dependants: 2,
+          existingLoans: null,
+        },
+      },
+      phone: "+237 6 99 00 00 01",
+      affiliation: "first_time",
+      fullName: "ABANDA Eric",
+    });
+
+    expect(saved.ok, saved.ok ? "" : saved.error).toBe(true);
+
+    // La soumission passe par la fonction de la base : elle horodate et fait
+    // transitioned l'état **en une opération**.
+    const submitted = await submitKycAction({
+      profile: {
+        identity: {
+          birthDate: "1988-04-12",
+          birthPlaceCity: "Douala",
+          birthPlaceCountry: "Cameroun",
+          nationality: "Cameroun",
+          familyStatus: "marié(e)",
+          idDocumentType: "CNI",
+          idDocumentNumber: "AB123456",
+          idDocumentIssuedAt: "2020-01-10",
+          idDocumentExpiresAt: "2030-01-09",
+          idDocumentIssuer: "Délégation",
+          niu: "NIU-001",
+        },
+        residence: {
+          country: "Cameroun",
+          region: "Littoral",
+          city: "Douala",
+          neighbourhood: "Akwa",
+          landmark: "Face pharmacie du Port",
+          postalBox: null,
+          occupationStatus: "propriétaire",
+          emergencyContact: null,
+        },
+        employment: {
+          status: "CDI",
+          profession: "Ingénieur",
+          employer: "SIC",
+          sector: "BTP",
+          contractType: "CDI",
+          hiredAt: "2019-06-01",
+          incomeBand: "800 000 – 1 500 000",
+          incomeOrigin: "salaire",
+          declaredIncome: 850000,
+        },
+        compliance: {
+          politicallyExposed: false,
+          pepReason: null,
+          businessRelationship: "financement immobilier",
+          taxResidence: "Cameroun",
+          honourAttestation: true,
+          honourMention: "Lu et approuvé",
+          acceptedAt: null,
+          dependants: 2,
+          existingLoans: null,
+        },
+      },
+      honourAttestation: true,
+    });
+
+    expect(submitted.ok, submitted.ok ? "" : submitted.error).toBe(true);
+
+    const { data: state } = await admin
+      .from("citizen_profiles")
+      .select("kyc_state")
+      .eq("id", createdUserId)
+      .single();
+
+    expect(state?.kyc_state).toBe("document_verification");
+
+    const { data: kycState } = await admin
+      .from("kyc_profiles")
+      .select("submitted_at, employment, compliance, identity")
+      .eq("citizen_id", createdUserId)
+      .single();
+
+    expect(kycState?.submitted_at).toBeTruthy();
+    expect(kycState?.employment).toMatchObject({
+      profession: "Ingénieur",
+      employer: "SIC",
+      declared_income: 850000,
+    });
+    expect(kycState?.compliance).toMatchObject({ dependants: 2 });
+    expect(kycState?.identity).toMatchObject({ id_document_number: "AB123456" });
+
+    // --- L'état du KYC n'est pas à la portée du citoyen -----------------
+    // Sans garde-fou, un citoyen s'écrirait « approved » lui-même. On le
+    // tente donc **pour de vrai**, avec son propre jeton.
+    const { accessToken } = await signIn(fresh);
+
+    const asCitizen = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { error: selfApproval } = await asCitizen
+      .from("citizen_profiles")
+      .update({ kyc_state: "approved" })
+      .eq("id", createdUserId);
+
+    expect(selfApproval?.message).toMatch(/citizen_profile_field_forbidden/);
+
+    // L'état n'a pas bougé : il est toujours à la vérification des pièces.
+    const { data: stillVerifying } = await admin
+      .from("citizen_profiles")
+      .select("kyc_state")
+      .eq("id", createdUserId)
+      .single();
+
+    expect(stillVerifying?.kyc_state).toBe("document_verification");
+
+    // --- Étape 3 : le service --------------------------------------------
     const service = await saveServiceAction("PRET_FONCIER_CLASSIQUE_ORDINAIRE");
 
     expect(service.ok, service.ok ? "" : service.error).toBe(true);
@@ -184,7 +350,7 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
 
     const { data: dossier } = await admin
       .from("dossiers")
-      .select("id, duc_code, citizen_id, service_code, status")
+      .select("id, duc_code, citizen_id, service_code, status, name, cni_raw, profession, employer")
       .eq("duc_code", service.dossierCode!)
       .single();
 
@@ -192,66 +358,17 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     expect(dossier?.service_code).toBe("PRET_FONCIER_CLASSIQUE_ORDINAIRE");
     expect(dossier?.status).toBe("open");
 
-    // --- Étape 3 : le dossier --------------------------------------------
-    const saved = await saveProfileAction({
-      fullName: "ABANDA Eric",
-      birthDate: "1988-04-12",
-      cniNumber: "AB123456",
-      phone: "+237 6 99 00 00 01",
-      affiliation: "first_time",
-      address: {
-        placeId: "1",
-        label: "Akwa, Douala, Cameroun",
-        shortLabel: "Akwa, Douala",
-        kind: "neighbourhood",
-        lat: 4.05,
-        lon: 9.7,
-        osmType: "node",
-        osmId: "1",
-        postcode: null,
-        countryCode: "cm",
-        source: "nominatim",
-      },
-      profession: "Ingénieur",
-      employer: "SIC",
-      monthlyIncome: "850 000",
-      dependants: 2,
-      existingLoans: "",
-    });
-
-    expect(saved.ok, saved.ok ? "" : saved.error).toBe(true);
-
-    const { data: written } = await admin
-      .from("dossiers")
-      .select("name, cni_raw, profession, employer")
-      .eq("id", dossier!.id)
-      .single();
-
-    expect(written?.name).toBe("ABANDA Eric");
-    expect(written?.cni_raw).toBe("AB123456");
-    expect(written?.profession).toBe("Ingénieur");
-
-    // Les **déclarations** du citoyen ont leur propre profil : le revenu
-    // déclaré n'est pas le revenu évalué par la plateforme.
-    const { data: kyc } = await admin
-      .from("kyc_profiles")
-      .select("identity, residence, employment, compliance")
-      .eq("citizen_id", createdUserId)
-      .single();
-
-    expect(kyc?.employment).toMatchObject({
-      profession: "Ingénieur",
-      employer: "SIC",
-      declared_income: 850000,
-    });
-    expect(kyc?.compliance).toMatchObject({ dependants: 2 });
-    expect(kyc?.identity).toMatchObject({ full_name: "ABANDA Eric" });
+    // La **copie de travail** de la plateforme porte les mêmes faits.
+    expect(dossier?.name).toBe("ABANDA Eric");
+    expect(dossier?.cni_raw).toBe("AB123456");
+    expect(dossier?.profession).toBe("Ingénieur");
+    expect(dossier?.employer).toBe("SIC");
 
     // --- La reprise : le parcours sait où l'emprunteur s'est arrêté -------
     const resumed = await loadOnboardingDraft();
-    expect(resumed.email).toBe(fresh);
     expect(resumed.fullName).toBe("ABANDA Eric");
     expect(resumed.serviceCode).toBe("PRET_FONCIER_CLASSIQUE_ORDINAIRE");
+    expect(resumed.profile.employment.declaredIncome).toBe(850000);
     expect(resumeStepId(resumed)).toBe("documents");
   });
 });

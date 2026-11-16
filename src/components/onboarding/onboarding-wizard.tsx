@@ -15,8 +15,8 @@ import {
 } from "@/domain/entities/onboarding";
 import type { ServiceSummary } from "@/domain/entities/services";
 
+import { KycWizard } from "@/components/kyc/kyc-wizard";
 import { StepDocuments } from "./steps/step-documents";
-import { StepProfile } from "./steps/step-profile";
 import { StepService } from "./steps/step-service";
 
 /**
@@ -79,7 +79,10 @@ export function OnboardingWizard({
 
   /** L'étape de reprise, pour le dire à l'utilisateur. */
   const resumed =
-    draft.fullName.trim().length > 0 || draft.serviceCode !== null || draft.address !== null;
+    draft.fullName.trim().length > 0 ||
+    draft.serviceCode !== null ||
+    Boolean(draft.profile.identity.birthDate) ||
+    Boolean(draft.profile.residence.city);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
@@ -169,13 +172,16 @@ export function OnboardingWizard({
       </ol>
 
       <section className="rounded-lg border border-line-strong bg-card p-5 shadow-xs">
-        {step === "profile" && (
-          <StepProfile
-            draft={draft}
-            onChange={patch}
+        {step === "kyc" && (
+          <KycWizard
+            profile={draft.profile}
+            onProfileChange={(profile) => patch({ profile })}
+            fullName={draft.fullName}
+            phone={draft.phone}
+            onPhoneChange={(phone) => patch({ phone })}
+            affiliation={draft.affiliation}
+            onAffiliationChange={(affiliation) => patch({ affiliation })}
             onNext={goNext}
-            saving={saving}
-            setSaving={setSaving}
           />
         )}
         {step === "service" && (

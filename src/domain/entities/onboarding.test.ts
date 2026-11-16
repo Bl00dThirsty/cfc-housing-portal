@@ -2,71 +2,72 @@ import { describe, expect, it } from "vitest";
 
 import {
   EMPTY_DRAFT,
-  isAdult,
-  isValidCni,
+  EMPTY_KYC_PROFILE,
   parseAmount,
   resumeStepId,
   validateStep,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
+import type { KycProfile } from "@/domain/entities/kyc";
 
 function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   return { ...EMPTY_DRAFT, ...overrides };
 }
 
+/** Un profil complet : il ne manque rien. */
+const COMPLETE_PROFILE: KycProfile = {
+  identity: {
+    birthDate: "1988-04-12",
+    birthPlaceCity: "Douala",
+    birthPlaceCountry: "Cameroun",
+    nationality: "Cameroun",
+    familyStatus: "marié(e)",
+    idDocumentType: "CNI",
+    idDocumentNumber: "AB123456",
+    idDocumentIssuedAt: "2020-01-10",
+    idDocumentExpiresAt: "2030-01-09",
+    idDocumentIssuer: "Délégation",
+    niu: "NIU-001",
+  },
+  residence: {
+    country: "Cameroun",
+    region: "Littoral",
+    city: "Douala",
+    neighbourhood: "Bonanjo",
+    landmark: "Face pharmacie du Port",
+    postalBox: null,
+    occupationStatus: "propriétaire",
+    emergencyContact: null,
+  },
+  employment: {
+    status: "CDI",
+    profession: "Ingénieur",
+    employer: "SIC",
+    sector: "BTP",
+    contractType: "CDI",
+    hiredAt: "2019-06-01",
+    incomeBand: "800 000 – 1 500 000",
+    incomeOrigin: "salaire",
+    declaredIncome: 850000,
+  },
+  compliance: {
+    politicallyExposed: false,
+    pepReason: null,
+    businessRelationship: "financement immobilier",
+    taxResidence: "Cameroun",
+    honourAttestation: true,
+    honourMention: "Lu et approuvé",
+    acceptedAt: null,
+    dependants: 2,
+    existingLoans: null,
+  },
+};
+
 const validProfile = draft({
   fullName: "ABANDA Eric",
-  birthDate: "1988-04-12",
-  cniNumber: "AB123456",
   phone: "+237 6 99 00 00 01",
   affiliation: "first_time",
-  address: {
-    placeId: "1",
-    label: "Akwa, Douala, Cameroun",
-    shortLabel: "Akwa, Douala",
-    kind: "neighbourhood",
-    lat: 4.05,
-    lon: 9.7,
-    osmType: "node",
-    osmId: "1",
-    postcode: null,
-    countryCode: "cm",
-    source: "nominatim",
-  },
-  monthlyIncome: "850 000",
-});
-
-describe("isValidCni", () => {
-  it("accepts a plausible identifier", () => {
-    expect(isValidCni("AB123456")).toBe(true);
-  });
-
-  it("rejects a too short or too long identifier", () => {
-    expect(isValidCni("AB12")).toBe(false);
-    expect(isValidCni("A".repeat(21))).toBe(false);
-  });
-});
-
-describe("isAdult", () => {
-  const reference = new Date("2026-11-11");
-
-  it("accepts an adult", () => {
-    expect(isAdult("1988-04-12", reference)).toBe(true);
-  });
-
-  it("rejects a minor", () => {
-    expect(isAdult("2015-01-01", reference)).toBe(false);
-  });
-
-  it("refuses the day before the eighteenth birthday", () => {
-    expect(isAdult("2008-11-12", reference)).toBe(false);
-    expect(isAdult("2008-11-11", reference)).toBe(true);
-  });
-
-  it("rejects an empty or invalid date", () => {
-    expect(isAdult("", reference)).toBe(false);
-    expect(isAdult("not-a-date", reference)).toBe(false);
-  });
+  profile: COMPLETE_PROFILE,
 });
 
 describe("parseAmount", () => {
@@ -81,16 +82,17 @@ describe("parseAmount", () => {
 
 describe("validateStep", () => {
   it("accepte un dossier complet", () => {
-    expect(validateStep("profile", validProfile).valid).toBe(true);
+    expect(validateStep("kyc", validProfile).valid).toBe(true);
   });
 
   it("liste tous les problèmes du dossier d'un coup", () => {
-    const result = validateStep("profile", draft());
+    const result = validateStep("kyc", draft());
+
     expect(result.valid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
   });
 
-  it("requires a service", () => {
+  it("exige un service", () => {
     expect(validateStep("service", draft()).valid).toBe(false);
     expect(
       validateStep("service", draft({ serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE" }))
@@ -98,48 +100,68 @@ describe("validateStep", () => {
     ).toBe(true);
   });
 
-  it("accepts a complete profile", () => {
-    expect(validateStep("profile", validProfile).valid).toBe(true);
-  });
+  it("refuse un profil sans ville de résidence déclarée", () => {
+    const result = validateStep(
+      "kyc",
+      draft({
+        ...validProfile,
+        profile: {
+          ...COMPLETE_PROFILE,
+          residence: { ...COMPLETE_PROFILE.residence, city: null },
+        },
+      }),
+    );
 
-  it("rejects a profile without an address", () => {
-    const result = validateStep("profile", draft({ ...validProfile, address: null }));
-    expect(result.valid).toBe(false);
-    expect(result.errors).toContain("Renseignez votre adresse de résidence.");
-  });
-
-  it("rejects a profile without income", () => {
-    const result = validateStep("profile", draft({ ...validProfile, monthlyIncome: "" }));
-    expect(result.valid).toBe(false);
-  });
-
-  it("rejects a minor in the profile", () => {
-    const result = validateStep("profile", draft({ ...validProfile, birthDate: "2015-01-01" }));
     expect(result.valid).toBe(false);
   });
 
-  it("always accepts the documents step", () => {
+  it("refuse un profil sans revenu déclaré", () => {
+    const result = validateStep(
+      "kyc",
+      draft({
+        ...validProfile,
+        profile: {
+          ...COMPLETE_PROFILE,
+          employment: { ...COMPLETE_PROFILE.employment, declaredIncome: null },
+        },
+      }),
+    );
+
+    expect(result.valid).toBe(false);
+  });
+
+  it("refuse un mineur dans le profil", () => {
+    const result = validateStep(
+      "kyc",
+      draft({
+        ...validProfile,
+        profile: {
+          ...COMPLETE_PROFILE,
+          identity: { ...COMPLETE_PROFILE.identity, birthDate: "2015-01-01" },
+        },
+      }),
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.fields["identity.birthDate"]).toBeTruthy();
+  });
+
+  it("accepte toujours l'étape des pièces", () => {
     expect(validateStep("documents", draft()).valid).toBe(true);
   });
 
-  it("attaches each refusal to its field", () => {
-    const result = validateStep("profile", draft());
+  it("attache chaque refus à son champ", () => {
+    const result = validateStep("kyc", draft());
 
-    expect(result.fields.fullName).toBe("Renseignez votre nom complet.");
     expect(result.fields.phone).toBe("Renseignez un numéro de téléphone valide.");
     expect(result.fields.affiliation).toBe("Indiquez votre situation bancaire.");
-  });
-
-  it("attaches the address refusal to the address", () => {
-    const result = validateStep("profile", draft({ ...validProfile, address: null }));
-
-    expect(result.fields.address).toBe("Renseignez votre adresse de résidence.");
+    expect(result.fields["identity.nationality"]).toBe("Ce champ est obligatoire.");
   });
 });
 
 describe("resumeStepId", () => {
   it("commence par le dossier", () => {
-    expect(resumeStepId(EMPTY_DRAFT)).toBe("profile");
+    expect(resumeStepId(EMPTY_DRAFT)).toBe("kyc");
   });
 
   it("passe au service quand le dossier est posé", () => {
@@ -152,5 +174,15 @@ describe("resumeStepId", () => {
         draft({ ...validProfile, serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE" }),
       ),
     ).toBe("documents");
+  });
+});
+
+describe("le profil vide", () => {
+  it("ne vaut aucun champ", () => {
+    expect(
+      Object.values(EMPTY_KYC_PROFILE.identity).every((value) => value === null),
+    ).toBe(true);
+    expect(EMPTY_KYC_PROFILE.compliance.politicallyExposed).toBe(false);
+    expect(EMPTY_KYC_PROFILE.compliance.dependants).toBe(0);
   });
 });

@@ -168,6 +168,17 @@ async function main() {
     "la seule porte de création est /inscription",
   );
 
+  // Le KYC se déroule en quatre écrans : identité, résidence et contact,
+  // situation professionnelle, conformité et déclaration.
+  check(
+    "le KYC se déroule en quatre écrans",
+    onboarding.body.includes("Écran 1 sur 4") &&
+      onboarding.body.includes("Résidence et contact") &&
+      onboarding.body.includes("Situation professionnelle") &&
+      onboarding.body.includes("Conformité et déclaration"),
+    "les quatre écrans du KYC sont annoncés",
+  );
+
   // La foire aux questions est un service public, rendu et complet.
   const faq = await fetchPage("/faq");
   check("la foire aux questions est servie", faq.status === 200, `status=${faq.status}`);

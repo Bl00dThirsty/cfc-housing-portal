@@ -1,12 +1,14 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Calculator, HelpCircle, LogIn, UserPlus } from "lucide-react";
+import { Calculator, HelpCircle, LayoutDashboard, LogIn, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getBrowserClient } from "@/lib/supabase/client";
 
 /**
  * En-tête du site public.
@@ -35,6 +37,38 @@ export default function Navbar() {
    * est déjà. Seul le lien « Se connecter » reste utile.
    */
   const isRegistrationPath = pathname.startsWith("/inscription");
+
+  /**
+   * Le visiteur est-il connecté ?
+   *
+   * L'en-tête public ne propose une porte que si elle sert encore : un
+   * visiteur déjà connecté n'a rien à faire de « Se connecter » ni de « Créer
+   * un compte ». On demande la session au navigateur — une seule requête,
+   * sans rendre dynamique toute l'application.
+   */
+  const [signedIn, setSignedIn] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    try {
+      void getBrowserClient()
+        .auth.getSession()
+        .then(({ data }) => {
+          if (!cancelled) setSignedIn(Boolean(data.session));
+        })
+        .catch(() => {
+          // Une session illisible ne se signale pas : l'en-tête reste public.
+        });
+    } catch {
+      // Sans configuration — un poste de démonstration, un test — l'en-tête
+      // reste public : il n'a pas à planter pour cela.
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
@@ -101,6 +135,17 @@ export default function Navbar() {
               className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-200"
             >
               <span>← Portail Citoyen</span>
+            </Link>
+          ) : signedIn ? (
+            // Le visiteur est déjà connecté : on ne lui propose pas une porte
+            // qui ne mène nulle part. « Mon espace » mène à son portail —
+            // un agent y sera renvoyé vers sa console.
+            <Link
+              href="/portail-client"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-200"
+            >
+              <LayoutDashboard className="size-3.5" aria-hidden />
+              <span>Mon espace</span>
             </Link>
           ) : (
             <>

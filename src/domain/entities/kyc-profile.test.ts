@@ -46,6 +46,7 @@ const COMPLETE: KycProfile = {
     hiredAt: "2019-06-01",
     incomeBand: "400 000 – 800 000",
     incomeOrigin: "salaire",
+    declaredIncome: 650000,
   },
   compliance: {
     politicallyExposed: false,
@@ -55,6 +56,8 @@ const COMPLETE: KycProfile = {
     honourAttestation: true,
     honourMention: "Lu et approuvé",
     acceptedAt: null,
+    dependants: 2,
+    existingLoans: null,
   },
 };
 

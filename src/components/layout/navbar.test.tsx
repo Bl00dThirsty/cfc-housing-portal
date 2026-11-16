@@ -28,6 +28,14 @@ vi.mock("next/image", () => ({
   ),
 }));
 
+// L'en-tête demande la session au navigateur : le test la rend **vide**,
+// pour que l'en-tête public soit le rendu attendu.
+vi.mock("@/lib/supabase/client", () => ({
+  getBrowserClient: () => ({
+    auth: { getSession: async () => ({ data: { session: null } }) },
+  }),
+}));
+
 describe("Navbar public", () => {
   beforeEach(() => {
     pathname.current = "/faq";

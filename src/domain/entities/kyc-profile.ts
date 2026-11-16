@@ -10,8 +10,196 @@
  * `src/domain/workflows/kyc.ts`. `citizenKycBadge` en est une **projection**.
  */
 
-import type { KycBadge, KycProfile } from "./kyc";
+import type {
+  KycBadge,
+  KycCompliance,
+  KycEmployment,
+  KycIdentity,
+  KycProfile,
+  KycResidence,
+} from "./kyc";
 import { isValidPhone } from "./phone";
+
+export type { KycBadge, KycProfile };
+
+/** Un profil vide — le point de départ d'un brouillon. */
+export const EMPTY_KYC_PROFILE: KycProfile = {
+  identity: {
+    birthDate: null,
+    birthPlaceCity: null,
+    birthPlaceCountry: null,
+    nationality: null,
+    familyStatus: null,
+    idDocumentType: null,
+    idDocumentNumber: null,
+    idDocumentIssuedAt: null,
+    idDocumentExpiresAt: null,
+    idDocumentIssuer: null,
+    niu: null,
+  },
+  residence: {
+    country: null,
+    region: null,
+    city: null,
+    neighbourhood: null,
+    landmark: null,
+    postalBox: null,
+    occupationStatus: null,
+    emergencyContact: null,
+  },
+  employment: {
+    status: null,
+    profession: null,
+    employer: null,
+    sector: null,
+    contractType: null,
+    hiredAt: null,
+    incomeBand: null,
+    incomeOrigin: null,
+    declaredIncome: null,
+  },
+  compliance: {
+    politicallyExposed: false,
+    pepReason: null,
+    businessRelationship: null,
+    taxResidence: null,
+    honourAttestation: false,
+    honourMention: null,
+    acceptedAt: null,
+    dependants: 0,
+    existingLoans: null,
+  },
+};
+
+/**
+ * La forme **stockée** du profil.
+ *
+ * Les colonnes JSONB de la plateforme sont en `snake_case` ; le domaine
+ * travaille en `camelCase`. La traduction vit ici, **une fois** : l'action
+ * qui écrit et la requête qui relit passent par le même chemin.
+ */
+export interface StoredKycProfile {
+  identity?: Record<string, unknown> | null;
+  residence?: Record<string, unknown> | null;
+  employment?: Record<string, unknown> | null;
+  compliance?: Record<string, unknown> | null;
+}
+
+/** Le profil du domaine → la forme stockée. */
+export function toStoredProfile(profile: KycProfile): StoredKycProfile {
+  const { identity, residence, employment, compliance } = profile;
+
+  return {
+    identity: {
+      birth_date: identity.birthDate,
+      birth_place_city: identity.birthPlaceCity,
+      birth_place_country: identity.birthPlaceCountry,
+      nationality: identity.nationality,
+      family_status: identity.familyStatus,
+      id_document_type: identity.idDocumentType,
+      id_document_number: identity.idDocumentNumber,
+      id_document_issued_at: identity.idDocumentIssuedAt,
+      id_document_expires_at: identity.idDocumentExpiresAt,
+      id_document_issuer: identity.idDocumentIssuer,
+      niu: identity.niu,
+    },
+    residence: {
+      country: residence.country,
+      region: residence.region,
+      city: residence.city,
+      neighbourhood: residence.neighbourhood,
+      landmark: residence.landmark,
+      postal_box: residence.postalBox,
+      occupation_status: residence.occupationStatus,
+      emergency_contact: residence.emergencyContact,
+    },
+    employment: {
+      status: employment.status,
+      profession: employment.profession,
+      employer: employment.employer,
+      sector: employment.sector,
+      contract_type: employment.contractType,
+      hired_at: employment.hiredAt,
+      income_band: employment.incomeBand,
+      income_origin: employment.incomeOrigin,
+      declared_income: employment.declaredIncome,
+    },
+    compliance: {
+      politically_exposed: compliance.politicallyExposed,
+      pep_reason: compliance.pepReason,
+      business_relationship: compliance.businessRelationship,
+      tax_residence: compliance.taxResidence,
+      honour_attestation: compliance.honourAttestation,
+      honour_mention: compliance.honourMention,
+      accepted_at: compliance.acceptedAt,
+      dependants: compliance.dependants,
+      existing_loans: compliance.existingLoans,
+    },
+  };
+}
+
+/** La forme stockée → le profil du domaine. */
+export function fromStoredProfile(
+  stored: Partial<StoredKycProfile> | null | undefined,
+): KycProfile {
+  const identity = (stored?.identity ?? {}) as Partial<Record<string, unknown>>;
+  const residence = (stored?.residence ?? {}) as Partial<Record<string, unknown>>;
+  const employment = (stored?.employment ?? {}) as Partial<Record<string, unknown>>;
+  const compliance = (stored?.compliance ?? {}) as Partial<Record<string, unknown>>;
+
+  return {
+    identity: {
+      ...EMPTY_KYC_PROFILE.identity,
+      birthDate: (identity.birth_date as string | null) ?? null,
+      birthPlaceCity: (identity.birth_place_city as string | null) ?? null,
+      birthPlaceCountry: (identity.birth_place_country as string | null) ?? null,
+      nationality: (identity.nationality as string | null) ?? null,
+      familyStatus: (identity.family_status as KycIdentity["familyStatus"]) ?? null,
+      idDocumentType: (identity.id_document_type as KycIdentity["idDocumentType"]) ?? null,
+      idDocumentNumber: (identity.id_document_number as string | null) ?? null,
+      idDocumentIssuedAt: (identity.id_document_issued_at as string | null) ?? null,
+      idDocumentExpiresAt: (identity.id_document_expires_at as string | null) ?? null,
+      idDocumentIssuer: (identity.id_document_issuer as string | null) ?? null,
+      niu: (identity.niu as string | null) ?? null,
+    },
+    residence: {
+      ...EMPTY_KYC_PROFILE.residence,
+      country: (residence.country as string | null) ?? null,
+      region: (residence.region as string | null) ?? null,
+      city: (residence.city as string | null) ?? null,
+      neighbourhood: (residence.neighbourhood as string | null) ?? null,
+      landmark: (residence.landmark as string | null) ?? null,
+      postalBox: (residence.postal_box as string | null) ?? null,
+      occupationStatus: (residence.occupation_status as KycResidence["occupationStatus"]) ?? null,
+      emergencyContact: (residence.emergency_contact as string | null) ?? null,
+    },
+    employment: {
+      ...EMPTY_KYC_PROFILE.employment,
+      status: (employment.status as KycEmployment["status"]) ?? null,
+      profession: (employment.profession as string | null) ?? null,
+      employer: (employment.employer as string | null) ?? null,
+      sector: (employment.sector as string | null) ?? null,
+      contractType: (employment.contract_type as string | null) ?? null,
+      hiredAt: (employment.hired_at as string | null) ?? null,
+      incomeBand: (employment.income_band as KycEmployment["incomeBand"]) ?? null,
+      incomeOrigin: (employment.income_origin as KycEmployment["incomeOrigin"]) ?? null,
+      declaredIncome:
+        typeof employment.declared_income === "number" ? employment.declared_income : null,
+    },
+    compliance: {
+      ...EMPTY_KYC_PROFILE.compliance,
+      politicallyExposed: compliance.politically_exposed === true,
+      pepReason: (compliance.pep_reason as KycCompliance["pepReason"]) ?? null,
+      businessRelationship: (compliance.business_relationship as string | null) ?? null,
+      taxResidence: (compliance.tax_residence as string | null) ?? null,
+      honourAttestation: compliance.honour_attestation === true,
+      honourMention: (compliance.honour_mention as string | null) ?? null,
+      acceptedAt: (compliance.accepted_at as string | null) ?? null,
+      dependants: typeof compliance.dependants === "number" ? compliance.dependants : 0,
+      existingLoans: (compliance.existing_loans as string | null) ?? null,
+    },
+  };
+}
 
 /** Ancienneté exigée pour être client du CFC avant de souscrire un prêt. */
 export const CFC_CLIENT_ANCENNETE_MOIS = 6;
@@ -83,16 +271,24 @@ export function advisorForSequence(index: number): DemoAdvisor {
   return active[index % active.length];
 }
 
-/** Les champs qui bloquent l'accès au choix du service. */
+/**
+ * Les champs qui bloquent l'accès au choix du service.
+ *
+ * Ce sont les faits sans lesquels le dossier **n'est pas** un dossier de
+ * prêt : l'identité (qui), la résidence (où), et le revenu déclaré (avec
+ * quelle capacité de remboursement).
+ */
 export const REQUIRED_FIELDS = [
   "identity.birthDate",
   "identity.nationality",
   "identity.idDocumentType",
   "identity.idDocumentNumber",
   "identity.idDocumentExpiresAt",
+  "residence.city",
   "employment.status",
   "employment.contractType",
   "employment.hiredAt",
+  "employment.declaredIncome",
 ] as const;
 
 export type KycField = (typeof REQUIRED_FIELDS)[number];

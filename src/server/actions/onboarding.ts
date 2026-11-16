@@ -3,11 +3,10 @@
 import { createServerSupabaseClient } from "@/server/supabase/server";
 import {
   EMPTY_DRAFT,
+  fromStoredProfile,
   type AffiliationStatus,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
-import { toE164 } from "@/domain/entities/phone";
-import type { SelectedAddress } from "@/domain/entities/address";
 
 export type OnboardingResult =
   | { ok: true; message?: string; dossierCode?: string }
@@ -116,57 +115,32 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
   const dossier = dossierData as DossierRow | null;
   const kyc = (kycData ?? null) as KycProfileRow | null;
 
-  const employment = (kyc?.employment ?? {}) as Record<string, unknown>;
-  const compliance = (kyc?.compliance ?? {}) as Record<string, unknown>;
-
-  const fullName = dossier?.name ?? profile?.full_name ?? "";
-  const email = dossier?.email ?? profile?.email ?? "";
-  const phone = dossier?.phone ?? profile?.phone ?? "";
-  const birthDate = dossier?.birth_date ?? profile?.birth_date ?? "";
-  const cniNumber = dossier?.cni_raw ?? profile?.cni_raw ?? "";
-  const addressLabel = dossier?.address ?? profile?.address ?? null;
-  const profession = dossier?.profession ?? (employment.profession as string) ?? "";
-  const employer = dossier?.employer ?? (employment.employer as string) ?? "";
-
   if (!profile && !dossier && !kyc) return EMPTY_DRAFT;
 
+  // Les déclarations sont **stockées** en snake_case : la traduction vit
+  // dans le domaine, une fois.
+  const { identity, residence, employment, compliance } = fromStoredProfile(kyc);
+  // L'identité que l'inscription a portée est **pré-remplie** : le demandeur
+  // la vérifie, il ne la ressaisit pas. Le dossier en est la copie de travail :
+  // il porte les mêmes faits, et il comble ce que le profil citizen n'a pas.
+  if (!identity.birthDate) {
+    identity.birthDate = profile?.birth_date ?? dossier?.birth_date ?? null;
+  }
+  if (!identity.idDocumentNumber) {
+    identity.idDocumentNumber = profile?.cni_raw ?? dossier?.cni_raw ?? null;
+  }
+  if (!identity.nationality && !dossier?.is_diaspora) {
+    identity.nationality = "Cameroun";
+  }
+
   return {
-    ...EMPTY_DRAFT,
-    email,
-    phone,
+    serviceCode: dossier?.service_code ?? null,
+    fullName: profile?.full_name ?? dossier?.name ?? "",
+    phone: profile?.phone ?? dossier?.phone ?? "",
     affiliation:
       (profile?.affiliation_status as AffiliationStatus | null) ??
       (dossier?.is_diaspora ? "non_resident" : null),
-    serviceCode: dossier?.service_code ?? null,
-    fullName,
-    birthDate,
-    cniNumber,
-    address: addressLabel
-      ? ({
-          placeId: `stored-${addressLabel}`,
-          label: addressLabel,
-          shortLabel: addressLabel,
-          kind: "other",
-          lat: null,
-          lon: null,
-          osmType: "stored",
-          osmId: "",
-          postcode: null,
-          countryCode: "cm",
-          source: "manual",
-        } satisfies SelectedAddress)
-      : null,
-    profession,
-    employer,
-    // Le revenu **déclaré** par le citoyen ; le revenu évalué par la
-    // plateforme reste la référence du dossier.
-    monthlyIncome: employment.declared_income
-      ? String(employment.declared_income)
-      : dossier?.monthly_income
-        ? String(dossier.monthly_income)
-        : "",
-    dependants: Number(compliance.dependants ?? 0) || 0,
-    existingLoans: (compliance.existing_loans as string) ?? "",
+    profile: { identity, residence, employment, compliance },
   };
 }
 
@@ -243,107 +217,9 @@ export async function saveServiceAction(serviceCode: string): Promise<Onboarding
   return { ok: true, dossierCode: data?.duc_code ?? code };
 }
 
-export async function saveProfileAction(input: {
-  fullName: string;
-  birthDate: string;
-  cniNumber: string;
-  phone: string;
-  affiliation: AffiliationStatus | null;
-  address: SelectedAddress | null;
-  profession: string;
-  employer: string;
-  monthlyIncome: string;
-  dependants: number;
-  existingLoans: string;
-}): Promise<OnboardingResult> {
-  const citizen = await currentCitizen();
-  if (!citizen) {
-    return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
-  }
+/**
+ * Le profil du demandeur est enregistré par `saveKycDraftAction`
+ * (`src/server/actions/kyc-profile.ts`) : il n'y a qu'une action qui écrit
+ * les déclarations, et elle écrit aussi la copie de travail du dossier.
+ */
 
-  const { supabase, userId } = citizen;
-
-  const addressLabel = input.address?.label ?? null;
-
-  const { data: dossier } = await supabase
-    .from("dossiers")
-    .select("id")
-    .eq("citizen_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const patch = {
-    name: input.fullName.trim(),
-    birth_date: input.birthDate || null,
-    cni_raw: input.cniNumber.trim() || null,
-    address: addressLabel,
-    city: input.address?.shortLabel ?? null,
-    region: input.address?.label?.split(",").slice(-2, -1)[0]?.trim() ?? null,
-    profession: input.profession.trim() || null,
-    employer: input.employer.trim() || null,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (dossier) {
-    const { error } = await supabase.from("dossiers").update(patch).eq("id", dossier.id);
-    if (error) return { ok: false, error: error.message };
-  }
-
-  // Les **déclarations** du citoyen : le revenu qu'il déclare, les personnes
-  // à charge, les crédits en cours. Le revenu *assessé* par la plateforme
-  // (`dossiers.monthly_income`) n'est pas écrit d'ici — la plateforme en
-  // garde la main.
-  const { error: kycError } = await supabase.from("kyc_profiles").upsert(
-    {
-      citizen_id: userId,
-      identity: {
-        full_name: input.fullName.trim(),
-        birth_date: input.birthDate || null,
-        cni_number: input.cniNumber.trim() || null,
-      },
-      residence: {
-        address: addressLabel,
-        city: input.address?.shortLabel ?? null,
-        region: input.address?.label?.split(",").slice(-2, -1)[0]?.trim() ?? null,
-      },
-      employment: {
-        profession: input.profession.trim() || null,
-        employer: input.employer.trim() || null,
-        declared_income: input.monthlyIncome
-          ? Number(input.monthlyIncome.replace(/\D/g, ""))
-          : null,
-      },
-      compliance: {
-        dependants: input.dependants,
-        existing_loans: input.existingLoans.trim() || null,
-      },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "citizen_id" },
-  );
-
-  if (kycError) return { ok: false, error: kycError.message };
-
-  // Le profil citoyen porte l'**identité** ; la profession et l'employeur
-  // appartiennent au dossier. Les écrire ici ferait échouer l'enregistrement
-  // entier — et l'emprunteur verrait « votre session a expiré ».
-  const { error: profileError } = await supabase.from("citizen_profiles").upsert(
-    {
-      id: userId,
-      full_name: input.fullName.trim(),
-      birth_date: input.birthDate || null,
-      cni_raw: input.cniNumber.trim() || null,
-      address: addressLabel,
-      phone: input.phone ? toE164(input.phone) : null,
-      affiliation_status: input.affiliation,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
-
-  if (profileError) return { ok: false, error: profileError.message };
-
-  return { ok: true, message: "Votre dossier a été mis à jour." };
-}

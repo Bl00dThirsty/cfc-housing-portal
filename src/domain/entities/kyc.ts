@@ -162,6 +162,13 @@ export interface KycEmployment {
   incomeBand: IncomeBand | null;
   /** Nature du revenu. */
   incomeOrigin: IncomeOrigin | null;
+  /**
+   * Le revenu mensuel **déclaré**, en francs CFA.
+   *
+   * C'est la déclaration du demandeur : elle alimente le scoring du prêt.
+   * Le revenu *évalué* par la plateforme reste la référence du dossier.
+   */
+  declaredIncome: number | null;
 }
 
 /** La conformité et la déclaration — écran D du KYC. */
@@ -184,6 +191,10 @@ export interface KycCompliance {
    * Elle est enregistrée **côté serveur** : jamais la date du navigateur.
    */
   acceptedAt: string | null;
+  /** Le nombre de personnes à charge. */
+  dependants: number;
+  /** Les crédits en cours — Declaration de patrimoine et credits en cours. */
+  existingLoans: string | null;
 }
 
 /** Le profil complet du demandeur. */

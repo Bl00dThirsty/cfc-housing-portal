@@ -1,40 +1,69 @@
 import type { SelectedAddress } from "@/domain/entities/address";
 import { isValidPhone } from "@/domain/entities/phone";
+import {
+  isValidCniNumber,
+  missingRequiredFields,
+  validateKycProfile,
+  fromStoredProfile,
+  EMPTY_KYC_PROFILE,
+  type KycProfile,
+} from "@/domain/entities/kyc-profile";
 
 export type AffiliationStatus = "first_time" | "other_bank" | "cfc_existing" | "non_resident";
 
-export type OnboardingStepId = "profile" | "service" | "documents";
+/**
+ * Les étapes du parcours.
+ *
+ * Le dossier passe **avant** le service : on ne choisit pas un prêt avant
+ * d'avoir dit qui l'on est — et c'est aussi ce qui permet d'ouvrir la
+ * fenêtre des trois situations face au service.
+ *
+ * Le compte, lui, n'est plus une étape : il est ouvert par `/inscription`,
+ * la seule porte qui en crée un.
+ */
+export type OnboardingStepId = "kyc" | "service" | "documents";
 
+export const ONBOARDING_STEPS: ReadonlyArray<{
+  id: OnboardingStepId;
+  index: number;
+  title: string;
+  caption: string;
+}> = [
+  { id: "kyc", index: 1, title: "Vos informations", caption: "Identité, résidence, emploi" },
+  { id: "service", index: 2, title: "Votre service", caption: "Produit demandé" },
+  { id: "documents", index: 3, title: "Vos pièces", caption: "Dossier unique client" },
+];
+
+/**
+ * Le brouillon du parcours.
+ *
+ * Ce que le demandeur **déclare** vit dans `profile` : c'est la forme du
+ * profil KYC, et elle est la seule. Le nom, le téléphone et la situation
+ * bancaire viennent du **compte** : ils sont écrits à l'inscription, et le
+ * parcours les relit — il ne les redemande pas.
+ */
 export type OnboardingDraft = {
-  email: string;
-  phone: string;
-  affiliation: AffiliationStatus | null;
+  /** Le service choisi : il commande les pièces exigées. */
   serviceCode: string | null;
+  /** Le nom du demandeur — il vient du compte. */
   fullName: string;
-  birthDate: string;
-  cniNumber: string;
-  address: SelectedAddress | null;
-  profession: string;
-  employer: string;
-  monthlyIncome: string;
-  dependants: number;
-  existingLoans: string;
+  /** Le téléphone de contact — il vient du compte. */
+  phone: string;
+  /** La situation bancaire — elle vient du compte. */
+  affiliation: AffiliationStatus | null;
+  /** Ce que le demandeur déclare. */
+  profile: KycProfile;
 };
 
+/** Un profil vide — le point de départ d'un brouillon. */
+export { EMPTY_KYC_PROFILE, fromStoredProfile };
+
 export const EMPTY_DRAFT: OnboardingDraft = {
-  email: "",
-  phone: "",
-  affiliation: null,
   serviceCode: null,
   fullName: "",
-  birthDate: "",
-  cniNumber: "",
-  address: null,
-  profession: "",
-  employer: "",
-  monthlyIncome: "",
-  dependants: 0,
-  existingLoans: "",
+  phone: "",
+  affiliation: null,
+  profile: EMPTY_KYC_PROFILE,
 };
 
 export type AffiliationOption = {
@@ -74,27 +103,6 @@ export const AFFILIATION_OPTIONS: ReadonlyArray<AffiliationOption> = [
   },
 ];
 
-/**
- * Les étapes du parcours.
- *
- * Le dossier passe **avant** le service : on ne choisit pas un prêt avant
- * d'avoir dit qui l'on est — et c'est aussi ce qui permet d'ouvrir la
- * fenêtre des trois situations face au service.
- *
- * Le compte, lui, n'est plus une étape : il est ouvert par `/inscription`,
- * la seule porte qui en crée un.
- */
-export const ONBOARDING_STEPS: ReadonlyArray<{
-  id: OnboardingStepId;
-  index: number;
-  title: string;
-  caption: string;
-}> = [
-  { id: "profile", index: 1, title: "Votre dossier", caption: "Coordonnées et revenus" },
-  { id: "service", index: 2, title: "Votre service", caption: "Produit demandé" },
-  { id: "documents", index: 3, title: "Vos pièces", caption: "Dossier unique client" },
-];
-
 export type StepValidation = {
   valid: boolean;
   errors: string[];
@@ -107,30 +115,18 @@ export type StepValidation = {
   fields: Record<string, string>;
 };
 
-export function isValidCni(raw: string): boolean {
-  const value = raw.replace(/[^A-Za-z0-9]/g, "");
-  return value.length >= 6 && value.length <= 20;
-}
-
-export function isAdult(birthDate: string, reference = new Date()): boolean {
-  if (!birthDate) return false;
-  const parsed = new Date(birthDate);
-  if (Number.isNaN(parsed.getTime())) return false;
-
-  let age = reference.getFullYear() - parsed.getFullYear();
-  const monthDelta = reference.getMonth() - parsed.getMonth();
-  if (monthDelta < 0 || (monthDelta === 0 && reference.getDate() < parsed.getDate())) {
-    age -= 1;
-  }
-  return age >= 18;
-}
-
 export function parseAmount(raw: string): number {
-  const digits = raw.replace(/[^\d]/g, "");
+  const digits = raw.replace(/\D/g, "");
   if (!digits) return 0;
   return Number.parseInt(digits, 10);
 }
 
+/**
+ * Valide une étape du parcours.
+ *
+ * L'étape du KYC délègue au **domaine du profil** : les règles de majorité,
+ * de pièce d'identité et de date d'embauche y vivent, une seule fois.
+ */
 export function validateStep(
   step: OnboardingStepId,
   draft: OnboardingDraft,
@@ -144,28 +140,30 @@ export function validateStep(
   };
 
   switch (step) {
-    case "profile": {
-      if (draft.fullName.trim().length < 3) {
-        refuse("fullName", "Renseignez votre nom complet.");
-      }
-      if (!isAdult(draft.birthDate)) {
-        refuse("birthDate", "Vous devez être majeur pour solliciter un prêt.");
-      }
-      if (!isValidCni(draft.cniNumber)) {
-        refuse("cniNumber", "Renseignez un numéro de CNI valide.");
-      }
+    case "kyc": {
       if (!isValidPhone(draft.phone)) {
         refuse("phone", "Renseignez un numéro de téléphone valide.");
       }
       if (!draft.affiliation) {
         refuse("affiliation", "Indiquez votre situation bancaire.");
       }
-      if (!draft.address) {
-        refuse("address", "Renseignez votre adresse de résidence.");
+
+      for (const field of missingRequiredFields(draft.profile)) {
+        refuse(field, "Ce champ est obligatoire.");
       }
-      if (parseAmount(draft.monthlyIncome) <= 0) {
-        refuse("monthlyIncome", "Renseignez votre revenu mensuel.");
+
+      const validation = validateKycProfile(draft.profile);
+      for (const [field, message] of Object.entries(validation.errors)) {
+        refuse(field, message);
       }
+
+      if (
+        draft.profile.identity.idDocumentNumber &&
+        !isValidCniNumber(draft.profile.identity.idDocumentNumber)
+      ) {
+        refuse("identity.idDocumentNumber", "Le numéro de CNI est invalide.");
+      }
+
       break;
     }
     case "service": {
@@ -190,14 +188,7 @@ export function validateStep(
  * le service ensuite, les pièces pour finir.
  */
 export function resumeStepId(draft: OnboardingDraft): OnboardingStepId {
-  if (
-    !draft.fullName.trim() ||
-    !draft.cniNumber.trim() ||
-    !draft.address ||
-    !draft.affiliation
-  ) {
-    return "profile";
-  }
+  if (!validateStep("kyc", draft).valid) return "kyc";
   if (!draft.serviceCode) return "service";
   return "documents";
 }
@@ -207,4 +198,14 @@ export function stepStatus(
   draft: OnboardingDraft,
 ): "done" | "current" | "todo" {
   return validateStep(step, draft).valid ? "done" : "todo";
+}
+
+/**
+ * L'adresse choisie, telle qu'elle est déclarée.
+ *
+ * Elle est **une** fois : le profil KYC porte la ville, le quartier et le
+ * lieu-dit, et l'adresse complète n'est écrite que sur le dossier.
+ */
+export function addressLabelOf(address: SelectedAddress | null): string | null {
+  return address?.label ?? null;
 }
