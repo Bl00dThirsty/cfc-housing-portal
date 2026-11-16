@@ -20,13 +20,21 @@ export const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321"
 export const ANON_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
-export const SERVICE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  "REDACTED_SUPABASE_SECRET_KEY";
+function requireServiceKey(): string {
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.SUPABASE_SECRET_KEY;
+  if (!key) {
+    throw new Error(
+      "SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY is required for E2E service access.",
+    );
+  }
+  return key;
+}
 
 /** Client de service : contourne la RLS, réservé à la préparation des tests. */
 export function serviceClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, SERVICE_KEY, {
+  return createClient(SUPABASE_URL, requireServiceKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
@@ -39,7 +47,7 @@ export function applyServerEnv(): void {
   Object.assign(process.env, {
     NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: requireServiceKey(),
   });
 }
 

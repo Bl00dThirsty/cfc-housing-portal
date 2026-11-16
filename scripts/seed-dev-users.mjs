@@ -9,8 +9,13 @@ const SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
 const SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  process.env.SUPABASE_SECRET_KEY ??
-  "REDACTED_SUPABASE_SECRET_KEY";
+  process.env.SUPABASE_SECRET_KEY;
+if (!SERVICE_ROLE_KEY) {
+  console.error(
+    "Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY before seeding development users.",
+  );
+  process.exit(1);
+}
 
 const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD ?? "CfcDev2026!";
 
