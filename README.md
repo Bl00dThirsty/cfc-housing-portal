@@ -1,36 +1,129 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<p align="center">
+  <img src="./public/images/logo-cfc.png" alt="Crédit Foncier du Cameroun" width="340">
+</p>
 
-## Getting Started
+<h1 align="center">Portail CFC — Épargne Habitat & Guichet Unique</h1>
 
-First, run the development server:
+<p align="center">
+  Portail numérique du Crédit Foncier du Cameroun pour l'épargne habitat,
+  le dépôt des dossiers et le suivi des demandes de financement.
+</p>
+
+<p align="center">
+  <a href="https://cfc-housing-portal.vercel.app">Ouvrir l'application</a>
+</p>
+
+## Présentation
+
+Le portail accompagne les citoyens dans la constitution et le suivi de leur
+Dossier Unique Client (DUC), et fournit aux équipes du CFC des espaces de
+travail adaptés à leurs rôles.
+
+### Parcours proposés
+
+- **Espace public** : simulateur, FAQ, suivi de dossier et vérification de
+  documents.
+- **Espace citoyen** : inscription, dépôt de pièces, suivi de l'épargne et du
+  dossier, notifications.
+- **Espace agent CFC** : traitement des dossiers, gestion documentaire et
+  supervision selon les habilitations.
+
+## Technologies
+
+- Next.js 15 (App Router) et React 19
+- TypeScript et Tailwind CSS 4
+- Supabase Auth, Postgres et Storage
+- Vitest et ESLint
+
+## Démarrage local
+
+### Prérequis
+
+- Node.js et npm
+- Un projet Supabase et ses variables d'environnement
+
+### Installation
+
+```bash
+npm install
+```
+
+Copiez `.env.example` vers `.env.local` :
+
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Sur macOS ou Linux :
+
+```bash
+cp .env.example .env.local
+```
+
+Renseignez ensuite les valeurs nécessaires :
+
+| Variable | Usage |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique soumise aux règles RLS |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clé serveur uniquement; ne jamais l'exposer au navigateur |
+| `NEXT_PUBLIC_SITE_URL` | URL du site, par exemple `http://localhost:3000` |
+
+Lancez l'application :
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrez [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Commandes utiles
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Commande | Description |
+| --- | --- |
+| `npm run dev` | Démarrer le serveur de développement |
+| `npm run build` | Construire l'application |
+| `npm run start` | Démarrer la version construite |
+| `npm run lint` | Exécuter ESLint |
+| `npm run typecheck` | Vérifier les types TypeScript |
+| `npm test` | Exécuter les tests Vitest |
+| `npm run smoke` | Lancer les vérifications fonctionnelles rapides |
+| `npm run db:reset` | Réinitialiser la base Supabase locale |
+| `npm run db:seed:users` | Créer les comptes de démonstration locaux |
 
-## Learn More
+## Supabase
 
-To learn more about Next.js, take a look at the following resources:
+Les migrations Postgres et le fichier de seed se trouvent dans `supabase/`.
+Pour réinitialiser la base locale, démarrez Supabase localement puis exécutez
+`npm run db:reset`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+La commande `supabase db push` applique les migrations à l'instance liée :
+vérifiez toujours le projet ciblé avant de l'exécuter.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Structure
 
-## Deploy on Vercel
+```text
+src/
+  app/          Routes Next.js
+  components/   Composants d'interface
+  config/       Configuration métier et RBAC
+  domain/       Entités et workflows métier
+  lib/          Utilitaires partagés
+  server/       Services côté serveur
+  stores/       État client
+supabase/       Configuration, migrations et seeds
+docs/           Documentation métier et technique
+scripts/        Outils de développement
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Documentation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Référence métier et technique](./docs/CFC-GREENFIELD-REFERENCE.md)
+- [Migrations Supabase](./supabase/migrations/)
+- [Variables d'environnement d'exemple](./.env.example)
+
+## Sécurité
+
+Ne commitez jamais `.env.local`, des identifiants réels ou des clés de
+production. `SUPABASE_SERVICE_ROLE_KEY` contourne les politiques RLS : elle
+doit rester strictement côté serveur.

@@ -1,6 +1,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Card — the kit has no card of its own; the app's primitive is kept and
+ * re-skinned with the kit's token vocabulary.
+ */
 function Card({
   className,
   size = "default",
@@ -11,8 +15,8 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-xl border bg-card p-4 text-card-foreground shadow-xs text-sm",
-        size === "sm" && "p-3 gap-3",
+        "group/card flex flex-col gap-4 overflow-hidden rounded-xl border border-line-strong bg-card p-4 text-card-foreground shadow-xs text-[14px]",
+        size === "sm" && "gap-3 p-3",
         className
       )}
       {...props}
@@ -24,10 +28,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-header"
-      className={cn(
-        "flex items-start justify-between gap-2",
-        className
-      )}
+      className={cn("flex items-start justify-between gap-2", className)}
       {...props}
     />
   );
@@ -38,7 +39,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-medium text-base leading-snug tracking-tight group-data-[size=sm]/card:text-sm",
+        "text-[16px] leading-none font-semibold tracking-normal group-data-[size=sm]/card:text-[14px]",
         className
       )}
       {...props}
@@ -50,7 +51,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-sm text-muted-foreground leading-normal", className)}
+      className={cn("text-[14px] leading-normal text-muted-foreground", className)}
       {...props}
     />
   );
@@ -60,7 +61,7 @@ function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-action"
-      className={cn("self-start shrink-0", className)}
+      className={cn("shrink-0 self-start", className)}
       {...props}
     />
   );
@@ -81,7 +82,7 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-footer"
       className={cn(
-        "flex items-center rounded-b-xl border-t bg-muted/50 p-3",
+        "flex items-center rounded-b-xl border-t border-line-strong bg-muted/50 p-3",
         className
       )}
       {...props}

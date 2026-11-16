@@ -15,6 +15,7 @@ export default function Footer() {
                 src="/images/logo-cfc.png"
                 alt="Crédit Foncier du Cameroun"
                 fill
+                sizes="144px"
                 className="object-contain"
               />
             </div>
@@ -32,9 +33,15 @@ export default function Footer() {
             <h4 className="text-white text-xs font-bold uppercase tracking-wider">Services Dématérialisés</h4>
             <ul className="space-y-1.5 text-[11px]">
               <li><Link href="/simulator" className="hover:text-white transition-colors">Simulateur Épargne Habitat</Link></li>
-              <li><Link href="/onboarding" className="hover:text-white transition-colors">Création Dossier Unique (DUC)</Link></li>
+              <li><Link href="/faq" className="hover:text-white transition-colors">Foire aux questions</Link></li>
+              <li><Link href="/inscription" className="hover:text-white transition-colors">Création Dossier Unique (DUC)</Link></li>
               <li><Link href="/tracking" className="hover:text-white transition-colors font-medium text-emerald-400">Suivi en Direct de Prêt (DUC)</Link></li>
               <li><Link href="/verify/CFC-VERIF-78A9B2" className="hover:text-white transition-colors">Vérification d&apos;Actes (Sceau QR)</Link></li>
+              <li>
+                <Link href="/portail-cfc/login" className="hover:text-white transition-colors">
+                  Espace Agent CFC
+                </Link>
+              </li>
             </ul>
           </div>
 

@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
-import { PROJECT_TYPE_OPTIONS } from "@/lib/mock-data";
-import { ProjectType } from "@/lib/types";
-import { calculateHousingPlan } from "@/lib/calculations";
+import { PROJECT_TYPE_OPTIONS } from "@/domain/data/mock-data";
+import { ProjectType } from "@/domain/entities/types";
+import { calculateHousingPlan } from "@/domain/calculations";
 import { formatFCFA } from "@/lib/utils";
 
 interface SavingsCalculatorProps {
@@ -55,16 +55,24 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
 
         {/* 1. Type de projet */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+          <span
+            id="sim-project-type"
+            className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
+          >
             1. Nature du projet immobilier
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          </span>
+          <div
+            role="group"
+            aria-labelledby="sim-project-type"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+          >
             {PROJECT_TYPE_OPTIONS.map((opt) => {
               const isSelected = selectedType === opt.id;
               return (
                 <button
                   key={opt.id}
                   type="button"
+                  aria-pressed={isSelected}
                   onClick={() => handleProjectTypeChange(opt.id)}
                   className={`p-3 rounded-xl text-xs font-semibold text-center transition-all border ${
                     isSelected
@@ -83,7 +91,7 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
         {/* 2. Coût global du projet */}
         <div>
           <div className="flex justify-between items-center mb-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <label htmlFor="sim-project-cost" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
               2. Coût total estimé du projet
             </label>
             <span className="text-base font-bold text-cfc-brown">
@@ -91,6 +99,7 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
             </span>
           </div>
           <input
+            id="sim-project-cost"
             type="range"
             min={3000000}
             max={60000000}
@@ -109,7 +118,7 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
         {/* 3. Pourcentage d'apport personnel */}
         <div>
           <div className="flex justify-between items-center mb-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <label htmlFor="sim-apport-percentage" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
               3. Apport personnel cible (% du projet)
             </label>
             <span className="text-base font-bold text-slate-900">
@@ -117,6 +126,7 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
             </span>
           </div>
           <input
+            id="sim-apport-percentage"
             type="range"
             min={10}
             max={30}
@@ -134,14 +144,22 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
 
         {/* 4. Durée de constitution de l'épargne */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+          <span
+            id="sim-savings-duration"
+            className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
+          >
             4. Durée d&apos;épargne programmée
-          </label>
-          <div className="grid grid-cols-3 gap-3">
+          </span>
+          <div
+            role="group"
+            aria-labelledby="sim-savings-duration"
+            className="grid grid-cols-3 gap-3"
+          >
             {[12, 24, 36].map((months) => (
               <button
                 key={months}
                 type="button"
+                aria-pressed={durationMonths === months}
                 onClick={() => setDurationMonths(months)}
                 className={`p-3 rounded-xl border text-center transition-all ${
                   durationMonths === months
@@ -159,7 +177,7 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
         {/* 5. Revenu net mensuel */}
         <div>
           <div className="flex justify-between items-center mb-2">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            <label htmlFor="sim-monthly-income" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
               5. Revenu net mensuel justifié (Ménage)
             </label>
             <span className="text-base font-bold text-slate-900">
@@ -167,6 +185,7 @@ export default function SavingsCalculator({ compact = false }: SavingsCalculator
             </span>
           </div>
           <input
+            id="sim-monthly-income"
             type="range"
             min={100000}
             max={2500000}

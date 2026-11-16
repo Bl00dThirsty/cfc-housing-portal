@@ -1,7 +1,12 @@
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
+/**
+ * Empty — the kit has no empty state of its own; the app's primitive is kept
+ * and re-skinned with the kit's token vocabulary.
+ */
 function Empty({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -12,7 +17,7 @@ function Empty({ className, ...props }: React.ComponentProps<"div">) {
       )}
       {...props}
     />
-  )
+  );
 }
 
 function EmptyHeader({ className, ...props }: React.ComponentProps<"div">) {
@@ -22,7 +27,7 @@ function EmptyHeader({ className, ...props }: React.ComponentProps<"div">) {
       className={cn("flex max-w-sm flex-col items-center gap-2", className)}
       {...props}
     />
-  )
+  );
 }
 
 const emptyMediaVariants = cva(
@@ -38,7 +43,7 @@ const emptyMediaVariants = cva(
       variant: "default",
     },
   }
-)
+);
 
 function EmptyMedia({
   className,
@@ -52,20 +57,17 @@ function EmptyMedia({
       className={cn(emptyMediaVariants({ variant, className }))}
       {...props}
     />
-  )
+  );
 }
 
 function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="empty-title"
-      className={cn(
-        "font-heading text-sm font-medium tracking-tight",
-        className
-      )}
+      className={cn("text-[14px] leading-none font-medium", className)}
       {...props}
     />
-  )
+  );
 }
 
 function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {
@@ -73,12 +75,12 @@ function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {
     <div
       data-slot="empty-description"
       className={cn(
-        "text-sm/relaxed text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
+        "text-[14px] leading-normal text-muted-foreground [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-primary",
         className
       )}
       {...props}
     />
-  )
+  );
 }
 
 function EmptyContent({ className, ...props }: React.ComponentProps<"div">) {
@@ -86,12 +88,12 @@ function EmptyContent({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="empty-content"
       className={cn(
-        "flex w-full max-w-sm min-w-0 flex-col items-center gap-2.5 text-sm text-balance",
+        "flex w-full max-w-sm min-w-0 flex-col items-center gap-2.5 text-[14px] text-balance",
         className
       )}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -101,4 +103,4 @@ export {
   EmptyDescription,
   EmptyContent,
   EmptyMedia,
-}
+};
