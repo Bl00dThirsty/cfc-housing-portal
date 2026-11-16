@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "Crédit Foncier du Cameroun | Épargne Habitat & Guichet Unique",
   description: "Plateforme officielle de la campagne Épargne Habitat et du Guichet Unique dématérialisé du Crédit Foncier du Cameroun (CFC).",
   icons: {
-    icon: "/images/logo-cfc.png",
+    icon: "/favicon.ico",
   },
 };
 

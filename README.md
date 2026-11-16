@@ -1,155 +1,129 @@
-# CFC Housing Portal
+<p align="center">
+  <img src="./public/images/logo-cfc.png" alt="Crédit Foncier du Cameroun" width="340">
+</p>
 
-Application web de gestion du crédit logement et du Guichet Unique CFC, construite avec Next.js et Supabase.
+<h1 align="center">Portail CFC — Épargne Habitat & Guichet Unique</h1>
 
-## Vue d'ensemble
+<p align="center">
+  Portail numérique du Crédit Foncier du Cameroun pour l'épargne habitat,
+  le dépôt des dossiers et le suivi des demandes de financement.
+</p>
 
-Le projet vise à fournir une plateforme CFC complète pour :
+<p align="center">
+  <a href="https://cfc-housing-portal.vercel.app">Ouvrir l'application</a>
+</p>
 
-- la vitrine publique et le simulateur de financement,
-- l'onboarding citoyen et la gestion des dossiers,
-- la connexion des agents et la gestion des rôles,
-- le suivi documentaire et la conformité des dossiers,
-- le pilotage administratif et la supervision des dossiers.
+## Présentation
 
-Le code est structuré autour d'une app Next.js 15, d'un schéma Supabase/Postgres et d'une logique d'authentification et de droits (RBAC) orientée métier.
+Le portail accompagne les citoyens dans la constitution et le suivi de leur
+Dossier Unique Client (DUC), et fournit aux équipes du CFC des espaces de
+travail adaptés à leurs rôles.
 
-## Stack
+### Parcours proposés
 
-- Next.js 15.5.25
-- React 19
-- TypeScript
-- Tailwind CSS
-- Supabase (Auth, Postgres, Storage)
-- Vitest
-- ESLint
+- **Espace public** : simulateur, FAQ, suivi de dossier et vérification de
+  documents.
+- **Espace citoyen** : inscription, dépôt de pièces, suivi de l'épargne et du
+  dossier, notifications.
+- **Espace agent CFC** : traitement des dossiers, gestion documentaire et
+  supervision selon les habilitations.
 
-## Projets et environnement
+## Technologies
 
-Le projet attendu est le projet Supabase CFC :
+- Next.js 15 (App Router) et React 19
+- TypeScript et Tailwind CSS 4
+- Supabase Auth, Postgres et Storage
+- Vitest et ESLint
 
-- project ref : `yyqfqsmsfaccsstwlpog`
+## Démarrage local
 
-Le fichier `.env.example` décrit les variables minimales à renseigner pour le démarrage local.
+### Prérequis
 
-## Démarrage rapide
+- Node.js et npm
+- Un projet Supabase et ses variables d'environnement
 
-### 1) Installer les dépendances
+### Installation
 
 ```bash
 npm install
 ```
 
-### 2) Configurer les variables d'environnement
+Copiez `.env.example` vers `.env.local` :
 
-Copiez le modèle :
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Sur macOS ou Linux :
 
 ```bash
 cp .env.example .env.local
 ```
 
-Puis renseignez :
+Renseignez ensuite les valeurs nécessaires :
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_SITE_URL` (en dev : `http://localhost:3000`)
+| Variable | Usage |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique soumise aux règles RLS |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clé serveur uniquement; ne jamais l'exposer au navigateur |
+| `NEXT_PUBLIC_SITE_URL` | URL du site, par exemple `http://localhost:3000` |
 
-### 3) Démarrer le projet
+Lancez l'application :
 
 ```bash
 npm run dev
 ```
 
-Ouvrez ensuite :
+Ouvrez [http://localhost:3000](http://localhost:3000).
 
-- http://localhost:3000
+## Commandes utiles
+
+| Commande | Description |
+| --- | --- |
+| `npm run dev` | Démarrer le serveur de développement |
+| `npm run build` | Construire l'application |
+| `npm run start` | Démarrer la version construite |
+| `npm run lint` | Exécuter ESLint |
+| `npm run typecheck` | Vérifier les types TypeScript |
+| `npm test` | Exécuter les tests Vitest |
+| `npm run smoke` | Lancer les vérifications fonctionnelles rapides |
+| `npm run db:reset` | Réinitialiser la base Supabase locale |
+| `npm run db:seed:users` | Créer les comptes de démonstration locaux |
 
 ## Supabase
 
-### Authentification / liaison du projet
+Les migrations Postgres et le fichier de seed se trouvent dans `supabase/`.
+Pour réinitialiser la base locale, démarrez Supabase localement puis exécutez
+`npm run db:reset`.
 
-```bash
-supabase login
-supabase link --project-ref yyqfqsmsfaccsstwlpog
-supabase db push
-```
+La commande `supabase db push` applique les migrations à l'instance liée :
+vérifiez toujours le projet ciblé avant de l'exécuter.
 
-### Réinitialiser et recharger la base locale
-
-```bash
-npm run db:reset
-```
-
-### Peupler les utilisateurs de dev
-
-```bash
-npm run db:seed:users
-```
-
-## Scripts disponibles
-
-```bash
-npm run dev          # démarre le serveur de développement
-npm run build        # build de production
-npm run start        # serveur de production
-npm run lint         # vérification ESLint
-npm run typecheck    # vérification TypeScript
-npm run test         # tests Vitest
-npm run smoke        # vérification fonctionnelle rapide
-npm run db:reset     # reset local Supabase database
-npm run db:seed:users # seed utilisateurs de dév
-```
-
-## Structure du projet
+## Structure
 
 ```text
-.
-├── src/
-│   ├── app/              # routes Next.js App Router
-│   ├── components/       # composants UI
-│   ├── config/           # configuration métier / RBAC
-│   ├── domain/           # modèle métier et workflows
-│   ├── lib/              # helpers, filtres, utils, données
-│   ├── server/           # environnement et services serveur
-│   └── stores/           # Zustand stores
-├── supabase/
-│   ├── config.toml
-│   ├── migrations/
-│   └── seed.sql
-├── public/
-├── docs/
-├── scripts/
-├── .env.example
-├── package.json
-├── README.md
-└── next.config.ts
+src/
+  app/          Routes Next.js
+  components/   Composants d'interface
+  config/       Configuration métier et RBAC
+  domain/       Entités et workflows métier
+  lib/          Utilitaires partagés
+  server/       Services côté serveur
+  stores/       État client
+supabase/       Configuration, migrations et seeds
+docs/           Documentation métier et technique
+scripts/        Outils de développement
 ```
 
-## Rôles et parcours
+## Documentation
 
-L'application est dimensionnée pour couvrir plusieurs parcours :
+- [Référence métier et technique](./docs/CFC-GREENFIELD-REFERENCE.md)
+- [Migrations Supabase](./supabase/migrations/)
+- [Variables d'environnement d'exemple](./.env.example)
 
-- portail citoyen / demandeur,
-- parcours d'onboarding,
-- gestion documentaire de dossier,
-- suivi et vérification,
-- console d’administration et rôles internes CFC.
+## Sécurité
 
-La cible fonctionnelle est documentée dans le dossier `docs/` et notamment dans `docs/CFC-GREENFIELD-REFERENCE.md`.
-
-## Documentation de référence
-
-- `docs/CFC-GREENFIELD-REFERENCE.md` : document de cadrage métier et technique du projet CFC.
-- `supabase/seed.sql` : référentiel initial et données de départ.
-- `supabase/migrations/` : migrations de schéma et sécurité.
-
-## Notes importantes
-
-- Le build ne doit pas dépendre d'une configuration Supabase complète au chargement du module ; les variables sont validées avec tolérance lors des accès réellement nécessaires.
-- Les URLs publiques de callback doivent utiliser `NEXT_PUBLIC_SITE_URL`.
-- Ne commitez pas les vraies clés de production ni le contenu de `.env.local`.
-
-## Contribution
-
-Les changements fonctionnels et les évolutions sont à valider dans le contexte du projet CFC, en respectant le schéma de données Supabase, les règles RBAC et les parcours métier documentés.
+Ne commitez jamais `.env.local`, des identifiants réels ou des clés de
+production. `SUPABASE_SERVICE_ROLE_KEY` contourne les politiques RLS : elle
+doit rester strictement côté serveur.
