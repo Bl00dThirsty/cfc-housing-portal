@@ -14,7 +14,6 @@ import {
   Landmark,
   Percent,
   Printer,
-  Search,
   Smartphone,
   Target,
   TrendingUp,
@@ -22,25 +21,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn, formatFCFA } from "@/lib/utils";
 
 import type {
@@ -48,8 +35,8 @@ import type {
   SavingsChannel,
   SavingsPassbook,
   SavingsTransaction,
-  SavingsTransactionType,
 } from "@/domain/entities/client";
+import { parseCfcDate } from "@/domain/entities/dates";
 import {
   buildSavingsCsv,
   buildSavingsStatementHtml,
@@ -119,7 +106,134 @@ const statusBadge: Record<
   },
 };
 
-const ITEMS_PER_PAGE = 10;
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "client-savings-passbook";
+
+/**
+ * Les colonnes du carnet d'épargne.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const SAVINGS_COLUMNS: DataColumn<SavingsTransaction>[] = [
+  {
+    key: "date",
+    label: "Date",
+    // La date est **lue par le domaine** (`JJ/MM/AAAA`) : triée
+    // alphabétiquement, « 15/01/2026 » viendrait après « 02/09/2026 ».
+    accessor: (row) => parseCfcDate(row.date),
+    render: (row) => row.date,
+    headerClassName: "w-[85px]",
+    cellClassName: "font-mono text-[10.5px]",
+  },
+  {
+    key: "type",
+    label: "Type",
+    accessor: (row) => row.type,
+    filterable: true,
+    groupable: true,
+    headerClassName: "w-[70px]",
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={
+          row.type === "Dépôt" || row.type === "Intérêts"
+            ? "text-[9px] bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 border-transparent rounded-md px-1.5 gap-0.5"
+            : "text-[9px] bg-rose-500/10 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 border-transparent rounded-md px-1.5 gap-0.5"
+        }
+      >
+        {row.type === "Dépôt" || row.type === "Intérêts" ? (
+          <ArrowDownLeft className="size-2.5" />
+        ) : (
+          <ArrowUpRight className="size-2.5" />
+        )}
+        {row.type}
+      </Badge>
+    ),
+  },
+  {
+    key: "description",
+    label: "Libellé",
+    accessor: (row) => row.description,
+    cellClassName: "max-w-[200px] truncate",
+  },
+  {
+    key: "channel",
+    label: "Canal",
+    accessor: (row) => row.channel,
+    filterable: true,
+    groupable: true,
+    headerClassName: "w-[160px]",
+    // La donnée porte le nom complet ; la facette et l'en-tête de groupe
+    // portent le nom court — comme la cellule.
+    groupLabel: (value) => value.replace("Virement SWIFT (Diaspora)", "SWIFT"),
+    facetLabel: (value) => value.replace("Virement SWIFT (Diaspora)", "SWIFT"),
+    render: (row) => {
+      const chCfg = channelConfig[row.channel];
+      return (
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[9px] rounded-md px-1.5 gap-1 border-transparent font-medium",
+            chCfg.color
+          )}
+        >
+          {chCfg.icon}
+          {row.channel.replace("Virement SWIFT (Diaspora)", "SWIFT")}
+        </Badge>
+      );
+    },
+  },
+  {
+    key: "reference",
+    label: "Référence",
+    accessor: (row) => row.reference,
+    headerClassName: "w-[120px]",
+    cellClassName: "font-mono text-[10px] text-muted-foreground",
+  },
+  {
+    key: "debit",
+    label: "Débit",
+    accessor: (row) => row.debit,
+    render: (row) =>
+      row.debit != null ? (
+        <span className="text-rose-600 dark:text-rose-400 font-semibold">
+          -{row.debit.toLocaleString("fr-FR")}
+        </span>
+      ) : (
+        <span className="text-muted-foreground/40">—</span>
+      ),
+    align: "right",
+    headerClassName: "w-[110px]",
+    cellClassName: "font-mono text-[10.5px]",
+  },
+  {
+    key: "credit",
+    label: "Crédit",
+    accessor: (row) => row.credit,
+    render: (row) =>
+      row.credit != null ? (
+        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+          +{row.credit.toLocaleString("fr-FR")}
+        </span>
+      ) : (
+        <span className="text-muted-foreground/40">—</span>
+      ),
+    align: "right",
+    headerClassName: "w-[110px]",
+    cellClassName: "font-mono text-[10.5px]",
+  },
+  {
+    key: "balance",
+    label: "Solde",
+    accessor: (row) => row.balance,
+    render: (row) => row.balance.toLocaleString("fr-FR"),
+    align: "right",
+    headerClassName: "w-[120px]",
+    cellClassName: "font-mono text-[10.5px] font-bold",
+  },
+];
 
 /* ── Main Component ─────────────────────────────────────────────── */
 
@@ -136,24 +250,34 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
   );
   const [localBalance, setLocalBalance] = React.useState(passbook?.currentBalance ?? 0);
 
+  // New transaction dialog
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   *
+   * La recherche, les facettes (type, canal) et le tri sont ceux du moteur
+   * partagé : l'écran n'a plus de barre de filtres sur mesure.
+   */
+  const { groups, reset } = useDataTable({
+    tableId: TABLE_ID,
+    columns: SAVINGS_COLUMNS,
+    rows: localTransactions,
+  });
+
+  const visibleTransactions = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups]
+  );
+
   // Reset when client changes
   React.useEffect(() => {
     setLocalTransactions(client.savingsPassbook?.transactions ?? []);
     setLocalBalance(client.savingsPassbook?.currentBalance ?? 0);
-    setPage(1);
-    setSearchQuery("");
-    setTypeFilter("all");
-    setChannelFilter("all");
-  }, [client.id, client.savingsPassbook?.transactions, client.savingsPassbook?.currentBalance]);
-
-  // Filters
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [typeFilter, setTypeFilter] = React.useState<SavingsTransactionType | "all">("all");
-  const [channelFilter, setChannelFilter] = React.useState<SavingsChannel | "all">("all");
-  const [page, setPage] = React.useState(1);
-
-  // New transaction dialog
-  const [dialogOpen, setDialogOpen] = React.useState(false);
+    // Le filtre du moteur est lui aussi remis à zéro : un carnet ne
+    // s'ouvre pas sur la recherche du carnet précédent.
+    reset();
+  }, [client.id, client.savingsPassbook?.transactions, client.savingsPassbook?.currentBalance, reset]);
 
   if (!passbook) {
     return (
@@ -170,29 +294,6 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
   const savingsPercent = Math.min(
     100,
     Math.round((localBalance / passbook.savingsTarget) * 100)
-  );
-
-  // Filtered transactions
-  const filtered = localTransactions.filter((tx) => {
-    if (typeFilter !== "all" && tx.type !== typeFilter) return false;
-    if (channelFilter !== "all" && tx.channel !== channelFilter) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      if (
-        !tx.description.toLowerCase().includes(q) &&
-        !tx.reference.toLowerCase().includes(q) &&
-        !tx.date.includes(q)
-      )
-        return false;
-    }
-    return true;
-  });
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const safePage = Math.min(page, totalPages);
-  const paged = filtered.slice(
-    (safePage - 1) * ITEMS_PER_PAGE,
-    safePage * ITEMS_PER_PAGE
   );
 
   // Handle new transaction
@@ -220,7 +321,6 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
 
     setLocalTransactions((prev) => [newTx, ...prev]);
     setLocalBalance(newBalance);
-    setPage(1);
 
     toast.success(
       isDeposit ? "Versement enregistré." : "Retrait enregistré.",
@@ -235,12 +335,12 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
    * complet : un export qui ne correspond pas à l'écran trompte l'agent.
    */
   const handleExportCsv = () => {
-    if (filtered.length === 0) {
+    if (visibleTransactions.length === 0) {
       toast.error("Aucune opération à exporter.");
       return;
     }
 
-    const csv = buildSavingsCsv(filtered);
+    const csv = buildSavingsCsv(visibleTransactions);
     const blob = new Blob([SAVINGS_CSV_BOM, csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -250,7 +350,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
     URL.revokeObjectURL(url);
 
     toast.success("Relevé exporté.", {
-      description: `${filtered.length} opération${filtered.length > 1 ? "s" : ""} au format CSV.`,
+      description: `${visibleTransactions.length} opération${visibleTransactions.length > 1 ? "s" : ""} au format CSV.`,
     });
   };
 
@@ -267,7 +367,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
         accountNumber: passbook.accountNumber,
         clientName: client.name,
         balance: localBalance,
-        transactions: filtered,
+        transactions: visibleTransactions,
       }),
     );
     printWindow.document.close();
@@ -410,192 +510,29 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
 
       {/* ── Section B: Transaction History ──────────────── */}
       <div className="rounded-lg border bg-card shadow-xs">
-        {/* Filter bar */}
-        <div className="flex flex-col md:flex-row md:items-center gap-2 p-3 border-b">
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher (libellé, réf, date)…"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
-              className="pl-8 h-7 text-xs"
-            />
-          </div>
-
-          <Select
-            value={typeFilter}
-            onValueChange={(v) => {
-              setTypeFilter(v as SavingsTransactionType | "all");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[150px] h-7 text-xs">
-              <SelectValue placeholder="Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les types</SelectItem>
-              <SelectItem value="Dépôt">Dépôt</SelectItem>
-              <SelectItem value="Retrait">Retrait</SelectItem>
-              <SelectItem value="Intérêts">Intérêts</SelectItem>
-              <SelectItem value="Frais">Frais</SelectItem>
-              <SelectItem value="Ajustement">Ajustement</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={channelFilter}
-            onValueChange={(v) => {
-              setChannelFilter(v as SavingsChannel | "all");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[200px] h-7 text-xs">
-              <SelectValue placeholder="Canal" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les canaux</SelectItem>
-              <SelectItem value="Guichet CFC">Guichet CFC</SelectItem>
-              <SelectItem value="Mobile Money MTN">Mobile Money MTN</SelectItem>
-              <SelectItem value="Mobile Money Orange">Mobile Money Orange</SelectItem>
-              <SelectItem value="Virement Bancaire">Virement Bancaire</SelectItem>
-              <SelectItem value="SYSTAC">SYSTAC</SelectItem>
-              <SelectItem value="Prélèvement Employeur">Prélèvement Employeur</SelectItem>
-              <SelectItem value="Virement SWIFT (Diaspora)">SWIFT (Diaspora)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <span className="text-[10.5px] text-muted-foreground ml-auto">
-            {filtered.length} opération{filtered.length > 1 ? "s" : ""}
-          </span>
+        {/* Barre d'outils — la recherche, les facettes (type, canal) et le
+            tri sont ceux du moteur partagé. */}
+        <div className="border-b p-3">
+          <DataTableToolbar
+            tableId={TABLE_ID}
+            columns={SAVINGS_COLUMNS}
+            rows={localTransactions}
+            unitName="opérations"
+            searchPlaceholder="Rechercher (libellé, réf, date)…"
+          />
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="text-[10.5px]">
-                <TableHead className="w-[85px]">Date</TableHead>
-                <TableHead className="w-[70px]">Type</TableHead>
-                <TableHead>Libellé</TableHead>
-                <TableHead className="w-[160px]">Canal</TableHead>
-                <TableHead className="w-[120px]">Référence</TableHead>
-                <TableHead className="text-right w-[110px]">Débit</TableHead>
-                <TableHead className="text-right w-[110px]">Crédit</TableHead>
-                <TableHead className="text-right w-[120px]">Solde</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paged.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-xs text-muted-foreground">
-                    Aucune opération trouvée.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paged.map((tx) => {
-                  const chCfg = channelConfig[tx.channel];
-                  return (
-                    <TableRow key={tx.id} className="text-xs">
-                      <TableCell className="font-mono text-[10.5px]">
-                        {tx.date}
-                      </TableCell>
-                      <TableCell>
-                        {tx.type === "Dépôt" || tx.type === "Intérêts" ? (
-                          <Badge
-                            variant="secondary"
-                            className="text-[9px] bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 border-transparent rounded-md px-1.5 gap-0.5"
-                          >
-                            <ArrowDownLeft className="size-2.5" />
-                            {tx.type}
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="secondary"
-                            className="text-[9px] bg-rose-500/10 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 border-transparent rounded-md px-1.5 gap-0.5"
-                          >
-                            <ArrowUpRight className="size-2.5" />
-                            {tx.type}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {tx.description}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[9px] rounded-md px-1.5 gap-1 border-transparent font-medium",
-                            chCfg.color
-                          )}
-                        >
-                          {chCfg.icon}
-                          {tx.channel.replace("Virement SWIFT (Diaspora)", "SWIFT")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-[10px] text-muted-foreground">
-                        {tx.reference}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-[10.5px]">
-                        {tx.debit != null ? (
-                          <span className="text-rose-600 dark:text-rose-400 font-semibold">
-                            -{tx.debit.toLocaleString("fr-FR")}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/40">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-[10.5px]">
-                        {tx.credit != null ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                            +{tx.credit.toLocaleString("fr-FR")}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/40">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-[10.5px] font-bold">
-                        {tx.balance.toLocaleString("fr-FR")}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-3 py-2 border-t">
-            <span className="text-[10.5px] text-muted-foreground">
-              Page {safePage} / {totalPages}
-            </span>
-            <div className="flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-[10px] px-2 rounded-md"
-                disabled={safePage <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Précédent
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-[10px] px-2 rounded-md"
-                disabled={safePage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Suivant
-              </Button>
-            </div>
-          </div>
-        )}
+        <DataTable
+          tableId={TABLE_ID}
+          columns={SAVINGS_COLUMNS}
+          rows={visibleTransactions}
+          getRowId={(transaction) => transaction.id}
+          emptyLabel="Aucune opération trouvée."
+          className="rounded-none border-0 shadow-none"
+          headClassName="text-[10.5px]"
+          rowClassName="text-xs"
+        />
       </div>
 
       {/* ── New Transaction Dialog ──────────────────────── */}

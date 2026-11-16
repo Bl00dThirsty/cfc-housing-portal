@@ -16,9 +16,12 @@ import {
   ChevronRight,
   Percent,
 } from "lucide-react";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Progress } from "@/components/ui/progress";
 
 interface SimulationDetail {
@@ -46,6 +49,15 @@ interface SimulationDetail {
   remainingIncome: string;
   landArea: string;
   estimatedPropertyValue: string;
+}
+
+interface AmortizationRow {
+  period: string;
+  principal: string;
+  interest: string;
+  insurance: string;
+  total: string;
+  crd: string;
 }
 
 const simulationsDatabase: Record<string, SimulationDetail> = {
@@ -129,6 +141,82 @@ const simulationsDatabase: Record<string, SimulationDetail> = {
   },
 };
 
+/** L'échéancier prévisionnel d'amortissement (années clés). */
+const amortizationSchedule: AmortizationRow[] = [
+  { period: "Année 1 (Différé Travaux)", principal: "0 FCFA", interest: "69 375 FCFA", insurance: "8 200 FCFA", total: "77 575 FCFA", crd: "18 500 000 FCFA" },
+  { period: "Année 2 (Début Amortissement)", principal: "62 100 FCFA", interest: "65 100 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "17 754 800 FCFA" },
+  { period: "Année 5", principal: "71 200 FCFA", interest: "56 000 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "15 310 000 FCFA" },
+  { period: "Année 10", principal: "89 400 FCFA", interest: "37 800 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "10 520 000 FCFA" },
+  { period: "Année 15", principal: "112 000 FCFA", interest: "15 200 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "4 890 000 FCFA" },
+  { period: "Année 20 (Dernière Échéance)", principal: "127 200 FCFA", interest: "0 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "0 FCFA (Soldé)" },
+];
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "analytics-simulation-detail";
+
+/**
+ * Les colonnes de l'échéancier d'amortissement.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const AMORTIZATION_COLUMNS: DataColumn<AmortizationRow>[] = [
+  {
+    key: "period",
+    label: "Période / Année",
+    // Le tri porte sur le **numéro d'année** : « Année 10 » se compare à
+    // « Année 2 » par son chiffre, pas alphabétiquement. Le libellé complet
+    // reste trouvable par la recherche.
+    accessor: (row) => Number(/Année\s+(\d+)/.exec(row.period)?.[1] ?? 0),
+    searchValues: (row) => [row.period],
+    render: (row) => row.period,
+    cellClassName: "px-3 py-2.5 text-xs font-medium text-foreground",
+  },
+  {
+    key: "principal",
+    label: "Capital Amorti",
+    accessor: (row) => Number(row.principal.replace(/\D/g, "")),
+    render: (row) => row.principal,
+    align: "right",
+    cellClassName: "px-3 py-2.5 text-right font-mono text-xs text-muted-foreground",
+  },
+  {
+    key: "interest",
+    label: "Intérêts",
+    accessor: (row) => Number(row.interest.replace(/\D/g, "")),
+    render: (row) => row.interest,
+    align: "right",
+    cellClassName: "px-3 py-2.5 text-right font-mono text-xs text-muted-foreground",
+  },
+  {
+    key: "insurance",
+    label: "Assurance ADI",
+    accessor: (row) => Number(row.insurance.replace(/\D/g, "")),
+    render: (row) => row.insurance,
+    align: "right",
+    cellClassName: "px-3 py-2.5 text-right font-mono text-xs text-muted-foreground",
+  },
+  {
+    key: "total",
+    label: "Mensualité Globale",
+    accessor: (row) => Number(row.total.replace(/\D/g, "")),
+    render: (row) => row.total,
+    align: "right",
+    cellClassName:
+      "px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground",
+  },
+  {
+    key: "crd",
+    label: "Capital Restant Dû",
+    accessor: (row) => Number(row.crd.replace(/\D/g, "")),
+    render: (row) => row.crd,
+    align: "right",
+    cellClassName:
+      "px-3 py-2.5 text-right font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400",
+  },
+];
+
 export default function SimulationDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -139,6 +227,20 @@ export default function SimulationDetailPage() {
     id,
     simRef: `SIM-CFC-2026-${id}`,
   };
+
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: AMORTIZATION_COLUMNS,
+    rows: amortizationSchedule,
+  });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   */
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -309,39 +411,22 @@ export default function SimulationDetailPage() {
               <span className="text-xs text-muted-foreground">Annuités constantes</span>
             </div>
 
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs font-medium text-foreground px-3">Période / Année</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground text-right px-3">Capital Amorti</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground text-right px-3">Intérêts</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground text-right px-3">Assurance ADI</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground text-right px-3">Mensualité Globale</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground text-right px-3">Capital Restant Dû</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { period: "Année 1 (Différé Travaux)", principal: "0 FCFA", interest: "69 375 FCFA", insurance: "8 200 FCFA", total: "77 575 FCFA", crd: "18 500 000 FCFA" },
-                    { period: "Année 2 (Début Amortissement)", principal: "62 100 FCFA", interest: "65 100 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "17 754 800 FCFA" },
-                    { period: "Année 5", principal: "71 200 FCFA", interest: "56 000 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "15 310 000 FCFA" },
-                    { period: "Année 10", principal: "89 400 FCFA", interest: "37 800 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "10 520 000 FCFA" },
-                    { period: "Année 15", principal: "112 000 FCFA", interest: "15 200 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "4 890 000 FCFA" },
-                    { period: "Année 20 (Dernière Échéance)", principal: "127 200 FCFA", interest: "0 FCFA", insurance: "8 200 FCFA", total: "135 400 FCFA", crd: "0 FCFA (Soldé)" },
-                  ].map((row, idx) => (
-                    <TableRow key={idx} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="px-3 py-2.5 text-xs font-medium text-foreground">{row.period}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground">{row.principal}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground">{row.interest}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-right font-mono text-xs text-muted-foreground">{row.insurance}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">{row.total}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400">{row.crd}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTableToolbar
+              tableId={TABLE_ID}
+              columns={AMORTIZATION_COLUMNS}
+              rows={amortizationSchedule}
+              unitName="échéances"
+              searchPlaceholder="Rechercher une année, un montant..."
+            />
+
+            <DataTable
+              tableId={TABLE_ID}
+              columns={AMORTIZATION_COLUMNS}
+              rows={visible}
+              getRowId={(row) => row.period}
+              emptyLabel="Aucune échéance ne correspond aux filtres appliqués."
+              headClassName="bg-muted/40"
+            />
           </div>
         </div>
 

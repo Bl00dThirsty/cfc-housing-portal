@@ -1,13 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 import { getInitials } from "@/lib/utils";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-disbursements-schedules";
 
 const scheduleKpis: ActorKpiItem[] = [
   {
@@ -52,7 +60,20 @@ const scheduleKpis: ActorKpiItem[] = [
   },
 ];
 
-const scheduleRecords = [
+export interface ScheduleRecordItem {
+  id: string;
+  ref: string;
+  client: string;
+  ducId: string;
+  initialPrincipal: string;
+  durationGrace: string;
+  monthlyPayment: string;
+  remainingBalance: string;
+  status: string;
+  nextDueDate: string;
+}
+
+const scheduleRecords: ScheduleRecordItem[] = [
   {
     id: "sch1",
     ref: "AMORT-2026-00912",
@@ -133,15 +154,207 @@ const scheduleStatusStyles: Record<string, string> = {
   "Soldé par Anticipation": "bg-slate-500/10 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300",
 };
 
-export default function SchedulesPage() {
-  const [search, setSearch] = React.useState("");
+/**
+ * Les colonnes du tableau des échéanciers.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const SCHEDULE_COLUMNS: DataColumn<ScheduleRecordItem>[] = [
+  {
+    key: "ref",
+    label: "Réf. Échéancier",
+    accessor: (row) => row.ref,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ref}
+      </Badge>
+    ),
+  },
+  {
+    key: "client",
+    label: "Emprunteur",
+    accessor: (row) => row.client,
+    // Un emprunteur par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 rounded-lg">
+          <AvatarFallback className="rounded-lg text-xs font-semibold bg-teal-500/15 text-teal-800">
+            {getInitials(row.client)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="font-semibold text-xs text-foreground truncate">{row.client}</span>
+      </div>
+    ),
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <span className="font-mono text-[11px] text-muted-foreground">{row.ducId}</span>
+    ),
+  },
+  {
+    key: "initialPrincipal",
+    label: "Capital Prêté",
+    // Le tri porte sur la **valeur** : « 18 000 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.initialPrincipal.replace(/\D/g, "")),
+    render: (row) => row.initialPrincipal,
+    align: "right",
+  },
+  {
+    key: "durationGrace",
+    label: "Durée & Différé",
+    accessor: (row) => row.durationGrace,
+    // Un amortissement par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+  },
+  {
+    key: "monthlyPayment",
+    label: "Mensualité",
+    accessor: (row) => Number(row.monthlyPayment.replace(/\D/g, "")),
+    render: (row) => row.monthlyPayment,
+    align: "right",
+  },
+  {
+    key: "remainingBalance",
+    label: "Capital Restant Dû",
+    accessor: (row) => Number(row.remainingBalance.replace(/\D/g, "")),
+    render: (row) => row.remainingBalance,
+    align: "right",
+  },
+  {
+    key: "status",
+    label: "Statut Prêt",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${scheduleStatusStyles[row.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "nextDueDate",
+    label: "Prochaine Échéance",
+    // La source mêle des dates écrites et un état (« Prêt Clôturé ») : elle
+    // n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.nextDueDate,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
 
-  const filtered = scheduleRecords.filter(
-    (s) =>
-      s.client.toLowerCase().includes(search.toLowerCase()) ||
-      s.ref.toLowerCase().includes(search.toLowerCase()) ||
-      s.ducId.toLowerCase().includes(search.toLowerCase())
+export default function SchedulesPage() {
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: SCHEDULE_COLUMNS,
+    rows: scheduleRecords,
+  });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   *
+   * Le moteur a appliqué la recherche, les facettes et le tri ; le tableau
+   * reçoit donc ses lignes déjà ordonnées.
+   */
+  const visibleRecords = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: ScheduleRecordItem;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("ref")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-medium text-xs text-muted-foreground">
+          {cell("initialPrincipal")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground">
+          {cell("durationGrace")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+          {cell("monthlyPayment")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+          {cell("remainingBalance")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+          {cell("nextDueDate")}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-2.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-foreground"
+          >
+            <Eye className="size-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("echeanciers-actifs.csv", [
+      [
+        "Réf. Échéancier",
+        "Emprunteur",
+        "Identifiant DUC",
+        "Capital Prêté",
+        "Durée & Différé",
+        "Mensualité",
+        "Capital Restant Dû",
+        "Statut Prêt",
+        "Prochaine Échéance",
+      ],
+      ...scheduleRecords.map((item) => [
+        item.ref,
+        item.client,
+        item.ducId,
+        item.initialPrincipal,
+        item.durationGrace,
+        item.monthlyPayment,
+        item.remainingBalance,
+        item.status,
+        item.nextDueDate,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -163,107 +376,34 @@ export default function SchedulesPage() {
             Calcul actuariel des échéanciers de prêt, suivi des différés d&apos;amortissement en phase travaux, ventilation capital/intérêts et gestion des remboursements anticipés.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Échéanciers Actifs
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
       <ActorKpiStrip items={scheduleKpis} />
 
       {/* Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par référence échéancier, emprunteur ou N° DUC..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <p className="text-xs text-muted-foreground">
+          Amortissement constant &amp; annuités constantes · Core Banking Carthago
+        </p>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Amortissement constant &amp; annuités constantes · Core Banking Carthago</span>
-          </div>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={SCHEDULE_COLUMNS}
+          rows={scheduleRecords}
+          unitName="échéanciers"
+          searchPlaceholder="Rechercher par référence échéancier, emprunteur ou N° DUC..."
+          onExport={handleExport}
+        />
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Réf. Échéancier</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Capital Prêté</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Durée &amp; Différé</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Mensualité</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Capital Restant Dû</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Prêt</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Prochaine Échéance</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ref}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-teal-500/15 text-teal-800">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <span className="font-mono text-[11px] text-muted-foreground">{item.ducId}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-medium text-xs text-muted-foreground">
-                    {item.initialPrincipal}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">
-                    {item.durationGrace}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.monthlyPayment}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.remainingBalance}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${scheduleStatusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.nextDueDate}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={SCHEDULE_COLUMNS}
+          rows={visibleRecords}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun échéancier ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

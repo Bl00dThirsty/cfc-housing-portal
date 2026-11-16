@@ -1,11 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-disbursements-systac";
 
 const systacKpis: ActorKpiItem[] = [
   {
@@ -50,7 +58,19 @@ const systacKpis: ActorKpiItem[] = [
   },
 ];
 
-const systacRecords = [
+export interface SystacTransferItem {
+  id: string;
+  ref: string;
+  beneficiary: string;
+  ducId: string;
+  bank: string;
+  amount: string;
+  flowType: string;
+  status: string;
+  timestamp: string;
+}
+
+const systacRecords: SystacTransferItem[] = [
   {
     id: "sys1",
     ref: "SYS-2026-VIR-04812",
@@ -125,17 +145,182 @@ const systacStatusStyles: Record<string, string> = {
   "Rejeté (RIB non conforme)": "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
-export default function SystacPage() {
-  const [search, setSearch] = React.useState("");
+/**
+ * Les colonnes du journal des télécompensations SYSTAC.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const SYSTAC_COLUMNS: DataColumn<SystacTransferItem>[] = [
+  {
+    key: "ref",
+    label: "Réf. Virement SYSTAC",
+    accessor: (row) => row.ref,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ref}
+      </Badge>
+    ),
+  },
+  {
+    key: "beneficiary",
+    label: "Bénéficiaire des Fonds",
+    accessor: (row) => row.beneficiary,
+    // Un bénéficiaire par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <span className="font-mono text-[11px] text-muted-foreground">{row.ducId}</span>
+    ),
+  },
+  {
+    key: "bank",
+    label: "Banque Domiciliataire",
+    accessor: (row) => row.bank,
+    filterable: true,
+  },
+  {
+    key: "flowType",
+    label: "Nature du Règlement",
+    accessor: (row) => row.flowType,
+    filterable: true,
+  },
+  {
+    key: "amount",
+    label: "Montant Virement",
+    // Le tri porte sur la **valeur** : « 6 400 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.amount.replace(/\D/g, "")),
+    render: (row) => row.amount,
+    align: "right",
+  },
+  {
+    key: "status",
+    label: "Statut Télécompensation",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${systacStatusStyles[row.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "timestamp",
+    label: "Date & Heure",
+    // La source mêle des dates relatives (« Aujourd'hui, 11:20 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.timestamp,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
 
-  const filtered = systacRecords.filter(
-    (s) =>
-      s.beneficiary.toLowerCase().includes(search.toLowerCase()) ||
-      s.ref.toLowerCase().includes(search.toLowerCase()) ||
-      s.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      s.bank.toLowerCase().includes(search.toLowerCase()) ||
-      s.flowType.toLowerCase().includes(search.toLowerCase())
+export default function SystacPage() {
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: SYSTAC_COLUMNS,
+    rows: systacRecords,
+  });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   *
+   * Le moteur a appliqué la recherche, les facettes et le tri ; le tableau
+   * reçoit donc ses lignes déjà ordonnées.
+   */
+  const visibleRecords = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: SystacTransferItem;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("ref")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs font-semibold text-foreground">
+          {cell("beneficiary")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground">{cell("bank")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px]">
+          <span className="truncate block">{cell("flowType")}</span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
+          {cell("amount")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+          {cell("timestamp")}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-2.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-foreground"
+          >
+            <Eye className="size-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("journal-systac.csv", [
+      [
+        "Réf. Virement SYSTAC",
+        "Bénéficiaire des Fonds",
+        "Identifiant DUC",
+        "Banque Domiciliataire",
+        "Nature du Règlement",
+        "Montant Virement",
+        "Statut Télécompensation",
+        "Date & Heure",
+      ],
+      ...systacRecords.map((item) => [
+        item.ref,
+        item.beneficiary,
+        item.ducId,
+        item.bank,
+        item.flowType,
+        item.amount,
+        item.status,
+        item.timestamp,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -157,96 +342,34 @@ export default function SystacPage() {
             Émission des ordres de virement interbancaires, règlement des déblocages de tranches travaux et réconciliation automatique avec la plateforme SYSTAC.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Journal SYSTAC
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
       <ActorKpiStrip items={systacKpis} />
 
       {/* Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par référence, bénéficiaire, banque ou type de flux..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <p className="text-xs text-muted-foreground">
+          Règlement interbancaire en temps réel · Système National des Règlements (BEAC)
+        </p>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Règlement interbancaire en temps réel · Système National des Règlements (BEAC)</span>
-          </div>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={SYSTAC_COLUMNS}
+          rows={systacRecords}
+          unitName="virements"
+          searchPlaceholder="Rechercher par référence, bénéficiaire, banque ou type de flux..."
+          onExport={handleExport}
+        />
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Réf. Virement SYSTAC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Bénéficiaire des Fonds</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Banque Domiciliataire</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Nature du Règlement</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant Virement</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Télécompensation</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date &amp; Heure</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ref}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs font-semibold text-foreground">
-                    {item.beneficiary}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <span className="font-mono text-[11px] text-muted-foreground">{item.ducId}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">
-                    {item.bank}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px]">
-                    <span className="truncate block">{item.flowType}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
-                    {item.amount}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${systacStatusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.timestamp}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={SYSTAC_COLUMNS}
+          rows={visibleRecords}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun virement ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

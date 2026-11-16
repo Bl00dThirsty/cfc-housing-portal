@@ -2,13 +2,17 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, Download, MoreHorizontal, ArrowRight, FileText, CreditCard } from "lucide-react";
+import { MoreHorizontal, ArrowRight, FileText, CreditCard, Download } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { downloadCsv } from "@/lib/csv";
 import { getInitials } from "@/lib/utils";
 
 const epargnantsKpis: ActorKpiItem[] = [
@@ -186,19 +191,272 @@ const segmentStyles: Record<string, string> = {
   "Collectif": "bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300",
 };
 
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "analytics-epargnants";
+
+/**
+ * Les colonnes du tableau des épargnants.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const SAVER_COLUMNS: DataColumn<SaverRecord>[] = [
+  {
+    key: "client",
+    label: "Épargnant",
+    accessor: (row) => row.client,
+    // La profession est affichée **sous le nom** dans la ligne : elle n'est
+    // pas une colonne, mais elle reste trouvable par la recherche.
+    searchValues: (row) => [row.profession],
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 rounded-lg">
+          <AvatarFallback className="rounded-lg text-xs font-semibold bg-primary/10 text-primary">
+            {getInitials(row.client)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col min-w-0">
+          <span className="font-semibold text-xs text-foreground truncate">
+            {row.client}
+          </span>
+          <span className="text-[11px] text-muted-foreground truncate">
+            {row.profession}
+          </span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "accountNumber",
+    label: "N° Compte Carthago",
+    accessor: (row) => row.accountNumber,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.accountNumber}
+      </Badge>
+    ),
+  },
+  {
+    key: "segment",
+    label: "Segment",
+    accessor: (row) => row.segment,
+    // La facette remplace les anciens boutons « Tous / Diaspora / Public ».
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${segmentStyles[row.segment] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.segment}
+      </Badge>
+    ),
+  },
+  {
+    key: "currentBalance",
+    label: "Épargne Réalisée",
+    // Le tri porte sur la **valeur** : « 4 800 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.currentBalance.replace(/\D/g, "")),
+    render: (row) => row.currentBalance,
+    align: "right",
+  },
+  {
+    key: "targetBalance",
+    label: "Objectif Apport",
+    // La colonne porte l'objectif ; le taux d'avancement affiché à côté reste
+    // trouvable par la recherche.
+    accessor: (row) => Number(row.targetBalance.replace(/\D/g, "")),
+    searchValues: (row) => [`${row.progressPercent}%`],
+    render: (row) => (
+      <div className="flex flex-col gap-1 min-w-[100px]">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-muted-foreground font-mono">
+            {row.targetBalance}
+          </span>
+          <span className="font-semibold text-foreground">
+            {row.progressPercent}%
+          </span>
+        </div>
+        <Progress value={row.progressPercent} className="h-1.5" />
+      </div>
+    ),
+  },
+  {
+    key: "agency",
+    label: "Agence Rattachement",
+    accessor: (row) => row.agency,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "lastDepositDate",
+    label: "Dernier Dépôt",
+    // La source mêle des dates relatives (« Aujourd'hui, 09:15 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.lastDepositDate,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions porte un menu, pas une valeur : elle n'est ni
+    // triable ni filtrable.
+    key: "action",
+    label: "Actions",
+    sortable: false,
+    align: "right",
+  },
+];
+
 export function EpargnantsTab() {
   const router = useRouter();
-  const [search, setSearch] = React.useState("");
-  const [selectedSegment, setSelectedSegment] = React.useState<string>("all");
 
-  const filtered = saversList.filter((s) => {
-    const matchesSearch =
-      s.client.toLowerCase().includes(search.toLowerCase()) ||
-      s.accountNumber.toLowerCase().includes(search.toLowerCase()) ||
-      s.agency.toLowerCase().includes(search.toLowerCase());
-    const matchesSegment = selectedSegment === "all" || s.segment === selectedSegment;
-    return matchesSearch && matchesSegment;
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: SAVER_COLUMNS,
+    rows: saversList,
   });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   */
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      row,
+      cell,
+    }: {
+      row: SaverRecord;
+      cell: (key: string) => React.ReactNode;
+    }) => {
+      const openSaver = () =>
+        router.push(`/portail-cfc/analytics/savers/${row.id}`);
+
+      return (
+        <TableRow
+          onClick={openSaver}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openSaver();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label={`Ouvrir le dossier d'épargne de ${row.client}`}
+          className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+          <TableCell className="px-3 py-2.5">{cell("accountNumber")}</TableCell>
+          <TableCell className="px-3 py-2.5">{cell("segment")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
+            {cell("currentBalance")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5">{cell("targetBalance")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+            {cell("agency")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+            {cell("lastDepositDate")}
+          </TableCell>
+          <TableCell
+            className="text-right pr-4 py-2.5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-muted-foreground hover:text-foreground"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
+                <DropdownMenuLabel className="text-xs font-semibold">
+                  Actions Épargnant
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={openSaver}
+                  className="cursor-pointer text-xs"
+                >
+                  <FileText className="size-3.5 mr-2 text-muted-foreground" />
+                  Consulter le dossier d&apos;épargne
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={openSaver}
+                  className="cursor-pointer text-xs"
+                >
+                  <CreditCard className="size-3.5 mr-2 text-muted-foreground" />
+                  Extrait des versements (Carthago)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={openSaver}
+                  className="cursor-pointer text-xs"
+                >
+                  <Download className="size-3.5 mr-2 text-muted-foreground" />
+                  Attestation de capacité d&apos;apport
+                </DropdownMenuItem>
+                {row.progressPercent >= 100 && (
+                  <DropdownMenuItem
+                    onClick={openSaver}
+                    className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium"
+                  >
+                    <ArrowRight className="size-3.5 mr-2" />
+                    Initier le passage en crédit DUC
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TableCell>
+        </TableRow>
+      );
+    },
+    [router],
+  );
+
+  const handleExport = () => {
+    downloadCsv("epargnants-cfc.csv", [
+      [
+        "N° Compte",
+        "Épargnant",
+        "Profession",
+        "Segment",
+        "Agence",
+        "Épargne Réalisée",
+        "Objectif Apport",
+        "Avancement",
+        "Dernier Dépôt",
+      ],
+      ...saversList.map((row) => [
+        row.accountNumber,
+        row.client,
+        row.profession,
+        row.segment,
+        row.agency,
+        row.currentBalance,
+        row.targetBalance,
+        `${row.progressPercent}%`,
+        row.lastDepositDate,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -229,152 +487,24 @@ export function EpargnantsTab() {
 
       {/* Main Table Card */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par épargnant, N° compte ou agence..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={SAVER_COLUMNS}
+          rows={saversList}
+          unitName="épargnants"
+          searchPlaceholder="Rechercher par épargnant, N° compte ou agence..."
+          onExport={handleExport}
+        />
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedSegment("all")}
-              className={`h-7 text-xs px-2.5 ${selectedSegment === "all" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              Tous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedSegment("Diaspora")}
-              className={`h-7 text-xs px-2.5 ${selectedSegment === "Diaspora" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              Diaspora
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedSegment("Salarié Public")}
-              className={`h-7 text-xs px-2.5 ${selectedSegment === "Salarié Public" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              Public
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium ml-2">
-              <Download className="size-3.5" />
-              Exporter
-            </Button>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Épargnant</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">N° Compte Carthago</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Segment</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Épargne Réalisée</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Objectif Apport</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Agence Rattachement</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Dernier Dépôt</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow
-                  key={item.id}
-                  className="hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)}
-                >
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-primary/10 text-primary">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{item.profession}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.accountNumber}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${segmentStyles[item.segment] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.segment}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
-                    {item.currentBalance}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex flex-col gap-1 min-w-[100px]">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground font-mono">{item.targetBalance}</span>
-                        <span className="font-semibold text-foreground">{item.progressPercent}%</span>
-                      </div>
-                      <Progress value={item.progressPercent} className="h-1.5" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
-                    {item.agency}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.lastDepositDate}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
-                        <DropdownMenuLabel className="text-xs font-semibold">Actions Épargnant</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
-                          <FileText className="size-3.5 mr-2 text-muted-foreground" />
-                          Consulter le dossier d&apos;épargne
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
-                          <CreditCard className="size-3.5 mr-2 text-muted-foreground" />
-                          Extrait des versements (Carthago)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs">
-                          <Download className="size-3.5 mr-2 text-muted-foreground" />
-                          Attestation de capacité d&apos;apport
-                        </DropdownMenuItem>
-                        {item.progressPercent >= 100 && (
-                          <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/savers/${item.id}`)} className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                            <ArrowRight className="size-3.5 mr-2" />
-                            Initier le passage en crédit DUC
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={SAVER_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun épargnant ne correspond aux filtres appliqués."
+          headClassName="bg-muted/40"
+        />
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
 import {
   Folder,
   FileText,
@@ -13,12 +13,16 @@ import {
   Download,
   Eye,
   Star,
-  Search,
 } from "lucide-react";
+
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type DocumentCategory } from "@/domain/entities/types";
 
@@ -248,23 +252,179 @@ const INITIAL_FILES: DucFile[] = [
   },
 ];
 
-export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId?: string }) {
-  const [view, setView] = useState<"grid" | "list">("grid");
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filesList, setFilesList] = useState<DucFile[]>(INITIAL_FILES);
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "duc-file-manager";
 
-  const filteredFiles = filesList.filter((f) => {
-    const matchesFolder = selectedFolder ? f.folderId === selectedFolder : true;
-    const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase()) || f.owner.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesFolder && matchesSearch;
+/** Les unités de taille : une taille se compare en octets, pas en texte. */
+const SIZE_UNITS: Record<string, number> = {
+  KB: 1024,
+  MB: 1024 * 1024,
+  GB: 1024 * 1024 * 1024,
+};
+
+/**
+ * La taille d'une pièce, en octets.
+ *
+ * « 14.2 MB » se compare par sa valeur : triées alphabétiquement, « 14.2 MB »
+ * viendrait avant « 1.4 MB ».
+ */
+function sizeInBytes(value: string): number {
+  const match = /^([\d.,]+)\s*(KB|MB|GB)$/i.exec(value.trim());
+  if (!match) return 0;
+
+  const amount = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(amount)) return 0;
+
+  return amount * (SIZE_UNITS[match[2].toUpperCase()] ?? 1);
+}
+
+/**
+ * Les colonnes de la liste des pièces.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const DUC_FILE_COLUMNS: DataColumn<DucFile>[] = [
+  {
+    key: "name",
+    label: "Pièce justificative",
+    accessor: (row) => row.name,
+    // L'empreinte est affichée dans la vue grille : elle n'est pas une
+    // colonne, mais elle reste trouvable par la recherche.
+    searchValues: (row) => [row.integrityHash],
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+        <span className="truncate max-w-xs">{row.name}</span>
+      </div>
+    ),
+  },
+  {
+    key: "owner",
+    label: "Pôle émetteur",
+    accessor: (row) => row.owner,
+    // Un pôle est une organisation, pas une personne : il fait une bonne
+    // facette.
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "complianceStatus",
+    label: "Conformité",
+    accessor: (row) => row.complianceStatus,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge variant={row.complianceStatus === "Conforme" ? "success" : "secondary"}>
+        {row.complianceStatus}
+      </Badge>
+    ),
+  },
+  {
+    key: "size",
+    label: "Taille",
+    // Le tri porte sur la **valeur** : la taille se compare en octets.
+    accessor: (row) => sizeInBytes(row.size),
+    render: (row) => row.size,
+  },
+  {
+    key: "modifiedAt",
+    label: "Modifié le",
+    // La source mêle des dates relatives (« Il y a 5 min ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.modifiedAt,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+    align: "right",
+  },
+];
+
+export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId?: string }) {
+  const [view, setView] = React.useState<"grid" | "list">("grid");
+  const [selectedFolder, setSelectedFolder] = React.useState<string | null>(null);
+  const [filesList, setFilesList] = React.useState<DucFile[]>(INITIAL_FILES);
+
+  /**
+   * Les pièces **du sous-dossier** choisi.
+   *
+   * Le sous-dossier est un **périmètre** — on regarde les pièces d'un
+   * dossier — et non un filtre de colonne : il reste hors du moteur, qui
+   * porte la recherche, les facettes et le tri.
+   */
+  const scopedFiles = React.useMemo(
+    () =>
+      selectedFolder
+        ? filesList.filter((file) => file.folderId === selectedFolder)
+        : filesList,
+    [filesList, selectedFolder]
+  );
+
+  /** Les pièces **visibles** : celles que le moteur laisse passer. */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: DUC_FILE_COLUMNS,
+    rows: scopedFiles,
   });
 
-  const toggleStar = (fileId: string) => {
+  const visibleFiles = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups]
+  );
+
+  const toggleStar = React.useCallback((fileId: string) => {
     setFilesList((prev) =>
       prev.map((f) => (f.id === fileId ? { ...f, starred: !f.starred } : f))
     );
-  };
+  }, []);
+
+  /**
+   * La ligne de la liste.
+   *
+   * L'écran garde la main sur sa mise en page — le favori et le download
+   * vivent ici — ; le moteur lui fournit les **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      row,
+      cell,
+    }: {
+      row: DucFile;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow key={row.id}>
+        <TableCell className="font-medium">{cell("name")}</TableCell>
+        <TableCell className="text-slate-600 text-xs">{cell("owner")}</TableCell>
+        <TableCell>{cell("complianceStatus")}</TableCell>
+        <TableCell className="text-slate-500 font-mono text-xs">{cell("size")}</TableCell>
+        <TableCell className="text-slate-500 text-xs">{cell("modifiedAt")}</TableCell>
+        <TableCell className="text-right">
+          <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => toggleStar(row.id)}
+              aria-label={row.starred ? `Retirer ${row.name} des favoris` : `Ajouter ${row.name} aux favoris`}
+              className="p-1 text-slate-400 hover:text-amber-500"
+            >
+              <Star className={`w-3.5 h-3.5 ${row.starred ? "text-amber-500 fill-amber-500" : ""}`} />
+            </button>
+            <button
+              aria-label={`Télécharger ${row.name}`}
+              className="p-1 text-slate-400 hover:text-slate-700"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </TableCell>
+      </TableRow>
+    ),
+    [toggleStar]
+  );
 
   return (
     <div className="space-y-6">
@@ -382,7 +542,7 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
           <div>
             <h3 className="text-sm font-bold text-slate-900">
-              Pièces Scellées du Dossier ({filteredFiles.length})
+              Pièces Scellées du Dossier ({visibleFiles.length})
             </h3>
             <p className="text-xs text-slate-500">
               Chaque fichier possède une empreinte cryptographique SHA-256 inaltérable.
@@ -390,21 +550,6 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <label htmlFor="duc-search-piece" className="sr-only">
-                Rechercher une pièce justificative
-              </label>
-              <input
-                id="duc-search-piece"
-                type="text"
-                placeholder="Rechercher une pièce..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-[#7B2E15]/20 focus:border-[#7B2E15] outline-none"
-              />
-            </div>
-
             <ToggleGroup
               type="single"
               value={view}
@@ -420,10 +565,20 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
           </div>
         </div>
 
+        {/* Barre d'outils — la recherche, les facettes et le tri sont ceux du
+            moteur partagé ; ils valent pour la grille comme pour la liste. */}
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={DUC_FILE_COLUMNS}
+          rows={scopedFiles}
+          unitName="pièces"
+          searchPlaceholder="Rechercher une pièce..."
+        />
+
         {/* VUE GRILLE */}
         {view === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredFiles.map((file) => (
+            {visibleFiles.map((file) => (
               <Card key={file.id} className="p-4 space-y-3 hover:border-[#7B2E15]/40 transition-all shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -476,55 +631,15 @@ export default function DucFileManager({ ducId = "CFC-2026-DUC-04829" }: { ducId
         ) : (
           /* VUE LISTE */
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pièce justificative</TableHead>
-                  <TableHead>Pôle émetteur</TableHead>
-                  <TableHead>Conformité</TableHead>
-                  <TableHead>Taille</TableHead>
-                  <TableHead>Modifié le</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredFiles.map((file) => (
-                  <TableRow key={file.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2.5">
-                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-xs">{file.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-slate-600 text-xs">{file.owner}</TableCell>
-                    <TableCell>
-                      <Badge variant={file.complianceStatus === "Conforme" ? "success" : "secondary"}>
-                        {file.complianceStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-slate-500 font-mono text-xs">{file.size}</TableCell>
-                    <TableCell className="text-slate-500 text-xs">{file.modifiedAt}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => toggleStar(file.id)}
-                          aria-label={file.starred ? `Retirer ${file.name} des favoris` : `Ajouter ${file.name} aux favoris`}
-                          className="p-1 text-slate-400 hover:text-amber-500"
-                        >
-                          <Star className={`w-3.5 h-3.5 ${file.starred ? "text-amber-500 fill-amber-500" : ""}`} />
-                        </button>
-                        <button
-                          aria-label={`Télécharger ${file.name}`}
-                          className="p-1 text-slate-400 hover:text-slate-700"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable
+              tableId={TABLE_ID}
+              columns={DUC_FILE_COLUMNS}
+              rows={visibleFiles}
+              getRowId={(file) => file.id}
+              renderRow={renderRow}
+              emptyLabel="Aucune pièce justificative."
+              className="rounded-none border-0 shadow-none bg-transparent"
+            />
           </div>
         )}
 

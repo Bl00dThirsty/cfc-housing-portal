@@ -1,13 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 import { getInitials } from "@/lib/utils";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-mortgage-release-archive";
 
 const archiveKpis: ActorKpiItem[] = [
   {
@@ -52,7 +60,19 @@ const archiveKpis: ActorKpiItem[] = [
   },
 ];
 
-const archiveRecords = [
+export interface ArchivedDossierItem {
+  id: string;
+  ducId: string;
+  client: string;
+  profession: string;
+  totalLoan: string;
+  loanDuration: string;
+  gedArchiveCode: string;
+  status: string;
+  closureDate: string;
+}
+
+const archiveRecords: ArchivedDossierItem[] = [
   {
     id: "arc1",
     ducId: "CFC-2026-DUC-03890",
@@ -127,16 +147,191 @@ const archiveStatusStyles: Record<string, string> = {
   "En cours de numérisation finale": "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
 };
 
-export default function ReleaseArchivePage() {
-  const [search, setSearch] = React.useState("");
+/**
+ * Les colonnes du répertoire des clôtures archivées.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const ARCHIVE_COLUMNS: DataColumn<ArchivedDossierItem>[] = [
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ducId}
+      </Badge>
+    ),
+  },
+  {
+    key: "client",
+    label: "Emprunteur",
+    accessor: (row) => row.client,
+    // La profession est affichée **sous le nom** : elle n'est pas une colonne,
+    // mais elle reste trouvable par la recherche.
+    searchValues: (row) => [row.profession],
+    // Un emprunteur par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 rounded-lg">
+          <AvatarFallback className="rounded-lg text-xs font-semibold bg-slate-500/15 text-slate-800">
+            {getInitials(row.client)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col min-w-0">
+          <span className="font-semibold text-xs text-foreground truncate">{row.client}</span>
+          <span className="text-[11px] text-muted-foreground truncate">{row.profession}</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "totalLoan",
+    label: "Montant Prêt Historique",
+    // Le tri porte sur la **valeur** : « 15 000 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.totalLoan.replace(/\D/g, "")),
+    render: (row) => row.totalLoan,
+    align: "right",
+  },
+  {
+    key: "loanDuration",
+    label: "Cycle de Vie du Prêt",
+    accessor: (row) => row.loanDuration,
+  },
+  {
+    key: "gedArchiveCode",
+    label: "Cote GED & Rayonnage",
+    accessor: (row) => row.gedArchiveCode,
+    // Une cote par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+  },
+  {
+    key: "status",
+    label: "Statut Scellement",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${archiveStatusStyles[row.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "closureDate",
+    label: "Date Clôture",
+    // La date est écrite en long (« 02 Septembre 2026 ») : elle n'est pas
+    // lisible par `parseCfcDate`, donc pas triable — elle s'affiche telle
+    // quelle.
+    accessor: (row) => row.closureDate,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
 
-  const filtered = archiveRecords.filter(
-    (a) =>
-      a.client.toLowerCase().includes(search.toLowerCase()) ||
-      a.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      a.profession.toLowerCase().includes(search.toLowerCase()) ||
-      a.gedArchiveCode.toLowerCase().includes(search.toLowerCase())
+export default function ReleaseArchivePage() {
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: ARCHIVE_COLUMNS,
+    rows: archiveRecords,
+  });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   *
+   * Le moteur a appliqué la recherche, les facettes et le tri ; le tableau
+   * reçoit donc ses lignes déjà ordonnées.
+   */
+  const visibleRecords = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: ArchivedDossierItem;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
+          {cell("totalLoan")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+          {cell("loanDuration")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs font-mono text-foreground max-w-[200px]">
+          <span className="truncate block">{cell("gedArchiveCode")}</span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+          {cell("closureDate")}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-2.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-foreground"
+          >
+            <Eye className="size-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("repertoire-closures.csv", [
+      [
+        "Identifiant DUC",
+        "Emprunteur",
+        "Profession",
+        "Montant Prêt Historique",
+        "Cycle de Vie du Prêt",
+        "Cote GED & Rayonnage",
+        "Statut Scellement",
+        "Date Clôture",
+      ],
+      ...archiveRecords.map((item) => [
+        item.ducId,
+        item.client,
+        item.profession,
+        item.totalLoan,
+        item.loanDuration,
+        item.gedArchiveCode,
+        item.status,
+        item.closureDate,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -158,102 +353,34 @@ export default function ReleaseArchivePage() {
             Clôture comptable dans Carthago, scellement numérique du Dossier Unique Client (DUC) et archivage patrimonial sécurisé conforme aux normes OHADA.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Répertoire Clôtures
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
       <ActorKpiStrip items={archiveKpis} />
 
       {/* Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par N° DUC, emprunteur, cote GED ou profession..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <p className="text-xs text-muted-foreground">
+          Conservation patrimoniale trentenaire · Intégrité et traçabilité certifiées
+        </p>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Conservation patrimoniale trentenaire · Intégrité et traçabilité certifiées</span>
-          </div>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={ARCHIVE_COLUMNS}
+          rows={archiveRecords}
+          unitName="dossiers"
+          searchPlaceholder="Rechercher par N° DUC, emprunteur, cote GED ou profession..."
+          onExport={handleExport}
+        />
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant Prêt Historique</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Cycle de Vie du Prêt</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Cote GED &amp; Rayonnage</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Scellement</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date Clôture</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ducId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-slate-500/15 text-slate-800">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{item.profession}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
-                    {item.totalLoan}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.loanDuration}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs font-mono text-foreground max-w-[200px]">
-                    <span className="truncate block">{item.gedArchiveCode}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${archiveStatusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.closureDate}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={ARCHIVE_COLUMNS}
+          rows={visibleRecords}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun dossier ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

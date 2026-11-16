@@ -1,13 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 import { getInitials } from "@/lib/utils";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-mortgage-release-deeds";
 
 const deedsKpis: ActorKpiItem[] = [
   {
@@ -52,7 +60,19 @@ const deedsKpis: ActorKpiItem[] = [
   },
 ];
 
-const deedsRecords = [
+export interface DeedRecordItem {
+  id: string;
+  ref: string;
+  client: string;
+  ducId: string;
+  landTitle: string;
+  notaryOffice: string;
+  initialLoan: string;
+  status: string;
+  signedDate: string;
+}
+
+const deedsRecords: DeedRecordItem[] = [
   {
     id: "mde1",
     ref: "MLV-2026-ACT-00128",
@@ -128,17 +148,199 @@ const deedStatusStyles: Record<string, string> = {
   "En attente signature Notaire": "bg-purple-500/10 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
 };
 
-export default function MortgageDeedsPage() {
-  const [search, setSearch] = React.useState("");
+/**
+ * Les colonnes du registre des actes de mainlevée.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const DEED_COLUMNS: DataColumn<DeedRecordItem>[] = [
+  {
+    key: "ref",
+    label: "Réf. Mainlevée",
+    accessor: (row) => row.ref,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ref}
+      </Badge>
+    ),
+  },
+  {
+    key: "client",
+    label: "Bénéficiaire de la Mainlevée",
+    accessor: (row) => row.client,
+    // Un bénéficiaire par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 rounded-lg">
+          <AvatarFallback className="rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-800">
+            {getInitials(row.client)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="font-semibold text-xs text-foreground truncate">{row.client}</span>
+      </div>
+    ),
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <span className="font-mono text-[11px] text-muted-foreground">{row.ducId}</span>
+    ),
+  },
+  {
+    key: "landTitle",
+    label: "Titre Foncier (TF)",
+    accessor: (row) => row.landTitle,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className="font-mono text-xs font-medium h-5 px-2 bg-slate-500/10 text-slate-800 dark:text-slate-200 border-transparent"
+      >
+        {row.landTitle}
+      </Badge>
+    ),
+  },
+  {
+    key: "notaryOffice",
+    label: "Étude Notariale",
+    accessor: (row) => row.notaryOffice,
+    // Une étude par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+  },
+  {
+    key: "initialLoan",
+    label: "Prêt Garanti",
+    // Le tri porte sur la **valeur** : « 15 000 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.initialLoan.replace(/\D/g, "")),
+    render: (row) => row.initialLoan,
+    align: "right",
+  },
+  {
+    key: "status",
+    label: "Statut de l'Acte",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${deedStatusStyles[row.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "signedDate",
+    label: "Date Signature",
+    // La source mêle des dates écrites et des étapes (« Transmis le 28/08 ») :
+    // elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.signedDate,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
 
-  const filtered = deedsRecords.filter(
-    (d) =>
-      d.client.toLowerCase().includes(search.toLowerCase()) ||
-      d.ref.toLowerCase().includes(search.toLowerCase()) ||
-      d.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      d.landTitle.toLowerCase().includes(search.toLowerCase()) ||
-      d.notaryOffice.toLowerCase().includes(search.toLowerCase())
+export default function MortgageDeedsPage() {
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: DEED_COLUMNS,
+    rows: deedsRecords,
+  });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   *
+   * Le moteur a appliqué la recherche, les facettes et le tri ; le tableau
+   * reçoit donc ses lignes déjà ordonnées.
+   */
+  const visibleRecords = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: DeedRecordItem;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("ref")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("landTitle")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[180px]">
+          <span className="truncate block">{cell("notaryOffice")}</span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
+          {cell("initialLoan")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+          {cell("signedDate")}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-2.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-foreground"
+          >
+            <Eye className="size-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("registre-actes-mainlevee.csv", [
+      [
+        "Réf. Mainlevée",
+        "Bénéficiaire de la Mainlevée",
+        "Identifiant DUC",
+        "Titre Foncier",
+        "Étude Notariale",
+        "Prêt Garanti",
+        "Statut de l'Acte",
+        "Date Signature",
+      ],
+      ...deedsRecords.map((item) => [
+        item.ref,
+        item.client,
+        item.ducId,
+        item.landTitle,
+        item.notaryOffice,
+        item.initialLoan,
+        item.status,
+        item.signedDate,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -160,105 +362,34 @@ export default function MortgageDeedsPage() {
             Établissement des projets d&apos;actes authentiques de mainlevée totale d&apos;hypothèque, signature de la Direction Générale et transmission aux études notariales.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Registre Actes
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
       <ActorKpiStrip items={deedsKpis} />
 
       {/* Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par acte, emprunteur, Titre Foncier ou notaire..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <p className="text-xs text-muted-foreground">
+          Mainlevée totale et définitive après constatation du solde nul par la DFBC
+        </p>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Mainlevée totale et définitive après constatation du solde nul par la DFBC</span>
-          </div>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={DEED_COLUMNS}
+          rows={deedsRecords}
+          unitName="actes"
+          searchPlaceholder="Rechercher par acte, emprunteur, Titre Foncier ou notaire..."
+          onExport={handleExport}
+        />
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Réf. Mainlevée</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Bénéficiaire de la Mainlevée</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Titre Foncier (TF)</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Étude Notariale</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Prêt Garanti</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut de l&apos;Acte</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date Signature</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ref}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-800">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <span className="font-mono text-[11px] text-muted-foreground">{item.ducId}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="secondary" className="font-mono text-xs font-medium h-5 px-2 bg-slate-500/10 text-slate-800 dark:text-slate-200 border-transparent">
-                      {item.landTitle}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[180px]">
-                    <span className="truncate block">{item.notaryOffice}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
-                    {item.initialLoan}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${deedStatusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.signedDate}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={DEED_COLUMNS}
+          rows={visibleRecords}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun acte ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

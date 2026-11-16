@@ -1,11 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 
 const geotechKpis: ActorKpiItem[] = [
   {
@@ -119,6 +124,8 @@ const geotechRecords = [
   },
 ];
 
+type GeotechRecord = (typeof geotechRecords)[number];
+
 const riskStyles: Record<string, string> = {
   "Faible": "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   "Modéré": "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
@@ -126,17 +133,183 @@ const riskStyles: Record<string, string> = {
   "Critique": "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
-export default function GeotechUrbanPage() {
-  const [search, setSearch] = React.useState("");
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-risk-engineering-geotech-urban";
 
-  const filtered = geotechRecords.filter(
-    (g) =>
-      g.client.toLowerCase().includes(search.toLowerCase()) ||
-      g.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      g.location.toLowerCase().includes(search.toLowerCase()) ||
-      g.soilType.toLowerCase().includes(search.toLowerCase()) ||
-      g.pduZoning.toLowerCase().includes(search.toLowerCase())
+/**
+ * Les colonnes du scoring géotechnique.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const GEOTECH_COLUMNS: DataColumn<GeotechRecord>[] = [
+  {
+    key: "client",
+    label: "Emprunteur / Parcelle",
+    accessor: (row) => row.client,
+    // La localisation est affichée **sous le nom** dans la ligne : elle n'est
+    // pas une colonne, mais elle reste trouvable par la recherche.
+    searchValues: (row) => [row.location],
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex flex-col min-w-0">
+        <span className="font-semibold text-xs text-foreground truncate">
+          {row.client}
+        </span>
+        <span className="text-[11px] text-muted-foreground truncate">
+          {row.location}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ducId}
+      </Badge>
+    ),
+  },
+  {
+    key: "soilType",
+    label: "Nature du Sol",
+    accessor: (row) => row.soilType,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "pduZoning",
+    label: "Zonage POS / PDU",
+    accessor: (row) => row.pduZoning,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "riskIndex",
+    label: "Niveau Risque",
+    accessor: (row) => row.riskIndex,
+    filterable: true,
+    groupable: true,
+    align: "center",
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${riskStyles[row.riskIndex] ?? ""} h-5 px-2 text-xs font-semibold border-transparent`}
+      >
+        {row.riskIndex}
+      </Badge>
+    ),
+  },
+  {
+    key: "recommendation",
+    label: "Recommandation BET",
+    accessor: (row) => row.recommendation,
+  },
+  {
+    key: "date",
+    label: "Date Avis",
+    // La source mêle des dates relatives (« Aujourd'hui, 10:15 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.date,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+    render: () => (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-muted-foreground hover:text-foreground"
+      >
+        <Eye className="size-4" />
+      </Button>
+    ),
+  },
+];
+
+export default function GeotechUrbanPage() {
+  /** Les lignes que le moteur laisse passer, dans leur ordre d'affichage. */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: GEOTECH_COLUMNS,
+    rows: geotechRecords,
+  });
+
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: GeotechRecord;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground font-medium">
+          {cell("soilType")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground max-w-[160px]">
+          <span className="truncate block">{cell("pduZoning")}</span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-center">{cell("riskIndex")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[200px]">
+          <span className="truncate block">{cell("recommendation")}</span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+          {cell("date")}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-2.5">{cell("actions")}</TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("fiches-sols.csv", [
+      [
+        "Emprunteur",
+        "Localisation",
+        "Identifiant DUC",
+        "Nature du Sol",
+        "Zonage POS / PDU",
+        "Niveau Risque",
+        "Recommandation BET",
+        "Date Avis",
+      ],
+      ...geotechRecords.map((record) => [
+        record.client,
+        record.location,
+        record.ducId,
+        record.soilType,
+        record.pduZoning,
+        record.riskIndex,
+        record.recommendation,
+        record.date,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -158,13 +331,6 @@ export default function GeotechUrbanPage() {
             Évaluation des risques naturels (inondation, éboulement, glissement), portance du terrain et conformité au Plan d&apos;Occupation des Sols (POS/PDU).
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Fiches Sols
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
@@ -172,81 +338,27 @@ export default function GeotechUrbanPage() {
 
       {/* Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par emprunteur, N° DUC, localisation ou nature du sol..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Plans d&apos;Urbanisme Directeurs (MINDDUH) &amp; Données Géologiques</span>
-          </div>
+        <div className="flex items-center justify-end text-xs text-muted-foreground">
+          <span>Plans d&apos;Urbanisme Directeurs (MINDDUH) &amp; Données Géologiques</span>
         </div>
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur / Parcelle</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Nature du Sol</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Zonage POS / PDU</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Niveau Risque</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Recommandation BET</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date Avis</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                      <span className="text-[11px] text-muted-foreground truncate">{item.location}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ducId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground font-medium">
-                    {item.soilType}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground max-w-[160px]">
-                    <span className="truncate block">{item.pduZoning}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center">
-                    <Badge
-                      variant="secondary"
-                      className={`${riskStyles[item.riskIndex] ?? ""} h-5 px-2 text-xs font-semibold border-transparent`}
-                    >
-                      {item.riskIndex}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[200px]">
-                    <span className="truncate block">{item.recommendation}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.date}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={GEOTECH_COLUMNS}
+          rows={geotechRecords}
+          unitName="parcelles"
+          searchPlaceholder="Rechercher par emprunteur, N° DUC, localisation ou nature du sol..."
+          onExport={handleExport}
+        />
+
+        <DataTable
+          tableId={TABLE_ID}
+          columns={GEOTECH_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucune parcelle ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

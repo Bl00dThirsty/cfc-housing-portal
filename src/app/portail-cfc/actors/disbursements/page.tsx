@@ -1,13 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 import { getInitials } from "@/lib/utils";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-disbursements";
 
 const dfbcKpis: ActorKpiItem[] = [
   {
@@ -52,7 +60,19 @@ const dfbcKpis: ActorKpiItem[] = [
   },
 ];
 
-const dfbcDossiers = [
+export interface DisbursementDossierItem {
+  id: string;
+  ducId: string;
+  client: string;
+  purpose: string;
+  trancheNumber: string;
+  trancheAmount: string;
+  beneficiaryBank: string;
+  vdStatus: string;
+  date: string;
+}
+
+const dfbcDossiers: DisbursementDossierItem[] = [
   {
     id: "f1",
     ducId: "CFC-2026-DUC-04410",
@@ -99,16 +119,181 @@ const dfbcDossiers = [
   },
 ];
 
-export default function DfbcDecaissementsActorPage() {
-  const [search, setSearch] = React.useState("");
+/**
+ * Les colonnes du tableau des décaissements.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const DISBURSEMENT_COLUMNS: DataColumn<DisbursementDossierItem>[] = [
+  {
+    key: "client",
+    label: "Bénéficiaire / Projet",
+    accessor: (row) => row.client,
+    // Le projet est affiché **sous le nom** : il n'est pas une colonne, mais il
+    // reste trouvable par la recherche.
+    searchValues: (row) => [row.purpose],
+    // Un bénéficiaire par ligne : ni facette, ni regroupement.
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 rounded-lg">
+          <AvatarFallback className="rounded-lg text-xs font-semibold bg-teal-500/15 text-teal-800">
+            {getInitials(row.client)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col min-w-0">
+          <span className="font-semibold text-xs text-foreground truncate">{row.client}</span>
+          <span className="text-[11px] text-muted-foreground truncate">{row.purpose}</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ducId}
+      </Badge>
+    ),
+  },
+  {
+    key: "trancheNumber",
+    label: "Tranche / Phase Travaux",
+    accessor: (row) => row.trancheNumber,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "trancheAmount",
+    label: "Montant Tranche",
+    // Le tri porte sur la **valeur** : « 6 400 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.trancheAmount.replace(/\D/g, "")),
+    render: (row) => row.trancheAmount,
+    align: "right",
+  },
+  {
+    key: "beneficiaryBank",
+    label: "Banque / Canal",
+    accessor: (row) => row.beneficiaryBank,
+    filterable: true,
+  },
+  {
+    key: "vdStatus",
+    label: "Statut Décaissement",
+    accessor: (row) => row.vdStatus,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={
+          row.vdStatus.includes("Exécuté") || row.vdStatus.includes("Validé")
+            ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
+            : "bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300 h-5 px-2 text-xs font-medium"
+        }
+      >
+        {row.vdStatus}
+      </Badge>
+    ),
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+  },
+];
 
-  const filtered = dfbcDossiers.filter(
-    (d) =>
-      d.client.toLowerCase().includes(search.toLowerCase()) ||
-      d.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      d.purpose.toLowerCase().includes(search.toLowerCase()) ||
-      d.beneficiaryBank.toLowerCase().includes(search.toLowerCase())
+export default function DfbcDecaissementsActorPage() {
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: DISBURSEMENT_COLUMNS,
+    rows: dfbcDossiers,
+  });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   *
+   * Le moteur a appliqué la recherche, les facettes et le tri ; le tableau
+   * reçoit donc ses lignes déjà ordonnées.
+   */
+  const visibleDossiers = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: DisbursementDossierItem;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs font-medium text-foreground">
+          {cell("trancheNumber")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+          {cell("trancheAmount")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+          {cell("beneficiaryBank")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("vdStatus")}</TableCell>
+        <TableCell className="text-right pr-4 py-2.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-foreground"
+          >
+            <Eye className="size-4" />
+          </Button>
+        </TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("journal-reglements.csv", [
+      [
+        "Identifiant DUC",
+        "Bénéficiaire",
+        "Projet",
+        "Tranche / Phase Travaux",
+        "Montant Tranche",
+        "Banque / Canal",
+        "Statut Décaissement",
+      ],
+      ...dfbcDossiers.map((item) => [
+        item.ducId,
+        item.client,
+        item.purpose,
+        item.trancheNumber,
+        item.trancheAmount,
+        item.beneficiaryBank,
+        item.vdStatus,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -120,22 +305,15 @@ export default function DfbcDecaissementsActorPage() {
               Groupe G7
             </Badge>
             <Badge variant="secondary" className="bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300 border-transparent h-5 px-2 text-xs font-medium">
-              Finances, Budget & Comptabilité (DFBC)
+              Finances, Budget &amp; Comptabilité (DFBC)
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            DFBC — Décaissements & Vie des Prêts
+            DFBC — Décaissements &amp; Vie des Prêts
           </h1>
           <p className="text-sm text-muted-foreground">
             Comptabilité clientèle, déblocages échelonnés par tranche selon la Valeur Disponible (VD), suivi des décomptes BET et recouvrement des échéances SYSTAC.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Journal des Règlements
-          </Button>
         </div>
       </div>
 
@@ -143,86 +321,28 @@ export default function DfbcDecaissementsActorPage() {
       <ActorKpiStrip items={dfbcKpis} />
 
       {/* Main Table Section */}
-      <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par emprunteur, N° DUC, banque ou tranche..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-card/60 p-4 shadow-2xs">
+        <p className="text-xs text-muted-foreground">
+          Phase 5 du Circuit CFC · Déblocages Échelonnés &amp; Amortissement
+        </p>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Phase 5 du Circuit CFC · Déblocages Échelonnés & Amortissement</span>
-          </div>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={DISBURSEMENT_COLUMNS}
+          rows={dfbcDossiers}
+          unitName="décaissements"
+          searchPlaceholder="Rechercher par emprunteur, N° DUC, banque ou tranche..."
+          onExport={handleExport}
+        />
 
-        {/* Table */}
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Bénéficiaire / Projet</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Tranche / Phase Travaux</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant Tranche</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Banque / Canal</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Décaissement</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-teal-500/15 text-teal-800">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{item.purpose}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ducId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs font-medium text-foreground">{item.trancheNumber}</TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.trancheAmount}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{item.beneficiaryBank}</TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={
-                        item.vdStatus.includes("Exécuté") || item.vdStatus.includes("Validé")
-                          ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
-                          : "bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300 h-5 px-2 text-xs font-medium"
-                      }
-                    >
-                      {item.vdStatus}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={DISBURSEMENT_COLUMNS}
+          rows={visibleDossiers}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun décaissement ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

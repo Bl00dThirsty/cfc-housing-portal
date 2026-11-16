@@ -2,11 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, Download, MoreHorizontal, ArrowRight, FileText } from "lucide-react";
+import { MoreHorizontal, ArrowRight, FileText, Download } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { downloadCsv } from "@/lib/csv";
 
 const simulationsKpis: ActorKpiItem[] = [
   {
@@ -166,19 +171,256 @@ const projectTypeStyles: Record<string, string> = {
   "Rénovation / Extension": "bg-teal-500/10 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300",
 };
 
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "analytics-simulations";
+
+/**
+ * Les colonnes du tableau des simulations.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const SIMULATION_COLUMNS: DataColumn<SimulationItem>[] = [
+  {
+    key: "simRef",
+    label: "Réf. Simulation",
+    accessor: (row) => row.simRef,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.simRef}
+      </Badge>
+    ),
+  },
+  {
+    key: "prospect",
+    label: "Prospect / Demandeur",
+    accessor: (row) => row.prospect,
+    // La profession est affichée **sous le nom** dans la ligne, et la
+    // localisation n'y est pas affichée : les deux restent trouvables par la
+    // recherche.
+    searchValues: (row) => [row.profession, row.location],
+    render: (row) => (
+      <div className="flex flex-col min-w-0">
+        <span className="font-semibold text-xs text-foreground truncate">
+          {row.prospect}
+        </span>
+        <span className="text-[11px] text-muted-foreground truncate">
+          {row.profession}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: "projectType",
+    label: "Nature du Projet",
+    accessor: (row) => row.projectType,
+    // La facette remplace les anciens boutons « Tous / Autoconstruction / SIC ».
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${projectTypeStyles[row.projectType] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.projectType}
+      </Badge>
+    ),
+  },
+  {
+    key: "loanAmount",
+    label: "Montant Prêt",
+    // Le tri porte sur la **valeur** : « 18 500 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.loanAmount.replace(/\D/g, "")),
+    render: (row) => row.loanAmount,
+    align: "right",
+  },
+  {
+    key: "downPayment",
+    label: "Apport Prévu",
+    // L'apport porte son pourcentage : « 4 800 000 FCFA (26%) » se compare par
+    // son montant, pas par ses chiffres concaténés.
+    accessor: (row) =>
+      Number(row.downPayment.split(" FCFA")[0].replace(/\D/g, "")),
+    render: (row) => row.downPayment,
+  },
+  {
+    key: "monthlyPayment",
+    label: "Mensualité Estimée",
+    accessor: (row) => Number(row.monthlyPayment.replace(/\D/g, "")),
+    render: (row) => row.monthlyPayment,
+    align: "right",
+  },
+  {
+    key: "debtRatio",
+    label: "Endettement",
+    // Le tri porte sur le **taux** : « 15.9% » se compare par sa valeur, pas
+    // alphabétiquement.
+    accessor: (row) => Number(row.debtRatio.replace("%", "")),
+    render: (row) => row.debtRatio,
+    align: "center",
+  },
+  {
+    key: "date",
+    label: "Date",
+    // La source mêle des dates relatives (« Aujourd'hui, 10:45 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.date,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions porte un menu, pas une valeur : elle n'est ni
+    // triable ni filtrable.
+    key: "action",
+    label: "Actions",
+    sortable: false,
+    align: "right",
+  },
+];
+
 export function SimulationsTab() {
   const router = useRouter();
-  const [search, setSearch] = React.useState("");
-  const [selectedType, setSelectedType] = React.useState<string>("all");
 
-  const filtered = simulationsData.filter((s) => {
-    const matchesSearch =
-      s.prospect.toLowerCase().includes(search.toLowerCase()) ||
-      s.simRef.toLowerCase().includes(search.toLowerCase()) ||
-      s.location.toLowerCase().includes(search.toLowerCase());
-    const matchesType = selectedType === "all" || s.projectType === selectedType;
-    return matchesSearch && matchesType;
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: SIMULATION_COLUMNS,
+    rows: simulationsData,
   });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   */
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      row,
+      cell,
+    }: {
+      row: SimulationItem;
+      cell: (key: string) => React.ReactNode;
+    }) => {
+      const openSimulation = () =>
+        router.push(`/portail-cfc/analytics/simulations/${row.id}`);
+
+      return (
+        <TableRow
+          onClick={openSimulation}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openSimulation();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label={`Ouvrir la simulation de ${row.prospect}`}
+          className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          <TableCell className="px-3 py-2.5">{cell("simRef")}</TableCell>
+          <TableCell className="px-3 py-2.5">{cell("prospect")}</TableCell>
+          <TableCell className="px-3 py-2.5">{cell("projectType")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
+            {cell("loanAmount")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground font-mono">
+            {cell("downPayment")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
+            {cell("monthlyPayment")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400">
+            {cell("debtRatio")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+            {cell("date")}
+          </TableCell>
+          <TableCell
+            className="text-right pr-4 py-2.5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-muted-foreground hover:text-foreground"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
+                <DropdownMenuLabel className="text-xs font-semibold">
+                  Actions Simulation
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={openSimulation}
+                  className="cursor-pointer text-xs"
+                >
+                  <FileText className="size-3.5 mr-2 text-muted-foreground" />
+                  Consulter la fiche détaillée
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => router.push("/portail-cfc/actors/agency")}
+                  className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium"
+                >
+                  <ArrowRight className="size-3.5 mr-2" />
+                  Convertir en Dossier Unique Client (DUC)
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer text-xs">
+                  <Download className="size-3.5 mr-2 text-muted-foreground" />
+                  Télécharger la fiche de calcul (PDF)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TableCell>
+        </TableRow>
+      );
+    },
+    [router],
+  );
+
+  const handleExport = () => {
+    downloadCsv("simulations-cfc.csv", [
+      [
+        "Référence",
+        "Prospect",
+        "Profession",
+        "Nature du Projet",
+        "Montant Prêt",
+        "Apport Prévu",
+        "Mensualité Estimée",
+        "Endettement",
+        "Date",
+      ],
+      ...simulationsData.map((row) => [
+        row.simRef,
+        row.prospect,
+        row.profession,
+        row.projectType,
+        row.loanAmount,
+        row.downPayment,
+        row.monthlyPayment,
+        row.debtRatio,
+        row.date,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -208,137 +450,24 @@ export function SimulationsTab() {
 
       {/* Main Table Card */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par référence, demandeur ou localisation..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={SIMULATION_COLUMNS}
+          rows={simulationsData}
+          unitName="simulations"
+          searchPlaceholder="Rechercher par référence, demandeur ou localisation..."
+          onExport={handleExport}
+        />
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedType("all")}
-              className={`h-7 text-xs px-2.5 ${selectedType === "all" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              Tous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedType("Autoconstruction")}
-              className={`h-7 text-xs px-2.5 ${selectedType === "Autoconstruction" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              Autoconstruction
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedType("Acquisition SIC")}
-              className={`h-7 text-xs px-2.5 ${selectedType === "Acquisition SIC" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              SIC
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium ml-2">
-              <Download className="size-3.5" />
-              Exporter
-            </Button>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Réf. Simulation</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Prospect / Demandeur</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Nature du Projet</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant Prêt</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Apport Prévu</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Mensualité Estimée</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Endettement</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow
-                  key={item.id}
-                  className="hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/portail-cfc/analytics/simulations/${item.id}`)}
-                >
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.simRef}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-semibold text-xs text-foreground truncate">{item.prospect}</span>
-                      <span className="text-[11px] text-muted-foreground truncate">{item.profession}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${projectTypeStyles[item.projectType] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.projectType}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
-                    {item.loanAmount}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground font-mono">
-                    {item.downPayment}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
-                    {item.monthlyPayment}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400">
-                    {item.debtRatio}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.date}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
-                        <DropdownMenuLabel className="text-xs font-semibold">Actions Simulation</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/simulations/${item.id}`)} className="cursor-pointer text-xs">
-                          <FileText className="size-3.5 mr-2 text-muted-foreground" />
-                          Consulter la fiche détaillée
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push("/portail-cfc/actors/agency")} className="cursor-pointer text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                          <ArrowRight className="size-3.5 mr-2" />
-                          Convertir en Dossier Unique Client (DUC)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer text-xs">
-                          <Download className="size-3.5 mr-2 text-muted-foreground" />
-                          Télécharger la fiche de calcul (PDF)
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={SIMULATION_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucune simulation ne correspond aux filtres appliqués."
+          headClassName="bg-muted/40"
+        />
       </div>
     </div>
   );

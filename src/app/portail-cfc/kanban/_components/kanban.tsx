@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * Le kanban **n'utilise pas** le moteur de table.
+ *
+ * C'est une grille de colonnes dans lesquelles on glisse des cartes, pas un
+ * tableau de lignes : le tri, les facettes et le groupement n'y ont pas de
+ * sens. Il garde donc son rendu propre — mais il en partage les conventions
+ * (mêmes jetons, mêmes hauteurs de ligne, même barre d'outils).
+ */
+
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { move } from "@dnd-kit/helpers";

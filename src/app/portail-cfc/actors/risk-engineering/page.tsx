@@ -1,12 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 import { getInitials } from "@/lib/utils";
 
 const betRisquesKpis: ActorKpiItem[] = [
@@ -99,16 +104,188 @@ const betDossiers = [
   },
 ];
 
-export default function BetRisquesActorPage() {
-  const [search, setSearch] = React.useState("");
+type BetDossier = (typeof betDossiers)[number];
 
-  const filtered = betDossiers.filter(
-    (d) =>
-      d.client.toLowerCase().includes(search.toLowerCase()) ||
-      d.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      d.project.toLowerCase().includes(search.toLowerCase()) ||
-      d.expertBET.toLowerCase().includes(search.toLowerCase())
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-risk-engineering";
+
+/**
+ * Les colonnes du tableau des dossiers en expertise.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const RISK_COLUMNS: DataColumn<BetDossier>[] = [
+  {
+    key: "client",
+    label: "Emprunteur / Projet",
+    accessor: (row) => row.client,
+    // Le projet est affiché **sous le nom** dans la ligne : il n'est pas une
+    // colonne, mais il reste trouvable par la recherche.
+    searchValues: (row) => [row.project],
+    // Ni facette ni regroupement : une facette « Emprunteur » listerait une
+    // option par dossier.
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 rounded-lg">
+          <AvatarFallback className="rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-800">
+            {getInitials(row.client)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col min-w-0">
+          <span className="font-semibold text-xs text-foreground truncate">
+            {row.client}
+          </span>
+          <span className="text-[11px] text-muted-foreground truncate">
+            {row.project}
+          </span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ducId}
+      </Badge>
+    ),
+  },
+  {
+    key: "expertBET",
+    label: "Expertise / BET Agréé",
+    accessor: (row) => row.expertBET,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "estimatedCost",
+    label: "Montant Travaux",
+    // Le tri porte sur la **valeur** : « 18 500 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.estimatedCost.replace(/\D/g, "")),
+    render: (row) => row.estimatedCost,
+    align: "right",
+  },
+  {
+    key: "debtRatio",
+    label: "Ratio Endettement",
+    // Le ratio se compare par sa valeur ; l'affichage garde son « % ».
+    accessor: (row) => Number(row.debtRatio.replace("%", "")),
+    render: (row) => row.debtRatio,
+    searchValues: (row) => [row.debtRatio],
+    align: "center",
+  },
+  {
+    key: "status",
+    label: "Avis Technique",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={
+          row.status.includes("Validé") || row.status.includes("Conforme")
+            ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
+            : "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 h-5 px-2 text-xs font-medium"
+        }
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+    render: () => (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-muted-foreground hover:text-foreground"
+      >
+        <Eye className="size-4" />
+      </Button>
+    ),
+  },
+];
+
+export default function BetRisquesActorPage() {
+  /** Les lignes que le moteur laisse passer, dans leur ordre d'affichage. */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: RISK_COLUMNS,
+    rows: betDossiers,
+  });
+
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: BetDossier;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground">
+          {cell("expertBET")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+          {cell("estimatedCost")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-center">{cell("debtRatio")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="text-right pr-4 py-2.5">{cell("actions")}</TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("rapport-risques.csv", [
+      [
+        "Emprunteur",
+        "Projet",
+        "Identifiant DUC",
+        "Expertise / BET Agréé",
+        "Montant Travaux",
+        "Ratio Endettement",
+        "Avis Technique",
+      ],
+      ...betDossiers.map((dossier) => [
+        dossier.client,
+        dossier.project,
+        dossier.ducId,
+        dossier.expertBET,
+        dossier.estimatedCost,
+        dossier.debtRatio,
+        dossier.status,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -120,22 +297,15 @@ export default function BetRisquesActorPage() {
               Groupe G3
             </Badge>
             <Badge variant="secondary" className="bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 border-transparent h-5 px-2 text-xs font-medium">
-              Risques & Expertise BET
+              Risques &amp; Expertise BET
             </Badge>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Direction des Risques & Expertise BET
+            Direction des Risques &amp; Expertise BET
           </h1>
           <p className="text-sm text-muted-foreground">
             Évaluation de la solvabilité ménage, calcul du ratio d&apos;endettement COBAC, contre-expertise des devis et rapports de visite contradictoire.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Rapport Risques
-          </Button>
         </div>
       </div>
 
@@ -144,89 +314,27 @@ export default function BetRisquesActorPage() {
 
       {/* Main Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par demandeur, N° DUC, BET ou projet..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Phase 2 du Circuit CFC · Analyse Technique & Prudentielle</span>
-          </div>
+        <div className="flex items-center justify-end text-xs text-muted-foreground">
+          <span>Phase 2 du Circuit CFC · Analyse Technique &amp; Prudentielle</span>
         </div>
 
-        {/* Table */}
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur / Projet</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Expertise / BET Agréé</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant Travaux</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Ratio Endettement</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Avis Technique</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-800">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{item.project}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ducId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">{item.expertBET}</TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.estimatedCost}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center">
-                    <Badge variant="outline" className="font-mono text-xs font-medium h-5 px-2">
-                      {item.debtRatio}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={
-                        item.status.includes("Validé") || item.status.includes("Conforme")
-                          ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
-                          : "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 h-5 px-2 text-xs font-medium"
-                      }
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={RISK_COLUMNS}
+          rows={betDossiers}
+          unitName="dossiers"
+          searchPlaceholder="Rechercher par demandeur, N° DUC, BET ou projet..."
+          onExport={handleExport}
+        />
+
+        <DataTable
+          tableId={TABLE_ID}
+          columns={RISK_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun dossier ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

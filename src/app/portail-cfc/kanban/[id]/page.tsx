@@ -18,16 +18,111 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Progress } from "@/components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getInitials } from "@/lib/utils";
 
 import { initialBoard, columns, tagTones } from "@/domain/data/kanban-board";
 import type { ColumnId, Task } from "@/domain/entities/kanban";
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "kanban-detail";
+
+/** Une résolution d'organe : l'organe, sa séance, sa décision et ses suites. */
+interface KanbanResolution {
+  id: string;
+  organ: string;
+  seanceDate: string;
+  decision: string;
+  conditions: string;
+  signataire: string;
+}
+
+/** Les résolutions portées par le dossier. */
+const KANBAN_RESOLUTIONS: KanbanResolution[] = [
+  {
+    id: "cgr",
+    organ: "Comité de Gestion des Risques (CGR)",
+    seanceDate: "28 Août 2026",
+    decision: "Favorable",
+    conditions: "Endettement 27.8% < plafond 33% COBAC",
+    signataire: "Dr. Eboumbou",
+  },
+  {
+    id: "crc",
+    organ: "Comité Régional de Crédit (CRC Yaoundé)",
+    seanceDate: "02 Sept 2026",
+    decision: "Accord de Principe",
+    conditions: "Inscription hypothèque notariée de 1er rang",
+    signataire: "Vincent Ayuk",
+  },
+];
+
+/**
+ * Les colonnes des résolutions.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const KANBAN_RESOLUTION_COLUMNS: DataColumn<KanbanResolution>[] = [
+  {
+    key: "organ",
+    label: "Organe / Instance",
+    accessor: (row) => row.organ,
+    cellClassName: "font-semibold text-xs",
+    // Un organe est une instance : une facette listerait une option par
+    // organe, et le regroupement produirait un groupe par résolution.
+    filterable: false,
+    groupable: false,
+  },
+  {
+    key: "seanceDate",
+    label: "Date de Séance",
+    accessor: (row) => row.seanceDate,
+    // Les dates sont écrites en toutes lettres (« 28 Août 2026 ») : elles ne
+    // sont pas triables, et s'affichent telles quelles.
+    sortable: false,
+    cellClassName: "font-mono text-xs",
+  },
+  {
+    key: "decision",
+    label: "Décision",
+    accessor: (row) => row.decision,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className="bg-emerald-500/10 text-emerald-700 text-[10.5px] rounded-md"
+      >
+        {row.decision}
+      </Badge>
+    ),
+  },
+  {
+    key: "conditions",
+    label: "Conditions Particulières",
+    accessor: (row) => row.conditions,
+    cellClassName: "text-xs text-muted-foreground",
+  },
+  {
+    key: "signataire",
+    label: "Signataire",
+    accessor: (row) => row.signataire,
+    // Un signataire est une personne : une facette listerait une option par
+    // personne.
+    filterable: false,
+    groupable: false,
+    cellClassName: "text-xs",
+  },
+];
 
 export default function KanbanDossierDetailPage() {
   const params = useParams();
@@ -398,45 +493,23 @@ export default function KanbanDossierDetailPage() {
               <h3 className="font-semibold text-sm text-foreground">Résolutions des Organes d&apos;Arbitrage CFC</h3>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-xs">Organe / Instance</TableHead>
-                  <TableHead className="text-xs">Date de Séance</TableHead>
-                  <TableHead className="text-xs">Décision</TableHead>
-                  <TableHead className="text-xs">Conditions Particulières</TableHead>
-                  <TableHead className="text-xs">Signataire</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-semibold text-xs">Comité de Gestion des Risques (CGR)</TableCell>
-                  <TableCell className="font-mono text-xs">28 Août 2026</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 text-[10.5px] rounded-md">
-                      Favorable
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    Endettement 27.8% &lt; plafond 33% COBAC
-                  </TableCell>
-                  <TableCell className="text-xs">Dr. Eboumbou</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="font-semibold text-xs">Comité Régional de Crédit (CRC Yaoundé)</TableCell>
-                  <TableCell className="font-mono text-xs">02 Sept 2026</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 text-[10.5px] rounded-md">
-                      Accord de Principe
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    Inscription hypothèque notariée de 1er rang
-                  </TableCell>
-                  <TableCell className="text-xs">Vincent Ayuk</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+            <DataTableToolbar
+              tableId={TABLE_ID}
+              columns={KANBAN_RESOLUTION_COLUMNS}
+              rows={KANBAN_RESOLUTIONS}
+              unitName="résolutions"
+              searchPlaceholder="Rechercher un organe, une décision ou un signataire..."
+            />
+
+            <DataTable
+              tableId={TABLE_ID}
+              columns={KANBAN_RESOLUTION_COLUMNS}
+              rows={KANBAN_RESOLUTIONS}
+              getRowId={(resolution) => resolution.id}
+              emptyLabel="Aucune résolution ne correspond aux filtres appliqués."
+              headClassName="text-xs"
+              className="rounded-none border-0 shadow-none"
+            />
           </div>
         </TabsContent>
 

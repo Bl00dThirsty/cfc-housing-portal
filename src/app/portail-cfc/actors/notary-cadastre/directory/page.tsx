@@ -1,11 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 
 const notaryDirectoryKpis: ActorKpiItem[] = [
   {
@@ -119,21 +124,188 @@ const notaryDirectoryRecords = [
   },
 ];
 
+type NotaryDirectoryRecord = (typeof notaryDirectoryRecords)[number];
+
 const notaryStatusStyles: Record<string, string> = {
   "Conventionné Actif": "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   "En Revue Triennale": "bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
   "Relance Retard": "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
-export default function NotaryDirectoryPage() {
-  const [search, setSearch] = React.useState("");
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-notary-cadastre-directory";
 
-  const filtered = notaryDirectoryRecords.filter(
-    (n) =>
-      n.notaryOffice.toLowerCase().includes(search.toLowerCase()) ||
-      n.notaryName.toLowerCase().includes(search.toLowerCase()) ||
-      n.city.toLowerCase().includes(search.toLowerCase())
+/**
+ * Les colonnes de l'annuaire des études notariales.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const NOTARY_DIRECTORY_COLUMNS: DataColumn<NotaryDirectoryRecord>[] = [
+  {
+    key: "notaryOffice",
+    label: "Étude Notariale",
+    accessor: (row) => row.notaryOffice,
+    filterable: false,
+    groupable: false,
+  },
+  {
+    key: "notaryName",
+    label: "Notaire Titulaire",
+    accessor: (row) => row.notaryName,
+  },
+  {
+    key: "city",
+    label: "Ville / Région",
+    accessor: (row) => row.city,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "activeActs",
+    label: "Actes En Cours",
+    accessor: (row) => row.activeActs,
+    align: "center",
+  },
+  {
+    key: "avgDelay",
+    label: "Délai Moyen",
+    // Le délai se compare par sa valeur ; l'affichage garde son « jours ».
+    accessor: (row) => Number(row.avgDelay.split(" ")[0]),
+    render: (row) => row.avgDelay,
+    searchValues: (row) => [row.avgDelay],
+    align: "center",
+  },
+  {
+    key: "grossesDeposited",
+    label: "Grosses Déposées",
+    accessor: (row) => row.grossesDeposited,
+    align: "center",
+  },
+  {
+    key: "status",
+    label: "Statut Convention",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${notaryStatusStyles[row.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    key: "complianceRate",
+    label: "Conformité",
+    // Le taux se compare par sa valeur ; l'affichage garde son « % ».
+    accessor: (row) => Number(row.complianceRate.replace("%", "")),
+    render: (row) => row.complianceRate,
+    searchValues: (row) => [row.complianceRate],
+    align: "center",
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+    render: () => (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-muted-foreground hover:text-foreground"
+      >
+        <Eye className="size-4" />
+      </Button>
+    ),
+  },
+];
+
+export default function NotaryDirectoryPage() {
+  /** Les lignes que le moteur laisse passer, dans leur ordre d'affichage. */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: NOTARY_DIRECTORY_COLUMNS,
+    rows: notaryDirectoryRecords,
+  });
+
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: NotaryDirectoryRecord;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">
+          <span className="font-semibold text-xs text-foreground block max-w-[200px] truncate">
+            {cell("notaryOffice")}
+          </span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground">
+          {cell("notaryName")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+          {cell("city")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-foreground">
+          {cell("activeActs")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-center font-mono text-xs text-foreground">
+          {cell("avgDelay")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-center font-mono text-xs text-muted-foreground">
+          {cell("grossesDeposited")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400">
+          {cell("complianceRate")}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-2.5">{cell("actions")}</TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("annuaire-notaires.csv", [
+      [
+        "Étude Notariale",
+        "Notaire Titulaire",
+        "Ville / Région",
+        "Actes En Cours",
+        "Délai Moyen",
+        "Grosses Déposées",
+        "Statut Convention",
+        "Conformité",
+      ],
+      ...notaryDirectoryRecords.map((record) => [
+        record.notaryOffice,
+        record.notaryName,
+        record.city,
+        record.activeActs,
+        record.avgDelay,
+        record.grossesDeposited,
+        record.status,
+        record.complianceRate,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -155,13 +327,6 @@ export default function NotaryDirectoryPage() {
             Répertoire des études notariales conventionnées CFC, suivi de la signature des conventions d&apos;ouverture de crédit et conservation des grosses authentiques.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Annuaire Notaires
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
@@ -169,82 +334,27 @@ export default function NotaryDirectoryPage() {
 
       {/* Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par étude, notaire titulaire ou ville..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Chambre Nationale des Notaires du Cameroun (CNNC) · Conventions CFC</span>
-          </div>
+        <div className="flex items-center justify-end text-xs text-muted-foreground">
+          <span>Chambre Nationale des Notaires du Cameroun (CNNC) · Conventions CFC</span>
         </div>
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Étude Notariale</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Notaire Titulaire</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Ville / Région</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Actes En Cours</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Délai Moyen</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Grosses Déposées</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Convention</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Conformité</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <span className="font-semibold text-xs text-foreground block max-w-[200px] truncate">
-                      {item.notaryOffice}
-                    </span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">
-                    {item.notaryName}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
-                    {item.city}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-foreground">
-                    {item.activeActs}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center font-mono text-xs text-foreground">
-                    {item.avgDelay}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center font-mono text-xs text-muted-foreground">
-                    {item.grossesDeposited}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${notaryStatusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400">
-                    {item.complianceRate}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={NOTARY_DIRECTORY_COLUMNS}
+          rows={notaryDirectoryRecords}
+          unitName="études"
+          searchPlaceholder="Rechercher par étude, notaire titulaire ou ville..."
+          onExport={handleExport}
+        />
+
+        <DataTable
+          tableId={TABLE_ID}
+          columns={NOTARY_DIRECTORY_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucune étude ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

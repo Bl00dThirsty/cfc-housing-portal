@@ -1,12 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 import { getInitials } from "@/lib/utils";
 
 const notaireKpis: ActorKpiItem[] = [
@@ -99,16 +104,190 @@ const notaireDossiers = [
   },
 ];
 
-export default function NotaireCadastreActorPage() {
-  const [search, setSearch] = React.useState("");
+type NotaireDossier = (typeof notaireDossiers)[number];
 
-  const filtered = notaireDossiers.filter(
-    (d) =>
-      d.client.toLowerCase().includes(search.toLowerCase()) ||
-      d.ducId.toLowerCase().includes(search.toLowerCase()) ||
-      d.landTitle.toLowerCase().includes(search.toLowerCase()) ||
-      d.notaryOffice.toLowerCase().includes(search.toLowerCase())
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-notary-cadastre";
+
+/**
+ * Les colonnes des dossiers de formalisation notariée.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const NOTARY_COLUMNS: DataColumn<NotaireDossier>[] = [
+  {
+    key: "client",
+    label: "Bénéficiaire / Garant",
+    accessor: (row) => row.client,
+    // La conservation foncière est affichée **sous le nom** dans la ligne :
+    // elle n'est pas une colonne, mais elle reste trouvable par la recherche.
+    searchValues: (row) => [row.cadastreOffice],
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex items-center gap-2.5">
+        <Avatar className="size-8 rounded-lg">
+          <AvatarFallback className="rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-800">
+            {getInitials(row.client)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col min-w-0">
+          <span className="font-semibold text-xs text-foreground truncate">
+            {row.client}
+          </span>
+          <span className="text-[11px] text-muted-foreground truncate">
+            {row.cadastreOffice}
+          </span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "ducId",
+    label: "Identifiant DUC",
+    accessor: (row) => row.ducId,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ducId}
+      </Badge>
+    ),
+  },
+  {
+    key: "landTitle",
+    label: "Titre Foncier (TF)",
+    accessor: (row) => row.landTitle,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className="font-mono text-xs font-medium h-5 px-2 bg-slate-500/10 text-slate-800 dark:text-slate-200"
+      >
+        {row.landTitle}
+      </Badge>
+    ),
+  },
+  {
+    key: "notaryOffice",
+    label: "Étude Notariale",
+    accessor: (row) => row.notaryOffice,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "guaranteeValue",
+    label: "Valeur Garantie",
+    // Le tri porte sur la **valeur** : « 22 000 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.guaranteeValue.replace(/\D/g, "")),
+    render: (row) => row.guaranteeValue,
+    align: "right",
+  },
+  {
+    key: "status",
+    label: "Statut Hypothèque",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={
+          row.status.includes("Inscrite") || row.status.includes("Vérifié")
+            ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
+            : "bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300 h-5 px-2 text-xs font-medium"
+        }
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+    render: () => (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-muted-foreground hover:text-foreground"
+      >
+        <Eye className="size-4" />
+      </Button>
+    ),
+  },
+];
+
+export default function NotaireCadastreActorPage() {
+  /** Les lignes que le moteur laisse passer, dans leur ordre d'affichage. */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: NOTARY_COLUMNS,
+    rows: notaireDossiers,
+  });
+
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: NotaireDossier;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("client")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("ducId")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("landTitle")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground">
+          {cell("notaryOffice")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
+          {cell("guaranteeValue")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="text-right pr-4 py-2.5">{cell("actions")}</TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("bordereau-hypothèques.csv", [
+      [
+        "Bénéficiaire / Garant",
+        "Identifiant DUC",
+        "Titre Foncier (TF)",
+        "Étude Notariale",
+        "Conservation Foncière",
+        "Valeur Garantie",
+        "Statut Hypothèque",
+      ],
+      ...notaireDossiers.map((dossier) => [
+        dossier.client,
+        dossier.ducId,
+        dossier.landTitle,
+        dossier.notaryOffice,
+        dossier.cadastreOffice,
+        dossier.guaranteeValue,
+        dossier.status,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -130,13 +309,6 @@ export default function NotaireCadastreActorPage() {
             Rédaction des conventions notariées d&apos;affectation hypothécaire de 1er rang, inscription au Cadastre MINDCAF et délivrance des certificats de propriété récents.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Bordereau Hypothèques
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
@@ -144,89 +316,27 @@ export default function NotaireCadastreActorPage() {
 
       {/* Main Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par emprunteur, N° DUC, Titre Foncier, Notaire..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Phase 4 du Circuit CFC · Formalisation & Garanties Réelles</span>
-          </div>
+        <div className="flex items-center justify-end text-xs text-muted-foreground">
+          <span>Phase 4 du Circuit CFC · Formalisation &amp; Garanties Réelles</span>
         </div>
 
-        {/* Table */}
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Bénéficiaire / Garant</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Identifiant DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Titre Foncier (TF)</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Étude Notariale</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Valeur Garantie</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Hypothèque</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar className="size-8 rounded-lg">
-                        <AvatarFallback className="rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-800">
-                          {getInitials(item.client)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-xs text-foreground truncate">{item.client}</span>
-                        <span className="text-[11px] text-muted-foreground truncate">{item.cadastreOffice}</span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ducId}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="secondary" className="font-mono text-xs font-medium h-5 px-2 bg-slate-500/10 text-slate-800 dark:text-slate-200">
-                      {item.landTitle}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">{item.notaryOffice}</TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                    {item.guaranteeValue}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={
-                        item.status.includes("Inscrite") || item.status.includes("Vérifié")
-                          ? "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 h-5 px-2 text-xs font-medium"
-                          : "bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300 h-5 px-2 text-xs font-medium"
-                      }
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={NOTARY_COLUMNS}
+          rows={notaireDossiers}
+          unitName="dossiers"
+          searchPlaceholder="Rechercher par emprunteur, N° DUC, Titre Foncier, Notaire..."
+          onExport={handleExport}
+        />
+
+        <DataTable
+          tableId={TABLE_ID}
+          columns={NOTARY_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun dossier ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

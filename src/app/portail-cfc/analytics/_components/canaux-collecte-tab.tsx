@@ -2,11 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, Download, MoreHorizontal, AlertTriangle, RefreshCw, FileText } from "lucide-react";
+import { MoreHorizontal, AlertTriangle, RefreshCw, FileText, Download } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { downloadCsv } from "@/lib/csv";
 
 const canauxKpis: ActorKpiItem[] = [
   {
@@ -174,20 +179,256 @@ const carthagoStatusStyles: Record<string, string> = {
   "Anomalie Rapprochement": "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "analytics-canaux";
+
+/**
+ * Les colonnes du tableau des flux de collecte.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const TRANSACTION_COLUMNS: DataColumn<ChannelTransaction>[] = [
+  {
+    key: "txRef",
+    label: "Réf. Flux",
+    accessor: (row) => row.txRef,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.txRef}
+      </Badge>
+    ),
+  },
+  {
+    key: "channel",
+    label: "Canal de Collecte",
+    accessor: (row) => row.channel,
+    // La facette remplace les anciens boutons « Tous / MoMo / OM / SYSTAC ».
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${channelStyles[row.channel] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.channel}
+      </Badge>
+    ),
+  },
+  {
+    key: "payer",
+    label: "Payeur / Émetteur",
+    accessor: (row) => row.payer,
+    // Le téléphone ou le RIB est affiché **sous le payeur** dans la ligne :
+    // il n'est pas une colonne, mais il reste trouvable par la recherche.
+    searchValues: (row) => [row.phoneOrAccount],
+    render: (row) => (
+      <div className="flex flex-col min-w-0">
+        <span className="font-semibold text-xs text-foreground truncate">
+          {row.payer}
+        </span>
+        <span className="text-[11px] text-muted-foreground truncate">
+          {row.phoneOrAccount}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: "ducOrSaverId",
+    label: "Affectation DUC",
+    accessor: (row) => row.ducOrSaverId,
+  },
+  {
+    key: "amount",
+    label: "Montant Encaissé",
+    // Le tri porte sur la **valeur** : « 1 200 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.amount.replace(/\D/g, "")),
+    render: (row) => row.amount,
+    align: "right",
+  },
+  {
+    key: "carthagoStatus",
+    label: "Statut Carthago",
+    accessor: (row) => row.carthagoStatus,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${carthagoStatusStyles[row.carthagoStatus] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.carthagoStatus}
+      </Badge>
+    ),
+  },
+  {
+    key: "timestamp",
+    label: "Horodatage",
+    // La source mêle des dates relatives (« Aujourd'hui, 11:42 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.timestamp,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions porte un menu, pas une valeur : elle n'est ni
+    // triable ni filtrable.
+    key: "action",
+    label: "Actions",
+    sortable: false,
+    align: "right",
+  },
+];
+
 export function CanauxCollecteTab() {
   const router = useRouter();
-  const [search, setSearch] = React.useState("");
-  const [selectedChannel, setSelectedChannel] = React.useState<string>("all");
 
-  const filtered = transactionsData.filter((t) => {
-    const matchesSearch =
-      t.payer.toLowerCase().includes(search.toLowerCase()) ||
-      t.txRef.toLowerCase().includes(search.toLowerCase()) ||
-      t.ducOrSaverId.toLowerCase().includes(search.toLowerCase()) ||
-      t.phoneOrAccount.toLowerCase().includes(search.toLowerCase());
-    const matchesChannel = selectedChannel === "all" || t.channel === selectedChannel;
-    return matchesSearch && matchesChannel;
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: TRANSACTION_COLUMNS,
+    rows: transactionsData,
   });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   */
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      row,
+      cell,
+    }: {
+      row: ChannelTransaction;
+      cell: (key: string) => React.ReactNode;
+    }) => {
+      const openTransaction = () =>
+        router.push(`/portail-cfc/analytics/transactions/${row.id}`);
+
+      return (
+        <TableRow
+          onClick={openTransaction}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openTransaction();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          aria-label={`Ouvrir la transaction ${row.txRef}`}
+          className="hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        >
+          <TableCell className="px-3 py-2.5">{cell("txRef")}</TableCell>
+          <TableCell className="px-3 py-2.5">{cell("channel")}</TableCell>
+          <TableCell className="px-3 py-2.5">{cell("payer")}</TableCell>
+          <TableCell className="px-3 py-2.5">
+            <span className="font-mono text-[11px] text-muted-foreground">
+              {cell("ducOrSaverId")}
+            </span>
+          </TableCell>
+          <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
+            {cell("amount")}
+          </TableCell>
+          <TableCell className="px-3 py-2.5">{cell("carthagoStatus")}</TableCell>
+          <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+            {cell("timestamp")}
+          </TableCell>
+          <TableCell
+            className="text-right pr-4 py-2.5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-muted-foreground hover:text-foreground"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
+                <DropdownMenuLabel className="text-xs font-semibold">
+                  Actions Transaction
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={openTransaction}
+                  className="cursor-pointer text-xs"
+                >
+                  <FileText className="size-3.5 mr-2 text-muted-foreground" />
+                  Voir la preuve de règlement
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={openTransaction}
+                  className="cursor-pointer text-xs"
+                >
+                  <RefreshCw className="size-3.5 mr-2 text-muted-foreground" />
+                  Forcer le rapprochement Carthago
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={openTransaction}
+                  className="cursor-pointer text-xs"
+                >
+                  <Download className="size-3.5 mr-2 text-muted-foreground" />
+                  Télécharger le reçu fiscal (PDF)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={openTransaction}
+                  className="cursor-pointer text-xs text-rose-600 dark:text-rose-400"
+                >
+                  <AlertTriangle className="size-3.5 mr-2" />
+                  Signaler un litige / anomalie
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </TableCell>
+        </TableRow>
+      );
+    },
+    [router],
+  );
+
+  const handleExport = () => {
+    downloadCsv("transactions-collecte-cfc.csv", [
+      [
+        "Réf. Flux",
+        "Canal de Collecte",
+        "Payeur",
+        "Téléphone / Compte",
+        "Affectation DUC",
+        "Montant Encaissé",
+        "Statut Carthago",
+        "Horodatage",
+      ],
+      ...transactionsData.map((row) => [
+        row.txRef,
+        row.channel,
+        row.payer,
+        row.phoneOrAccount,
+        row.ducOrSaverId,
+        row.amount,
+        row.carthagoStatus,
+        row.timestamp,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -249,151 +490,24 @@ export function CanauxCollecteTab() {
 
       {/* Main Table Card */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par référence, payeur, N° DUC ou téléphone..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={TRANSACTION_COLUMNS}
+          rows={transactionsData}
+          unitName="transactions"
+          searchPlaceholder="Rechercher par référence, payeur, N° DUC ou téléphone..."
+          onExport={handleExport}
+        />
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedChannel("all")}
-              className={`h-7 text-xs px-2.5 ${selectedChannel === "all" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              Tous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedChannel("MTN MoMo")}
-              className={`h-7 text-xs px-2.5 ${selectedChannel === "MTN MoMo" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              MoMo
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedChannel("Orange Money")}
-              className={`h-7 text-xs px-2.5 ${selectedChannel === "Orange Money" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              OM
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedChannel("Virement SYSTAC")}
-              className={`h-7 text-xs px-2.5 ${selectedChannel === "Virement SYSTAC" ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground"}`}
-            >
-              SYSTAC
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium ml-2">
-              <Download className="size-3.5" />
-              Exporter
-            </Button>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Réf. Flux</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Canal de Collecte</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Payeur / Émetteur</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Affectation DUC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant Encaissé</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Carthago</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Horodatage</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow
-                  key={item.id}
-                  className="hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)}
-                >
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.txRef}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${channelStyles[item.channel] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.channel}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-semibold text-xs text-foreground truncate">{item.payer}</span>
-                      <span className="text-[11px] text-muted-foreground truncate">{item.phoneOrAccount}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <span className="font-mono text-[11px] text-muted-foreground">{item.ducOrSaverId}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground whitespace-nowrap">
-                    {item.amount}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${carthagoStatusStyles[item.carthagoStatus] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.carthagoStatus}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.timestamp}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56 p-1.5 rounded-xl">
-                        <DropdownMenuLabel className="text-xs font-semibold">Actions Transaction</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
-                          <FileText className="size-3.5 mr-2 text-muted-foreground" />
-                          Voir la preuve de règlement
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
-                          <RefreshCw className="size-3.5 mr-2 text-muted-foreground" />
-                          Forcer le rapprochement Carthago
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs">
-                          <Download className="size-3.5 mr-2 text-muted-foreground" />
-                          Télécharger le reçu fiscal (PDF)
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => router.push(`/portail-cfc/analytics/transactions/${item.id}`)} className="cursor-pointer text-xs text-rose-600 dark:text-rose-400">
-                          <AlertTriangle className="size-3.5 mr-2" />
-                          Signaler un litige / anomalie
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTable
+          tableId={TABLE_ID}
+          columns={TRANSACTION_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucune transaction ne correspond aux filtres appliqués."
+          headClassName="bg-muted/40"
+        />
       </div>
     </div>
   );

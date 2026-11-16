@@ -1,11 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 
 const directoryKpis: ActorKpiItem[] = [
   {
@@ -119,23 +124,192 @@ const directoryRecords = [
   },
 ];
 
+type DirectoryRecord = (typeof directoryRecords)[number];
+
 const approvalStatusStyles: Record<string, string> = {
   "Agréé Actif": "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   "En Renouvellement": "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
   "Suspendu (Audit)": "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
-export default function DirectoryPage() {
-  const [search, setSearch] = React.useState("");
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-risk-engineering-directory";
 
-  const filtered = directoryRecords.filter(
-    (d) =>
-      d.name.toLowerCase().includes(search.toLowerCase()) ||
-      d.lead.toLowerCase().includes(search.toLowerCase()) ||
-      d.approvalCode.toLowerCase().includes(search.toLowerCase()) ||
-      d.specialty.toLowerCase().includes(search.toLowerCase()) ||
-      d.region.toLowerCase().includes(search.toLowerCase())
+/**
+ * Les colonnes de l'annuaire des BET.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const DIRECTORY_COLUMNS: DataColumn<DirectoryRecord>[] = [
+  {
+    key: "name",
+    label: "Cabinet / Expert Agréé",
+    accessor: (row) => row.name,
+    // L'expert titulaire est affiché **sous le nom** dans la ligne : il n'est
+    // pas une colonne, mais il reste trouvable par la recherche.
+    searchValues: (row) => [row.lead],
+    filterable: false,
+    groupable: false,
+    render: (row) => (
+      <div className="flex flex-col min-w-0">
+        <span className="font-semibold text-xs text-foreground truncate">
+          {row.name}
+        </span>
+        <span className="text-[11px] text-muted-foreground truncate">
+          {row.lead}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: "approvalCode",
+    label: "N° Agrément CFC",
+    accessor: (row) => row.approvalCode,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.approvalCode}
+      </Badge>
+    ),
+  },
+  {
+    key: "specialty",
+    label: "Domaine de Compétence",
+    accessor: (row) => row.specialty,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "region",
+    label: "Zone de Couverture",
+    accessor: (row) => row.region,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "activeMissions",
+    label: "Missions En Cours",
+    accessor: (row) => row.activeMissions,
+    align: "center",
+  },
+  {
+    key: "rating",
+    label: "Note Qualité",
+    // La note se compare par sa valeur ; l'affichage garde « 4.9 / 5 ».
+    accessor: (row) => Number(row.rating.split("/")[0].trim()),
+    render: (row) => row.rating,
+    searchValues: (row) => [row.rating],
+    align: "center",
+  },
+  {
+    key: "status",
+    label: "Statut Agrément",
+    accessor: (row) => row.status,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${approvalStatusStyles[row.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
+      >
+        {row.status}
+      </Badge>
+    ),
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+    render: () => (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-muted-foreground hover:text-foreground"
+      >
+        <Eye className="size-4" />
+      </Button>
+    ),
+  },
+];
+
+export default function DirectoryPage() {
+  /** Les lignes que le moteur laisse passer, dans leur ordre d'affichage. */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: DIRECTORY_COLUMNS,
+    rows: directoryRecords,
+  });
+
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: DirectoryRecord;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("name")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("approvalCode")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground">
+          {cell("specialty")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+          {cell("region")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-foreground">
+          {cell("activeMissions")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-center font-mono text-xs font-medium text-foreground">
+          {cell("rating")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("status")}</TableCell>
+        <TableCell className="text-right pr-4 py-2.5">{cell("actions")}</TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("annuaire-bet.csv", [
+      [
+        "Cabinet / Expert Agréé",
+        "Expert Titulaire",
+        "N° Agrément CFC",
+        "Domaine de Compétence",
+        "Zone de Couverture",
+        "Missions En Cours",
+        "Note Qualité",
+        "Statut Agrément",
+      ],
+      ...directoryRecords.map((record) => [
+        record.name,
+        record.lead,
+        record.approvalCode,
+        record.specialty,
+        record.region,
+        record.activeMissions,
+        record.rating,
+        record.status,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -157,13 +331,6 @@ export default function DirectoryPage() {
             Répertoire national des bureaux d&apos;études techniques, ingénieurs et architectes habilités aux contre-expertises préalables et réceptions de chantier.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Annuaire BET
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
@@ -171,81 +338,27 @@ export default function DirectoryPage() {
 
       {/* Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par cabinet, expert, code agrément ou région..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Ordre National des Ingénieurs de Génie Civil (ONIGC) &amp; ONAC</span>
-          </div>
+        <div className="flex items-center justify-end text-xs text-muted-foreground">
+          <span>Ordre National des Ingénieurs de Génie Civil (ONIGC) &amp; ONAC</span>
         </div>
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Cabinet / Expert Agréé</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">N° Agrément CFC</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Domaine de Compétence</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Zone de Couverture</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Missions En Cours</TableHead>
-                <TableHead className="text-xs font-medium text-foreground text-center px-3">Note Qualité</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Statut Agrément</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-semibold text-xs text-foreground truncate">{item.name}</span>
-                      <span className="text-[11px] text-muted-foreground truncate">{item.lead}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.approvalCode}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground">
-                    {item.specialty}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
-                    {item.region}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center font-mono font-semibold text-xs text-foreground">
-                    {item.activeMissions}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-center font-mono text-xs font-medium text-foreground">
-                    {item.rating}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${approvalStatusStyles[item.status] ?? ""} h-5 px-2 text-xs font-medium border-transparent`}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={DIRECTORY_COLUMNS}
+          rows={directoryRecords}
+          unitName="cabinets"
+          searchPlaceholder="Rechercher par cabinet, expert, code agrément ou région..."
+          onExport={handleExport}
+        />
+
+        <DataTable
+          tableId={TABLE_ID}
+          columns={DIRECTORY_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun cabinet ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );

@@ -13,9 +13,12 @@ import {
   ChevronRight,
   Printer,
 } from "lucide-react";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Progress } from "@/components/ui/progress";
 
 interface SaverDetail {
@@ -36,6 +39,14 @@ interface SaverDetail {
   monthlyDeposit: string;
   joinedDate: string;
   ribCarthago: string;
+}
+
+interface SaverDeposit {
+  date: string;
+  ref: string;
+  canal: string;
+  amount: string;
+  balance: string;
 }
 
 const saversDatabase: Record<string, SaverDetail> = {
@@ -98,6 +109,95 @@ const saversDatabase: Record<string, SaverDetail> = {
   },
 };
 
+/** Le journal certifié des versements du compte. */
+const saverDeposits: SaverDeposit[] = [
+  { date: "08 Septembre 2026", ref: "TX-MOMO-84912", canal: "MTN Mobile Money", amount: "+ 250 000 FCFA", balance: "4 800 000 FCFA" },
+  { date: "05 Août 2026", ref: "TX-SYS-74102", canal: "Virement SYSTAC", amount: "+ 250 000 FCFA", balance: "4 550 000 FCFA" },
+  { date: "03 Juillet 2026", ref: "TX-MOMO-63219", canal: "MTN Mobile Money", amount: "+ 250 000 FCFA", balance: "4 300 000 FCFA" },
+  { date: "05 Juin 2026", ref: "TX-GUI-51104", canal: "Versement Caisse Agence", amount: "+ 250 000 FCFA", balance: "4 050 000 FCFA" },
+  { date: "02 Mai 2026", ref: "TX-MOMO-48190", canal: "MTN Mobile Money", amount: "+ 250 000 FCFA", balance: "3 800 000 FCFA" },
+  { date: "05 Avril 2026", ref: "TX-SYS-39102", canal: "Virement SYSTAC", amount: "+ 250 000 FCFA", balance: "3 550 000 FCFA" },
+];
+
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "analytics-saver-detail";
+
+/**
+ * Les colonnes de l'historique des versements.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const DEPOSIT_COLUMNS: DataColumn<SaverDeposit>[] = [
+  {
+    key: "date",
+    label: "Date",
+    // Les dates sont écrites en français long (« 08 Septembre 2026 ») : le
+    // helper canonique ne les lit pas, et le tableau garde l'ordre du journal.
+    accessor: (row) => row.date,
+    sortable: false,
+    cellClassName: "px-3 py-2.5 text-xs font-medium text-foreground",
+  },
+  {
+    key: "ref",
+    label: "Réf. Transaction",
+    accessor: (row) => row.ref,
+    render: (row) => (
+      <Badge variant="outline" className="font-mono text-[11px] bg-muted/30">
+        {row.ref}
+      </Badge>
+    ),
+    cellClassName: "px-3 py-2.5",
+  },
+  {
+    key: "canal",
+    label: "Canal",
+    accessor: (row) => row.canal,
+    filterable: true,
+    groupable: true,
+    cellClassName: "px-3 py-2.5 text-xs text-muted-foreground",
+  },
+  {
+    key: "amount",
+    label: "Montant Versé",
+    // Le tri porte sur la **valeur** : « + 250 000 FCFA » se compare par son
+    // montant, pas alphabétiquement.
+    accessor: (row) => Number(row.amount.replace(/\D/g, "")),
+    render: (row) => row.amount,
+    align: "right",
+    cellClassName:
+      "px-3 py-2.5 text-right font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400",
+  },
+  {
+    key: "balance",
+    label: "Solde Cumulé",
+    accessor: (row) => Number(row.balance.replace(/\D/g, "")),
+    render: (row) => row.balance,
+    align: "right",
+    cellClassName:
+      "px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground",
+  },
+  {
+    // La colonne du reçu porte une action, pas une valeur : elle n'est ni
+    // triable ni filtrable.
+    key: "receipt",
+    label: "Reçu",
+    sortable: false,
+    cellClassName: "px-3 py-2.5",
+    render: () => (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+      >
+        <Download className="size-3" />
+        PDF
+      </Button>
+    ),
+  },
+];
+
 export default function SaverDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -108,6 +208,20 @@ export default function SaverDetailPage() {
     id,
     accountNumber: `CPT-EH-2026-${id}`,
   };
+
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: DEPOSIT_COLUMNS,
+    rows: saverDeposits,
+  });
+
+  /**
+   * Les lignes **visibles** : celles que le moteur laisse passer.
+   */
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
 
   return (
     <div className="flex flex-col gap-6 pb-12">
@@ -233,52 +347,22 @@ export default function SaverDetailPage() {
               <span className="text-xs text-muted-foreground">Journal certifié</span>
             </div>
 
-            <div className="rounded-lg border overflow-hidden">
-              <Table>
-                <TableHeader className="bg-muted/40">
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs font-medium text-foreground px-3">Date</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground px-3">Réf. Transaction</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground px-3">Canal</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground text-right px-3">Montant Versé</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground text-right px-3">Solde Cumulé</TableHead>
-                    <TableHead className="text-xs font-medium text-foreground px-3">Reçu</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[
-                    { date: "08 Septembre 2026", ref: "TX-MOMO-84912", canal: "MTN Mobile Money", amount: "+ 250 000 FCFA", balance: "4 800 000 FCFA" },
-                    { date: "05 Août 2026", ref: "TX-SYS-74102", canal: "Virement SYSTAC", amount: "+ 250 000 FCFA", balance: "4 550 000 FCFA" },
-                    { date: "03 Juillet 2026", ref: "TX-MOMO-63219", canal: "MTN Mobile Money", amount: "+ 250 000 FCFA", balance: "4 300 000 FCFA" },
-                    { date: "05 Juin 2026", ref: "TX-GUI-51104", canal: "Versement Caisse Agence", amount: "+ 250 000 FCFA", balance: "4 050 000 FCFA" },
-                    { date: "02 Mai 2026", ref: "TX-MOMO-48190", canal: "MTN Mobile Money", amount: "+ 250 000 FCFA", balance: "3 800 000 FCFA" },
-                    { date: "05 Avril 2026", ref: "TX-SYS-39102", canal: "Virement SYSTAC", amount: "+ 250 000 FCFA", balance: "3 550 000 FCFA" },
-                  ].map((tx) => (
-                    <TableRow key={tx.ref} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="px-3 py-2.5 text-xs font-medium text-foreground">{tx.date}</TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <Badge variant="outline" className="font-mono text-[11px] bg-muted/30">
-                          {tx.ref}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">{tx.canal}</TableCell>
-                      <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-emerald-600 dark:text-emerald-400">
-                        {tx.amount}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5 text-right font-mono font-semibold text-xs text-foreground">
-                        {tx.balance}
-                      </TableCell>
-                      <TableCell className="px-3 py-2.5">
-                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground">
-                          <Download className="size-3" />
-                          PDF
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTableToolbar
+              tableId={TABLE_ID}
+              columns={DEPOSIT_COLUMNS}
+              rows={saverDeposits}
+              unitName="versements"
+              searchPlaceholder="Rechercher une référence, un canal..."
+            />
+
+            <DataTable
+              tableId={TABLE_ID}
+              columns={DEPOSIT_COLUMNS}
+              rows={visible}
+              getRowId={(row) => row.ref}
+              emptyLabel="Aucun versement ne correspond aux filtres appliqués."
+              headClassName="bg-muted/40"
+            />
           </div>
         </div>
 

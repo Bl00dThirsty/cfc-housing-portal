@@ -1,11 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Search, Download, Eye } from "lucide-react";
+import { Eye } from "lucide-react";
 import { ActorKpiStrip, type ActorKpiItem } from "@/components/portail-cfc/actor-kpi-strip";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/types";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { downloadCsv } from "@/lib/csv";
 
 const oppositionKpis: ActorKpiItem[] = [
   {
@@ -119,23 +124,194 @@ const oppositionRecords = [
   },
 ];
 
+type OppositionRecord = (typeof oppositionRecords)[number];
+
 const legalOpinionStyles: Record<string, string> = {
   "Favorable": "bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   "Favorable sous réserve": "bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
   "Bloqué (Refus Juridique)": "bg-rose-500/10 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
-export default function OppositionsPage() {
-  const [search, setSearch] = React.useState("");
+/** Identifiant du tableau dans le store : il isole son état. */
+const TABLE_ID = "portail-cfc-notary-cadastre-oppositions";
 
-  const filtered = oppositionRecords.filter(
-    (o) =>
-      o.client.toLowerCase().includes(search.toLowerCase()) ||
-      o.ref.toLowerCase().includes(search.toLowerCase()) ||
-      o.landTitle.toLowerCase().includes(search.toLowerCase()) ||
-      o.location.toLowerCase().includes(search.toLowerCase()) ||
-      o.legalStatus.toLowerCase().includes(search.toLowerCase())
+/**
+ * Les colonnes du registre des oppositions.
+ *
+ * Une **constante de module** : le moteur mémoïse sur l'identité du tableau
+ * des colonnes, et une écriture en ligne dans le JSX l'invaliderait à chaque
+ * rendu.
+ */
+const OPPOSITION_COLUMNS: DataColumn<OppositionRecord>[] = [
+  {
+    key: "ref",
+    label: "Réf. Audit",
+    accessor: (row) => row.ref,
+    render: (row) => (
+      <Badge
+        variant="outline"
+        className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2"
+      >
+        {row.ref}
+      </Badge>
+    ),
+  },
+  {
+    key: "landTitle",
+    label: "Titre Foncier (TF)",
+    accessor: (row) => row.landTitle,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className="font-mono text-xs font-medium h-5 px-2 bg-slate-500/10 text-slate-800 dark:text-slate-200 border-transparent"
+      >
+        {row.landTitle}
+      </Badge>
+    ),
+  },
+  {
+    key: "location",
+    label: "Localisation Parcelle",
+    accessor: (row) => row.location,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "client",
+    label: "Emprunteur / Porteur",
+    accessor: (row) => row.client,
+    filterable: false,
+    groupable: false,
+  },
+  {
+    key: "legalStatus",
+    label: "État Juridique du Titre",
+    accessor: (row) => row.legalStatus,
+    filterable: true,
+    groupable: true,
+  },
+  {
+    key: "identifiedRisk",
+    label: "Risque Identifié",
+    accessor: (row) => row.identifiedRisk,
+    filterable: true,
+  },
+  {
+    key: "legalOpinion",
+    label: "Avis Juridique",
+    accessor: (row) => row.legalOpinion,
+    filterable: true,
+    groupable: true,
+    render: (row) => (
+      <Badge
+        variant="secondary"
+        className={`${legalOpinionStyles[row.legalOpinion] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
+      >
+        {row.legalOpinion}
+      </Badge>
+    ),
+  },
+  {
+    key: "date",
+    label: "Date Audit",
+    // La source mêle des dates relatives (« Aujourd'hui, 08:45 ») et des dates
+    // écrites : elle n'est pas triable, et s'affiche telle quelle.
+    accessor: (row) => row.date,
+    sortable: false,
+  },
+  {
+    // La colonne d'actions ne porte pas de valeur : elle n'est ni triable ni
+    // filtrable.
+    key: "actions",
+    label: "Actions",
+    sortable: false,
+    render: () => (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-muted-foreground hover:text-foreground"
+      >
+        <Eye className="size-4" />
+      </Button>
+    ),
+  },
+];
+
+export default function OppositionsPage() {
+  /** Les lignes que le moteur laisse passer, dans leur ordre d'affichage. */
+  const { groups } = useDataTable({
+    tableId: TABLE_ID,
+    columns: OPPOSITION_COLUMNS,
+    rows: oppositionRecords,
+  });
+
+  const visible = React.useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
   );
+
+  /**
+   * La ligne du tableau.
+   *
+   * L'écran garde la main sur sa mise en page ; le moteur lui fournit les
+   * **valeurs** des cellules.
+   */
+  const renderRow = React.useCallback(
+    ({
+      cell,
+    }: {
+      row: OppositionRecord;
+      cell: (key: string) => React.ReactNode;
+    }) => (
+      <TableRow className="hover:bg-muted/30 transition-colors">
+        <TableCell className="px-3 py-2.5">{cell("ref")}</TableCell>
+        <TableCell className="px-3 py-2.5">{cell("landTitle")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
+          {cell("location")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs font-semibold text-foreground">
+          {cell("client")}
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[190px]">
+          <span className="truncate block">{cell("legalStatus")}</span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px]">
+          <span className="truncate block">{cell("identifiedRisk")}</span>
+        </TableCell>
+        <TableCell className="px-3 py-2.5">{cell("legalOpinion")}</TableCell>
+        <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+          {cell("date")}
+        </TableCell>
+        <TableCell className="text-right pr-4 py-2.5">{cell("actions")}</TableCell>
+      </TableRow>
+    ),
+    [],
+  );
+
+  const handleExport = () => {
+    downloadCsv("registre-oppositions.csv", [
+      [
+        "Réf. Audit",
+        "Titre Foncier (TF)",
+        "Localisation Parcelle",
+        "Emprunteur / Porteur",
+        "État Juridique du Titre",
+        "Risque Identifié",
+        "Avis Juridique",
+        "Date Audit",
+      ],
+      ...oppositionRecords.map((record) => [
+        record.ref,
+        record.landTitle,
+        record.location,
+        record.client,
+        record.legalStatus,
+        record.identifiedRisk,
+        record.legalOpinion,
+        record.date,
+      ]),
+    ]);
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -157,13 +333,6 @@ export default function OppositionsPage() {
             Audit de conformité des titres fonciers proposés en garantie : vérification de l&apos;absence d&apos;oppositions judiciaires, litiges successoraux ou charges antérieures.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 px-2.5 text-xs font-medium">
-            <Download className="size-3.5" />
-            Export Registre Oppositions
-          </Button>
-        </div>
       </div>
 
       {/* KPI Strip (NO ICONS) */}
@@ -171,84 +340,27 @@ export default function OppositionsPage() {
 
       {/* Table Section */}
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-xs">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Rechercher par référence, Titre Foncier, emprunteur ou statut..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="h-8 w-full rounded-lg border bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Sécurisation de l&apos;hypothèque conventionnelle de 1er rang du Crédit Foncier</span>
-          </div>
+        <div className="flex items-center justify-end text-xs text-muted-foreground">
+          <span>Sécurisation de l&apos;hypothèque conventionnelle de 1er rang du Crédit Foncier</span>
         </div>
 
-        <div className="rounded-lg border overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs font-medium text-foreground px-3">Réf. Audit</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Titre Foncier (TF)</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Localisation Parcelle</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Emprunteur / Porteur</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">État Juridique du Titre</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Risque Identifié</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Avis Juridique</TableHead>
-                <TableHead className="text-xs font-medium text-foreground px-3">Date Audit</TableHead>
-                <TableHead className="w-12 text-right pr-4 text-xs font-medium text-foreground">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((item) => (
-                <TableRow key={item.id} className="hover:bg-muted/30 transition-colors">
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="outline" className="font-mono text-[11px] font-semibold bg-muted/30 h-5 px-2">
-                      {item.ref}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge variant="secondary" className="font-mono text-xs font-medium h-5 px-2 bg-slate-500/10 text-slate-800 dark:text-slate-200 border-transparent">
-                      {item.landTitle}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground">
-                    {item.location}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs font-semibold text-foreground">
-                    {item.client}
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-foreground max-w-[190px]">
-                    <span className="truncate block">{item.legalStatus}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px]">
-                    <span className="truncate block">{item.identifiedRisk}</span>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5">
-                    <Badge
-                      variant="secondary"
-                      className={`${legalOpinionStyles[item.legalOpinion] ?? ""} h-5 px-2 text-xs font-medium border-transparent whitespace-nowrap`}
-                    >
-                      {item.legalOpinion}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
-                    {item.date}
-                  </TableCell>
-                  <TableCell className="text-right pr-4 py-2.5">
-                    <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground">
-                      <Eye className="size-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <DataTableToolbar
+          tableId={TABLE_ID}
+          columns={OPPOSITION_COLUMNS}
+          rows={oppositionRecords}
+          unitName="audits"
+          searchPlaceholder="Rechercher par référence, Titre Foncier, emprunteur ou statut..."
+          onExport={handleExport}
+        />
+
+        <DataTable
+          tableId={TABLE_ID}
+          columns={OPPOSITION_COLUMNS}
+          rows={visible}
+          getRowId={(row) => row.id}
+          renderRow={renderRow}
+          emptyLabel="Aucun audit ne correspond aux filtres appliqués."
+        />
       </div>
     </div>
   );
