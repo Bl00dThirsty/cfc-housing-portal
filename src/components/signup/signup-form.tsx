@@ -25,6 +25,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { PhoneInput } from "@/components/ui/phone-input";
+import { APP_VERSION } from "@/config/app-version";
 import { reportAction } from "@/lib/action-feedback";
 import { cn } from "@/lib/utils";
 import { signupAction } from "@/server/actions/signup";
@@ -173,7 +174,7 @@ export function SignupForm() {
           <div className="flex items-center justify-between">
             <span className="eyebrow-style font-normal text-subtle">Guichet Unique · Espace Citoyen</span>
             <Badge variant="outline" className="bg-background/80 px-2 py-0 font-mono text-[10px]">
-              v1.6.3
+              {APP_VERSION}
             </Badge>
           </div>
 

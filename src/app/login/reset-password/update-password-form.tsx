@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PasswordInput } from "@/components/ui/password-input";
+import { APP_VERSION } from "@/config/app-version";
 import { useAuth } from "@/lib/auth-context";
 
 export function UpdatePasswordForm() {
@@ -65,7 +66,7 @@ export function UpdatePasswordForm() {
             Retour à la connexion
           </Link>
           <Badge variant="outline" className="font-mono text-[10px]">
-            CFC v1.6.3
+            CFC {APP_VERSION}
           </Badge>
         </div>
 

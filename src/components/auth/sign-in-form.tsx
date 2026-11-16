@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Separator } from "@/components/ui/separator";
 import { landingPathForRole } from "@/config/rbac/sidebar-by-role";
+import { APP_VERSION } from "@/config/app-version";
 import { reportAction } from "@/lib/action-feedback";
 import { useAuth } from "@/lib/auth-context";
 
@@ -150,7 +151,7 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
           <div className="flex items-center justify-between">
             <span className="eyebrow-style font-normal text-subtle">{copy.badge}</span>
             <Badge variant="outline" className="bg-background/80 px-2 py-0 font-mono text-[10px]">
-              v1.6.3
+              {APP_VERSION}
             </Badge>
           </div>
 
@@ -204,7 +205,7 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
         <div className="mb-6 flex items-center justify-between lg:hidden">
           <span className="eyebrow-style font-normal text-subtle">{copy.badge}</span>
           <Badge variant="outline" className="font-mono text-[10px]">
-            CFC v1.6.3
+            CFC {APP_VERSION}
           </Badge>
         </div>
 
