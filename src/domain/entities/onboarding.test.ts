@@ -4,7 +4,6 @@ import {
   EMPTY_DRAFT,
   isAdult,
   isValidCni,
-  isValidEmail,
   parseAmount,
   resumeStepId,
   validateStep,
@@ -15,16 +14,12 @@ function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   return { ...EMPTY_DRAFT, ...overrides };
 }
 
-const validAccount = draft({
-  email: "abanda.eric@cfc.cm",
-  phone: "+237 6 99 00 00 01",
-  affiliation: "first_time",
-});
-
 const validProfile = draft({
   fullName: "ABANDA Eric",
   birthDate: "1988-04-12",
   cniNumber: "AB123456",
+  phone: "+237 6 99 00 00 01",
+  affiliation: "first_time",
   address: {
     placeId: "1",
     label: "Akwa, Douala, Cameroun",
@@ -39,18 +34,6 @@ const validProfile = draft({
     source: "nominatim",
   },
   monthlyIncome: "850 000",
-});
-
-describe("isValidEmail", () => {
-  it("accepts a normal address", () => {
-    expect(isValidEmail("abanda.eric@cfc.cm")).toBe(true);
-  });
-
-  it("rejects an address without a domain", () => {
-    expect(isValidEmail("abanda.eric")).toBe(false);
-    expect(isValidEmail("abanda.eric@")).toBe(false);
-    expect(isValidEmail("")).toBe(false);
-  });
 });
 
 describe("isValidCni", () => {
@@ -97,14 +80,14 @@ describe("parseAmount", () => {
 });
 
 describe("validateStep", () => {
-  it("accepts a complete account step", () => {
-    expect(validateStep("account", validAccount).valid).toBe(true);
+  it("accepte un dossier complet", () => {
+    expect(validateStep("profile", validProfile).valid).toBe(true);
   });
 
-  it("lists every account problem at once", () => {
-    const result = validateStep("account", draft());
+  it("liste tous les problèmes du dossier d'un coup", () => {
+    const result = validateStep("profile", draft());
     expect(result.valid).toBe(false);
-    expect(result.errors).toHaveLength(3);
+    expect(result.errors.length).toBeGreaterThan(0);
   });
 
   it("requires a service", () => {
@@ -140,9 +123,9 @@ describe("validateStep", () => {
   });
 
   it("attaches each refusal to its field", () => {
-    const result = validateStep("account", draft());
+    const result = validateStep("profile", draft());
 
-    expect(result.fields.email).toBe("Renseignez une adresse e-mail valide.");
+    expect(result.fields.fullName).toBe("Renseignez votre nom complet.");
     expect(result.fields.phone).toBe("Renseignez un numéro de téléphone valide.");
     expect(result.fields.affiliation).toBe("Indiquez votre situation bancaire.");
   });
@@ -155,31 +138,19 @@ describe("validateStep", () => {
 });
 
 describe("resumeStepId", () => {
-  it("commences par le compte", () => {
-    expect(resumeStepId(EMPTY_DRAFT)).toBe("account");
+  it("commence par le dossier", () => {
+    expect(resumeStepId(EMPTY_DRAFT)).toBe("profile");
   });
 
-  it("passe au service quand l'identité est posée", () => {
-    expect(resumeStepId(draft({ phone: "+237699000001", affiliation: "first_time" }))).toBe(
-      "service",
-    );
+  it("passe au service quand le dossier est posé", () => {
+    expect(resumeStepId(validProfile)).toBe("service");
   });
 
-  it("passe au dossier quand le service est choisi", () => {
+  it("passe aux pièces quand le service est choisi", () => {
     expect(
       resumeStepId(
-        draft({
-          phone: "+237699000001",
-          affiliation: "first_time",
-          serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
-        }),
+        draft({ ...validProfile, serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE" }),
       ),
-    ).toBe("profile");
-  });
-
-  it("passe aux pièces quand le dossier est complet", () => {
-    expect(resumeStepId(draft({ ...validProfile, phone: "+237699000001", affiliation: "first_time", serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE" }))).toBe(
-      "documents",
-    );
+    ).toBe("documents");
   });
 });

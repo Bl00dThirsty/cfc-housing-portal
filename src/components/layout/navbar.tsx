@@ -17,8 +17,10 @@ import { cn } from "@/lib/utils";
  *
  * Le reste du parcours est ailleurs, et c'est volontaire :
  *
- * - l'**onboarding** porte la création du compte et l'ouverture du premier
- *   dossier : c'est la destination de l'appel à l'action ;
+ * - l'**inscription** (`/inscription`) est la seule porte qui ouvre un compte
+ *   et le premier dossier : c'est la destination de l'appel à l'action ;
+ * - l'**assistant de dossier** (`/onboarding`) reprend le parcours d'un
+ *   demandeur déjà connecté ;
  * - l'**espace citoyen** et le **suivi du prêt** viennent **après
  *   l'authentification** — ils ne montrent que les données du visiteur ;
  * - la **porte de l'agent** n'est pas ici : elle est dans le pied de page,
@@ -32,7 +34,7 @@ export default function Navbar() {
    * Sur la page d'inscription, l'appel à l'action ne mène nulle part : on y
    * est déjà. Seul le lien « Se connecter » reste utile.
    */
-  const isRegistrationPath = pathname.startsWith("/onboarding");
+  const isRegistrationPath = pathname.startsWith("/inscription");
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
@@ -115,7 +117,7 @@ export default function Navbar() {
               {/* L'appel à l'action : entrer par la création du compte. */}
               {!isRegistrationPath && (
                 <Button asChild variant="cfc" size="sm" className="gap-1.5 text-xs">
-                  <Link href="/onboarding">
+                  <Link href="/inscription">
                     <UserPlus className="size-3.5" aria-hidden />
                     Créer un compte
                   </Link>

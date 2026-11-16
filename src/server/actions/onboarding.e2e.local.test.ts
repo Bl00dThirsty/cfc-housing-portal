@@ -31,11 +31,11 @@ import {
 } from "@/server/testing/e2e-accounts";
 
 import {
-  createAccountAction,
   loadOnboardingDraft,
   saveProfileAction,
   saveServiceAction,
 } from "@/server/actions/onboarding";
+import { signupAction } from "@/server/actions/signup";
 import { resumeStepId } from "@/domain/entities/onboarding";
 
 const { cookieJar } = vi.hoisted(() => ({ cookieJar: new Map<string, string>() }));
@@ -106,11 +106,15 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
   it("refuse un e-mail déjà pris, et ne se-connecte pas à la place de l'emprunteur", async () => {
     await signIn(email);
 
-    const refused = await createAccountAction({
+    const refused = await signupAction({
+      accountType: "particulier",
+      fullName: "Emprunteur de test — parcours",
       email,
-      password: "MauvaisMotDePasse2026!",
       phone: "+237699000001",
-      affiliation: "first_time",
+      cniNumber: "AB999999",
+      password: "MauvaisMotDePasse2026!",
+      passwordConfirm: "MauvaisMotDePasse2026!",
+      consent: true,
     });
 
     expect(refused.ok).toBe(false);
@@ -124,11 +128,15 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     cookieJar.clear();
 
     // --- Étape 1 : le compte ---------------------------------------------
-    const created = await createAccountAction({
+    const created = await signupAction({
+      accountType: "particulier",
+      fullName: "ABANDA Eric",
       email: fresh,
-      password: "CfcDev2026!",
       phone: "+237 6 99 00 00 01",
-      affiliation: "first_time",
+      cniNumber: "AB123456",
+      password: "CfcDev2026!",
+      passwordConfirm: "CfcDev2026!",
+      consent: true,
     });
 
     expect(created.ok, created.ok ? "" : created.error).toBe(true);
@@ -140,7 +148,8 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     const draft = await loadOnboardingDraft();
     expect(draft.email).toBe(fresh);
     expect(draft.phone).toBe("+237699000001");
-    expect(draft.affiliation).toBe("first_time");
+    expect(draft.fullName).toBe("ABANDA Eric");
+    expect(draft.cniNumber).toBe("AB123456");
 
     // L'emprunteur existe côté serveur, avec son acteur…
     const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
@@ -158,20 +167,20 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // …et son profil, au numéro international.
     const { data: profile } = await admin
       .from("citizen_profiles")
-      .select("phone, affiliation_status, email")
+      .select("phone, affiliation_status, email, full_name")
       .eq("id", createdUserId)
       .single();
 
     expect(profile?.phone).toBe("+237699000001");
-    expect(profile?.affiliation_status).toBe("first_time");
     expect(profile?.email).toBe(fresh);
+    expect(profile?.full_name).toBe("ABANDA Eric");
 
     // --- Étape 2 : le service --------------------------------------------
     const service = await saveServiceAction("PRET_FONCIER_CLASSIQUE_ORDINAIRE");
 
     expect(service.ok, service.ok ? "" : service.error).toBe(true);
     if (!service.ok) return;
-    expect(service.dossierCode).toMatch(/^CFC-\d{4}-DUC-/);
+    expect(service.dossierCode).toMatch(/^CFC-\d{4}-DUC-\d{5}$/);
 
     const { data: dossier } = await admin
       .from("dossiers")
@@ -188,6 +197,8 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
       fullName: "ABANDA Eric",
       birthDate: "1988-04-12",
       cniNumber: "AB123456",
+      phone: "+237 6 99 00 00 01",
+      affiliation: "first_time",
       address: {
         placeId: "1",
         label: "Akwa, Douala, Cameroun",

@@ -86,7 +86,7 @@ async function main() {
     `status=${root.status} location=${root.location ?? "—"}`,
   );
 
-  for (const path of ["/login", "/onboarding", "/portail-client", "/simulator"]) {
+  for (const path of ["/login", "/inscription", "/onboarding", "/portail-client", "/simulator"]) {
     const page = await fetchPage(path);
     check(`route publique ${path} répond 200`, page.status === 200, `status=${page.status}`);
   }
@@ -120,7 +120,7 @@ async function main() {
     header.includes("Simulateur") &&
       header.includes("FAQ") &&
       header.includes("Créer un compte") &&
-      header.includes('href="/onboarding"') &&
+      header.includes('href="/inscription"') &&
       header.includes('href="/login"') &&
       !header.includes('href="/portail-client"') &&
       !header.includes('href="/tracking"'),
@@ -139,13 +139,33 @@ async function main() {
 
   // Sur la page d'inscription, l'appel à l'action ne mène nulle part : on y
   // est déjà. La même porte ne doit pas s'afficher deux fois sur la page.
-  const onboarding = await fetchPage("/onboarding");
-  const onboardingHeader = onboarding.body.slice(0, onboarding.body.indexOf("</header>"));
+  const inscription = await fetchPage("/inscription");
+  const inscriptionHeader = inscription.body.slice(0, inscription.body.indexOf("</header>"));
   check(
     "la page d'inscription ne répète pas l'appel à l'action",
-    !onboardingHeader.includes('href="/onboarding"') &&
-      onboardingHeader.includes('href="/login"'),
+    !inscriptionHeader.includes('href="/inscription"') &&
+      inscriptionHeader.includes('href="/login"'),
     "seule la connexion reste dans l'en-tête",
+  );
+
+  // La porte d'inscription est **la** porte qui ouvre un compte : le
+  // formulaire doit être là, et il doit le dire.
+  check(
+    "la porte d'inscription présente le formulaire",
+    inscription.body.includes("Créer un compte") &&
+      inscription.body.includes("Numéro de CNI") &&
+      inscription.body.includes("Confirmer le mot de passe"),
+    "nom, CNI, mot de passe et confirmation sont demandés",
+  );
+
+  // L'assistant de dossier ne crée plus de compte : il suppose le demandeur
+  // connecté, et le renvoie vers l'inscription s'il ne l'est pas.
+  const onboarding = await fetchPage("/onboarding");
+  check(
+    "l'assistant de dossier ne crée plus de compte",
+    !onboarding.body.includes("Créer mon compte et continuer") &&
+      onboarding.body.includes("Créer mon compte"),
+    "la seule porte de création est /inscription",
   );
 
   // La foire aux questions est un service public, rendu et complet.

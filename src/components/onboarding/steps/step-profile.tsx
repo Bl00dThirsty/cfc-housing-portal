@@ -7,16 +7,19 @@ import { AddressAutocomplete } from "@/components/address/address-autocomplete";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { reportAction, reportError } from "@/lib/action-feedback";
+import { cn } from "@/lib/utils";
 import { saveProfileAction } from "@/server/actions/onboarding";
 import {
+  AFFILIATION_OPTIONS,
   parseAmount,
   validateStep,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
 
 /**
- * Étape 3 — le dossier.
+ * Étape 1 — le dossier.
  *
  * Ces éléments alimentent le scoring du prêt et la décision du comité de
  * crédit : ils sont donc vérifiés, et chaque champ dit ce qu'il lui manque.
@@ -68,6 +71,8 @@ export function StepProfile({
         fullName: draft.fullName,
         birthDate: draft.birthDate,
         cniNumber: draft.cniNumber,
+        phone: draft.phone,
+        affiliation: draft.affiliation,
         address: draft.address,
         profession: draft.profession,
         employer: draft.employer,
@@ -173,6 +178,56 @@ export function StepProfile({
             error={fieldErrors.address}
           />
         </div>
+
+        <div className="sm:col-span-2">
+          <PhoneInput
+            id="onboarding-phone"
+            value={draft.phone}
+            onChange={(phone) => onChange({ phone })}
+            required
+            error={fieldErrors.phone}
+            hint="Le numéro qui vous joindra pendant l'instruction du dossier."
+          />
+        </div>
+
+        <fieldset className="flex flex-col gap-2 sm:col-span-2">
+          <legend className="eyebrow-style mb-1 font-normal text-subtle">
+            Votre situation bancaire <span className="text-cfc-brown">*</span>
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {AFFILIATION_OPTIONS.map((option) => {
+              const active = draft.affiliation === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onChange({ affiliation: option.value })}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex flex-col gap-1 rounded-md border p-3 text-left transition-all duration-200 ease-power3-out",
+                    "hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    active
+                      ? "border-cfc-brown bg-cfc-lightgold/50"
+                      : "border-line-strong bg-background",
+                  )}
+                >
+                  <span className="text-sm font-medium text-foreground">{option.label}</span>
+                  <span className="caption-style text-muted-foreground">{option.description}</span>
+                  {active && (
+                    <span className="caption-style mt-1 flex items-start gap-1.5 text-cfc-brown animate-in fade-in-0 duration-200">
+                      {option.consequence}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {fieldErrors.affiliation && (
+            <p role="alert" className="text-xs text-destructive">
+              {fieldErrors.affiliation}
+            </p>
+          )}
+        </fieldset>
 
         <Field label="Profession" htmlFor="onboarding-profession">
           <Input

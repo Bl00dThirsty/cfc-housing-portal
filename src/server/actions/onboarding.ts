@@ -13,12 +13,6 @@ export type OnboardingResult =
   | { ok: true; message?: string; dossierCode?: string }
   | { ok: false; error: string };
 
-function ducCode(): string {
-  const year = new Date().getFullYear();
-  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "X");
-  return `CFC-${year}-DUC-${suffix}`;
-}
-
 async function currentCitizen() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -177,142 +171,11 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
 }
 
 /**
- * Crée le compte — **côté serveur**, dans une seule requête.
+ * Enregistre la situation du demandeur.
  *
- * La session doit être connue du serveur : c'est lui qui la pose, dans le
- * cookie de la réponse. Un `signUp` fait dans le navigateur laisserait la
- * requête suivante — celle qui enregistre la situation — sans session, et
- * l'emprunteur verrait « votre session a expiré » alors qu'il vient de créer
- * son compte.
- *
- * Trois issues, trois réponses :
- *
- * - le compte **existe déjà** : le mot de passe est peut-être le mauvais, et
- *   l'emprunteur doit se connecter ;
- * - le compte est créé mais l'**e-mail doit être confirmé** : la session
- *   n'existe pas encore, et le parcours s'arrête là ;
- * - le compte est créé et la session est ouverte : la situation est
- *   enregistrée, et le parcours continue.
+ * Le compte, lui, est ouvert par `/inscription` : cette action ne crée plus
+ * de compte, elle ne complète que le dossier d'un demandeur déjà connecté.
  */
-export async function createAccountAction(input: {
-  email: string;
-  password: string;
-  phone: string;
-  affiliation: AffiliationStatus;
-}): Promise<
-  | { ok: true; message?: string; pendingConfirmation?: boolean }
-  | { ok: false; error: string; code?: "ACCOUNT_EXISTS" }
-> {
-  const email = input.email.trim();
-
-  const supabase = await createServerSupabaseClient();
-
-  const { data, error: signUpError } = await supabase.auth.signUp({
-    email,
-    password: input.password,
-  });
-
-  if (signUpError) {
-    if (!/already registered|already exists/i.test(signUpError.message)) {
-      return { ok: false, error: signUpError.message };
-    }
-
-    // Le compte existe : c'est peut-être le mot de passe qui ne va pas.
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password: input.password,
-    });
-
-    if (signInError) {
-      return {
-        ok: false,
-        code: "ACCOUNT_EXISTS",
-        error: "Un compte existe déjà avec cette adresse e-mail.",
-      };
-    }
-  } else if (!data?.session) {
-    // Le compte est créé, mais la session attend la confirmation de l'e-mail.
-    return {
-      ok: true,
-      pendingConfirmation: true,
-      message:
-        "Votre compte a été créé. Confirmez votre adresse e-mail, puis connectez-vous pour reprendre votre dossier.",
-    };
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, error: "Session requise." };
-  }
-
-  const { error: profileError } = await supabase.from("citizen_profiles").upsert(
-    {
-      id: user.id,
-      email,
-      phone: toE164(input.phone),
-      affiliation_status: input.affiliation,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
-
-  if (profileError) return { ok: false, error: profileError.message };
-
-  // La session doit être **usable** par le serveur : l'emprunteur doit
-  // pouvoir relire sa propre fiche. Sans acteur — ou sans profil visible — la
-  // requête suivante échouerait, et l'emprunteur lirait « votre session a
-  // expiré » alors que son compte vient d'être créé.
-  const { data: actor } = await supabase
-    .from("actors")
-    .select("id, actor_type")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const { data: written } = await supabase
-    .from("citizen_profiles")
-    .select("id, phone")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!actor || actor.actor_type !== "citizen" || !written) {
-    return {
-      ok: false,
-      error:
-        "Votre compte a été créé, mais votre dossier n'a pas pu être ouvert. Reconnectez-vous pour le reprendre.",
-    };
-  }
-
-  return { ok: true, message: "Votre compte est créé." };
-}
-
-export async function saveAccountAction(input: {
-  phone: string;
-  affiliation: AffiliationStatus;
-}): Promise<OnboardingResult> {
-  const citizen = await currentCitizen();
-  if (!citizen) {
-    return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
-  }
-
-  const { supabase, userId } = citizen;
-
-  const { error } = await supabase.from("citizen_profiles").upsert(
-    {
-      id: userId,
-      phone: toE164(input.phone),
-      affiliation_status: input.affiliation,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
-
-  if (error) return { ok: false, error: error.message };
-
-  return { ok: true, message: "Votre situation a été enregistrée." };
-}
-
 export async function saveServiceAction(serviceCode: string): Promise<OnboardingResult> {
   const citizen = await currentCitizen();
   if (!citizen) {
@@ -333,7 +196,36 @@ export async function saveServiceAction(serviceCode: string): Promise<Onboarding
     return { ok: true, dossierCode: existing.duc_code };
   }
 
-  const code = ducCode();
+  // Le dossier ouvert par l'inscription attend son service : on le complète,
+  // on n'en ouvre pas un second. Un dossier par parcours.
+  const { data: opened } = await supabase
+    .from("dossiers")
+    .select("id, duc_code, service_code")
+    .eq("citizen_id", userId)
+    .is("service_code", null)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (opened) {
+    const { error } = await supabase
+      .from("dossiers")
+      .update({ service_code: serviceCode, updated_at: new Date().toISOString() })
+      .eq("id", opened.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    return { ok: true, dossierCode: opened.duc_code };
+  }
+
+  // Aucun dossier ouvert : on en ouvre un. Le code vient de la séquence, pour
+  // que deux inscriptions simultanées n'aient pas le même.
+  const { data: code, error: codeError } = await supabase.rpc("next_duc_code");
+  if (codeError || typeof code !== "string" || code.length === 0) {
+    return { ok: false, error: "Votre dossier n'a pas pu être ouvert. Réessayez." };
+  }
+
   const { data, error } = await supabase
     .from("dossiers")
     .insert({
@@ -355,6 +247,8 @@ export async function saveProfileAction(input: {
   fullName: string;
   birthDate: string;
   cniNumber: string;
+  phone: string;
+  affiliation: AffiliationStatus | null;
   address: SelectedAddress | null;
   profession: string;
   employer: string;
@@ -442,6 +336,8 @@ export async function saveProfileAction(input: {
       birth_date: input.birthDate || null,
       cni_raw: input.cniNumber.trim() || null,
       address: addressLabel,
+      phone: input.phone ? toE164(input.phone) : null,
+      affiliation_status: input.affiliation,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "id" },

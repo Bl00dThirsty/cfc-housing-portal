@@ -19,7 +19,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, KeyRound, Layers, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, KeyRound, Layers, Mail, ShieldCheck, UserPlus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -333,6 +333,16 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
                   Session sécurisée, journalisée et rattachée à votre habilitation.
                 </span>
               </div>
+
+              {audience === "citizen" && (
+                <Link
+                  href="/inscription"
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-line-strong px-3 py-2 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/50"
+                >
+                  <UserPlus className="size-3.5" aria-hidden />
+                  Créer un compte
+                </Link>
+              )}
 
               <Link
                 href={copy.switchHref}

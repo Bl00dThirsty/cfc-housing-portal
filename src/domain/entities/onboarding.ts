@@ -3,7 +3,7 @@ import { isValidPhone } from "@/domain/entities/phone";
 
 export type AffiliationStatus = "first_time" | "other_bank" | "cfc_existing" | "non_resident";
 
-export type OnboardingStepId = "account" | "service" | "profile" | "documents";
+export type OnboardingStepId = "profile" | "service" | "documents";
 
 export type OnboardingDraft = {
   email: string;
@@ -74,16 +74,25 @@ export const AFFILIATION_OPTIONS: ReadonlyArray<AffiliationOption> = [
   },
 ];
 
+/**
+ * Les étapes du parcours.
+ *
+ * Le dossier passe **avant** le service : on ne choisit pas un prêt avant
+ * d'avoir dit qui l'on est — et c'est aussi ce qui permet d'ouvrir la
+ * fenêtre des trois situations face au service.
+ *
+ * Le compte, lui, n'est plus une étape : il est ouvert par `/inscription`,
+ * la seule porte qui en crée un.
+ */
 export const ONBOARDING_STEPS: ReadonlyArray<{
   id: OnboardingStepId;
   index: number;
   title: string;
   caption: string;
 }> = [
-  { id: "account", index: 1, title: "Votre compte", caption: "Identité et situation" },
+  { id: "profile", index: 1, title: "Votre dossier", caption: "Coordonnées et revenus" },
   { id: "service", index: 2, title: "Votre service", caption: "Produit demandé" },
-  { id: "profile", index: 3, title: "Votre dossier", caption: "Coordonnées et revenus" },
-  { id: "documents", index: 4, title: "Vos pièces", caption: "Dossier unique client" },
+  { id: "documents", index: 3, title: "Vos pièces", caption: "Dossier unique client" },
 ];
 
 export type StepValidation = {
@@ -97,12 +106,6 @@ export type StepValidation = {
    */
   fields: Record<string, string>;
 };
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-export function isValidEmail(raw: string): boolean {
-  return EMAIL_PATTERN.test(raw.trim());
-}
 
 export function isValidCni(raw: string): boolean {
   const value = raw.replace(/[^A-Za-z0-9]/g, "");
@@ -141,24 +144,6 @@ export function validateStep(
   };
 
   switch (step) {
-    case "account": {
-      if (!isValidEmail(draft.email)) {
-        refuse("email", "Renseignez une adresse e-mail valide.");
-      }
-      if (!isValidPhone(draft.phone)) {
-        refuse("phone", "Renseignez un numéro de téléphone valide.");
-      }
-      if (!draft.affiliation) {
-        refuse("affiliation", "Indiquez votre situation bancaire.");
-      }
-      break;
-    }
-    case "service": {
-      if (!draft.serviceCode) {
-        refuse("service", "Choisissez le service pour lequel vous sollicitez un prêt.");
-      }
-      break;
-    }
     case "profile": {
       if (draft.fullName.trim().length < 3) {
         refuse("fullName", "Renseignez votre nom complet.");
@@ -169,11 +154,23 @@ export function validateStep(
       if (!isValidCni(draft.cniNumber)) {
         refuse("cniNumber", "Renseignez un numéro de CNI valide.");
       }
+      if (!isValidPhone(draft.phone)) {
+        refuse("phone", "Renseignez un numéro de téléphone valide.");
+      }
+      if (!draft.affiliation) {
+        refuse("affiliation", "Indiquez votre situation bancaire.");
+      }
       if (!draft.address) {
         refuse("address", "Renseignez votre adresse de résidence.");
       }
       if (parseAmount(draft.monthlyIncome) <= 0) {
         refuse("monthlyIncome", "Renseignez votre revenu mensuel.");
+      }
+      break;
+    }
+    case "service": {
+      if (!draft.serviceCode) {
+        refuse("service", "Choisissez le service pour lequel vous sollicitez un prêt.");
       }
       break;
     }
@@ -189,13 +186,19 @@ export function validateStep(
  * L'étape à reprendre.
  *
  * Un visiteur qui revient ne repart pas de zéro : il reprend là où son
- * dossier s'est arrêté. L'ordre est celui du parcours — on ne peut pas
- * choisir son service avant d'avoir dit qui l'on est.
+ * dossier s'est arrêté. L'ordre est celui du parcours — le dossier d'abord,
+ * le service ensuite, les pièces pour finir.
  */
 export function resumeStepId(draft: OnboardingDraft): OnboardingStepId {
-  if (!draft.phone || !draft.affiliation) return "account";
+  if (
+    !draft.fullName.trim() ||
+    !draft.cniNumber.trim() ||
+    !draft.address ||
+    !draft.affiliation
+  ) {
+    return "profile";
+  }
   if (!draft.serviceCode) return "service";
-  if (!draft.fullName.trim() || !draft.cniNumber.trim() || !draft.address) return "profile";
   return "documents";
 }
 

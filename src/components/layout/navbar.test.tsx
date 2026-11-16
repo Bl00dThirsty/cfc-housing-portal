@@ -38,7 +38,7 @@ describe("Navbar public", () => {
 
     expect(screen.getByRole("link", { name: /créer un compte/i })).toHaveAttribute(
       "href",
-      "/onboarding",
+      "/inscription",
     );
   });
 
@@ -59,7 +59,7 @@ describe("Navbar public", () => {
   });
 
   it("ne propose pas l'appel à l'action sur la page d'inscription elle-même", () => {
-    pathname.current = "/onboarding";
+    pathname.current = "/inscription";
 
     render(<Navbar />);
 

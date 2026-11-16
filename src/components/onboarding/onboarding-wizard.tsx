@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,13 +15,15 @@ import {
 } from "@/domain/entities/onboarding";
 import type { ServiceSummary } from "@/domain/entities/services";
 
-import { StepAccount } from "./steps/step-account";
 import { StepDocuments } from "./steps/step-documents";
 import { StepProfile } from "./steps/step-profile";
 import { StepService } from "./steps/step-service";
 
 /**
- * Le parcours d'inscription — quatre étapes, un seul dossier.
+ * Le parcours du dossier — trois étapes, un seul dossier.
+ *
+ * Le compte n'est plus une étape : il est ouvert par `/inscription`, la seule
+ * porte qui en crée un. L'assistant suppose donc le demandeur **connecté**.
  *
  * Deux règles tiennent l'ensemble :
  *
@@ -75,10 +78,29 @@ export function OnboardingWizard({
   }, [router]);
 
   /** L'étape de reprise, pour le dire à l'utilisateur. */
-  const resumed = step !== "account";
+  const resumed =
+    draft.fullName.trim().length > 0 || draft.serviceCode !== null || draft.address !== null;
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+      {!signedIn && (
+        <div className="mb-6 rounded-lg border border-line-strong bg-card p-5 shadow-xs">
+          <h2 className="text-base font-semibold text-foreground">
+            Ouvrez d&apos;abord votre compte
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Votre dossier est rattaché à votre compte : sans lui, nous ne pouvons
+            pas l&apos;ouvrir ni le reprendre.
+          </p>
+          <Button asChild variant="cfc" size="sm" className="mt-3 gap-1.5 text-xs">
+            <Link href="/inscription">
+              Créer mon compte
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          </Button>
+        </div>
+      )}
+
       <header className="mb-8 flex flex-col gap-1.5">
         <span className="eyebrow-style font-normal text-cfc-gold">
           Guichet Unique · Dossier Unique Client
@@ -87,7 +109,7 @@ export function OnboardingWizard({
           Constituer votre dossier de prêt
         </h1>
         <p className="text-sm text-muted-foreground">
-          Quatre étapes, et votre dossier est ouvert au CFC. Vous pouvez revenir
+          Trois étapes, et votre dossier est complet au CFC. Vous pouvez revenir
           dessus à tout moment depuis votre portail.
         </p>
         {resumed && (
@@ -147,11 +169,10 @@ export function OnboardingWizard({
       </ol>
 
       <section className="rounded-lg border border-line-strong bg-card p-5 shadow-xs">
-        {step === "account" && (
-          <StepAccount
+        {step === "profile" && (
+          <StepProfile
             draft={draft}
             onChange={patch}
-            signedIn={signedIn}
             onNext={goNext}
             saving={saving}
             setSaving={setSaving}
@@ -166,15 +187,6 @@ export function OnboardingWizard({
             saving={saving}
             setSaving={setSaving}
             onDossierCreated={setDossierCode}
-          />
-        )}
-        {step === "profile" && (
-          <StepProfile
-            draft={draft}
-            onChange={patch}
-            onNext={goNext}
-            saving={saving}
-            setSaving={setSaving}
           />
         )}
         {step === "documents" && (
