@@ -1,6 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  DEMO_PASSWORD,
+  ensureDemoCitizen,
+  findUserByEmail,
+} from "@/server/testing/demo-citizen";
+
+export { DEMO_PASSWORD, ensureDemoCitizen, findUserByEmail };
+
 /**
  * Comptes éphémères pour les tests de bout en bout.
  *
@@ -33,75 +41,28 @@ export function serviceClient(): SupabaseClient {
 
 /** Renseigne l'environnement pour les modules serveur importés par la suite. */
 export function applyServerEnv(): void {
-  process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = ANON_KEY;
-  process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
-}
-
-/** Trouve un compte par son adresse. */
-export async function findUserByEmail(
-  admin: SupabaseClient,
-  email: string,
-): Promise<{ id: string } | null> {
-  for (let page = 1; page <= 5; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw error;
-    const found = data.users.find((user) => user.email === email);
-    if (found) return { id: found.id };
-    if (data.users.length < 200) return null;
-  }
-  return null;
+  // `Object.assign` et non une affectation pointée : le compilateur remplace
+  // `process.env.NEXT_PUBLIC_*` par une constante, et l'affectation directe
+  // deviendrait une affectation à une rvalue.
+  Object.assign(process.env, {
+    NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON_KEY,
+    SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY,
+  });
 }
 
 /**
  * Crée — ou réutilise — un compte d'emprunteur de test.
  *
- * Le profil citoyen est créé dans la foulée : les écrans et les actions
- * lisent `citizen_profiles`, pas seulement `auth.users`.
+ * La mécanique est celle du compte de démonstration : un seul exemplaire
+ * pour les deux usages.
  */
 export async function ensureE2eCitizen(
   admin: SupabaseClient,
   email: string,
   fullName: string,
 ): Promise<string> {
-  const existing = await findUserByEmail(admin, email);
-
-  let userId = existing?.id ?? null;
-
-  if (userId) {
-    const { error } = await admin.auth.admin.updateUserById(userId, {
-      password: E2E_PASSWORD,
-      email_confirm: true,
-    });
-    if (error) throw error;
-  } else {
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      password: E2E_PASSWORD,
-      email_confirm: true,
-    });
-    if (error) throw error;
-    userId = data.user.id;
-  }
-
-  await admin.from("actors").upsert(
-    { id: userId, actor_type: "citizen" },
-    { onConflict: "id" },
-  );
-
-  await admin.from("citizen_profiles").upsert(
-    {
-      id: userId,
-      full_name: fullName,
-      affiliation_status: "first_time",
-      email,
-      is_diaspora: false,
-      kyc_state: "identity_capture",
-    },
-    { onConflict: "id" },
-  );
-
-  return userId;
+  return ensureDemoCitizen(admin, email, fullName);
 }
 
 /**
