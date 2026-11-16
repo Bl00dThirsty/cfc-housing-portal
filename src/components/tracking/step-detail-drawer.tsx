@@ -12,6 +12,7 @@ import {
 import { Tag } from "@/components/ui/tag";
 import { ErrorState } from "@/components/ui/error-state";
 import { actorRoleLabel, eventLabel } from "@/domain/entities/processes";
+import { rupturesForStep } from "@/domain/entities/ruptures";
 import {
   eventsForStep,
   unassignedEvents,
@@ -78,6 +79,13 @@ export function StepDetailDrawer({
     [events, steps],
   );
 
+  // Les points de rupture de l'étape : la liste complète, quand le suivi
+  // n'en montre qu'un.
+  const stepRuptures = React.useMemo(
+    () => (step ? rupturesForStep(step.code) : []),
+    [step],
+  );
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="flex w-full flex-col gap-4 p-5 sm:max-w-md">
@@ -124,6 +132,21 @@ export function StepDetailDrawer({
             ))}
           </ol>
         )}
+
+        {step && stepRuptures.length > 0 ? (
+          <section className="flex flex-col gap-1.5 rounded-lg border border-cfc-gold/30 bg-cfc-lightgold/30 px-3 py-2">
+            <h3 className="eyebrow-style font-normal text-subtle">
+              Points de rupture possibles
+            </h3>
+            <ul className="space-y-0.5">
+              {stepRuptures.map((rupture) => (
+                <li key={rupture} className="text-[11.5px] text-muted-foreground">
+                  {rupture}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {others.length > 0 ? (
           <section className="flex flex-col gap-2 border-t border-line-strong pt-3">

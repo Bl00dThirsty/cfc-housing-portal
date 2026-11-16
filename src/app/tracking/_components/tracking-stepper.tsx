@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Check, Circle, CircleDot, ExternalLink, MessageSquare } from "lucide-react";
 
+import { RupturePoint } from "@/components/tracking/rupture-points";
 import { StepDetailDrawer } from "@/components/tracking/step-detail-drawer";
 import { Progress } from "@/components/ui/progress";
 import { Tag } from "@/components/ui/tag";
@@ -198,6 +199,8 @@ export function TrackingStepper({
                         </Link>
                       ) : null}
                     </div>
+
+                    <RupturePoint stepCode={step.code} />
                   </div>
                 </li>
               ))}
