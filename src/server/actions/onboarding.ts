@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { notifyBusinessEvent } from "@/server/notifications/notify";
 import {
   EMPTY_DRAFT,
   fromStoredProfile,
@@ -34,6 +35,28 @@ async function currentCitizen() {
   if (!actor || actor.actor_type !== "citizen") return null;
 
   return { supabase, userId: user.id };
+}
+
+/**
+ * Le dossier courant du demandeur.
+ *
+ * Le code DUC et l'identifiant du dossier sont ce qui permet d'addresser une
+ * notification : le journal vise un dossier, pas une personne.
+ */
+async function currentDossier(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  citizenId: string,
+) {
+  const { data } = await supabase
+    .from("dossiers")
+    .select("id, duc_code")
+    .eq("citizen_id", citizenId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data ?? null) as { id: string; duc_code: string } | null;
 }
 
 type ProfileRow = {
@@ -268,7 +291,7 @@ export async function setPriorClientCaseAction(input: {
     return { ok: false, error: "Situation inconnue." };
   }
 
-  const supabase = await createServerSupabaseClient();
+  const { supabase } = citizen;
 
   // Le conseiller est calculé par le domaine — il est l'unique propriétaire de
   // la rotation — et la transition est appliquée par la base.
@@ -290,12 +313,25 @@ export async function setPriorClientCaseAction(input: {
   }
 
   if (priorCase.eligible) {
-    // Déjà servi au CFC : la suite est le dépôt des pièces.
+    // Déjà servi au CFC : la suite est le dépôt des pièces. Le parcours
+    // continue, il n'y a donc rien à signaler.
     return { ok: true, message: "Votre dossier passe au dépôt des pièces." };
   }
 
   // Pas encore client du CFC : un conseiller est affecté, et l'onboarding est
-  // en pause jusqu'à son activation du DUC.
+  // en pause jusqu'à son activation du DUC. **La pause est un fait** : elle
+  // est notifiée, en-app et par courriel.
+  const dossier = await currentDossier(supabase, citizen.userId);
+
+  if (dossier) {
+    await notifyBusinessEvent({
+      eventType: "APPLICATION_SUSPENDED",
+      dossierId: dossier.id,
+      recipientUserId: citizen.userId,
+      payload: { prior_client_case: input.priorClientCase, advisor: advisor.name },
+    });
+  }
+
   return {
     ok: true,
     advisor: advisor.name,
@@ -319,7 +355,7 @@ export async function submitServiceApplicationAction(): Promise<
     return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
   }
 
-  const supabase = await createServerSupabaseClient();
+  const { supabase } = citizen;
   const advisor = advisorForSequence(advisorIndexFor(citizen.userId));
 
   const { data, error } = await supabase.rpc("submit_service_application", {
@@ -338,6 +374,19 @@ export async function submitServiceApplicationAction(): Promise<
       };
     }
     return { ok: false, error: error.message };
+  }
+
+  // La transmission est un **fait** : elle est notifiée, en-app et par
+  // courriel. Le demandeur sait ainsi que son dossier est désormais instruit.
+  const dossier = await currentDossier(supabase, citizen.userId);
+
+  if (dossier) {
+    await notifyBusinessEvent({
+      eventType: "APPLICATION_SUBMITTED",
+      dossierId: dossier.id,
+      recipientUserId: citizen.userId,
+      payload: { advisor: advisor.name, service_code: dossier.duc_code },
+    });
   }
 
   return {

@@ -23,7 +23,7 @@
 import "server-only";
 
 import { getSiteUrl } from "@/server/env";
-import { eventLabel } from "@/domain/entities/processes";
+import { eventLabel, factKey } from "@/domain/entities/processes";
 import { getAdminClient } from "@/server/supabase/admin";
 import {
   DOMAIN_EVENT_TEMPLATES,
@@ -38,6 +38,7 @@ export type NotificationType =
   | "kyc.decision"
   | "document.requested"
   | "document.validated"
+  | "document.rejected"
   | "document.uploaded"
   | "committee.decision"
   | "loan.offer"
@@ -58,6 +59,13 @@ export interface NotifyInput {
   dossierId?: string | null;
   /** Lien proposé à l'utilisateur (« Ouvrir mon dossier »). */
   actionUrl?: string | null;
+  /**
+   * Clé de fait : elle rend la notification **idempotente**.
+   *
+   * Un même fait signalé par deux chemins — l'action serveur et le relais de
+   * la base — ne produit qu'une seule notification.
+   */
+  dedupeKey?: string | null;
   /** Événement métier à traduire en courriel, si la notification en mérite un. */
   email?: { eventType: string; payload?: Record<string, unknown> } | null;
 }
@@ -121,6 +129,10 @@ export const DOMAIN_EVENT_NOTIFICATIONS: Record<string, NotificationSignal> = {
     type: "document.validated",
     body: "Votre dossier progresse : cette pièce est définitivement retenue.",
   },
+  DOCUMENT_REJECTED: {
+    type: "document.rejected",
+    body: "Une pièce n'a pas été retenue : le motif est indiqué dans votre dossier.",
+  },
   DOCUMENT_UPLOADED: {
     type: "document.uploaded",
     body: "Une pièce justificative attend maintenant la vérification de votre conseiller.",
@@ -162,14 +174,23 @@ export async function notify(input: NotifyInput): Promise<boolean> {
   try {
     const admin = getAdminClient();
 
-    const { error } = await admin.from("notifications").insert({
+    const row = {
       recipient_user_id: input.recipientUserId,
       type: input.type,
       title: input.title,
       body: input.body ?? null,
       dossier_id: input.dossierId ?? null,
       action_url: input.actionUrl ?? null,
-    });
+      dedupe_key: input.dedupeKey ?? null,
+    };
+
+    // L'écriture est **idempotente** : la clé de fait est unique, et un fait
+    // déjà signalé ne produit pas de doublon.
+    const { error } = input.dedupeKey
+      ? await admin
+          .from("notifications")
+          .upsert(row, { onConflict: "dedupe_key", ignoreDuplicates: true })
+      : await admin.from("notifications").insert(row);
 
     if (error) {
       console.error("[notifications] écriture refusée :", error.message);
@@ -263,6 +284,16 @@ export async function notifyBusinessEvent(input: BusinessEventInput): Promise<bo
 
     const hasEmail = Boolean(DOMAIN_EVENT_TEMPLATES[input.eventType]);
 
+    // La clé de fait est **dérivée** du fait et de son destinataire : les deux
+    // chemins de signalisation — l'action serveur et le relais de la base —
+    // tombent sur la même clé, et le fait n'est donc notifié qu'une fois.
+    const dedupeKey = factKey({
+      eventType: input.eventType,
+      dossierId,
+      recipientUserId,
+      payload: input.payload ?? {},
+    });
+
     return await notify({
       recipientUserId,
       recipientEmail: input.recipientEmail ?? null,
@@ -270,6 +301,7 @@ export async function notifyBusinessEvent(input: BusinessEventInput): Promise<bo
       title: eventLabel(input.eventType),
       body: input.body ?? signal.body ?? null,
       dossierId,
+      dedupeKey,
       // Lien **relatif** : la cloche le rend par un `Link` Next.js.
       actionUrl: input.actionUrl ?? (dossierId ? "/portail-client" : null),
       email: hasEmail

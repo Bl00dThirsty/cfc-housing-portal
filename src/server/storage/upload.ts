@@ -499,7 +499,7 @@ export async function confirmUpload(
 
   const { error: eventError } = await supabase.rpc("append_dossier_event", {
     p_dossier_id: document.dossier_id,
-    p_event_type: "document.uploaded",
+    p_event_type: "DOCUMENT_UPLOADED",
     p_payload: {
       document_id: document.id,
       doc_type_code: document.doc_type_code,

@@ -180,7 +180,7 @@ describe.skipIf(!process.env.CFC_E2E)("dépôt documentaire — bout en bout", (
       .eq("dossier_id", dossierId);
 
     const uploadEvent = (events ?? []).find(
-      (event) => event.event_type === "document.uploaded",
+      (event) => event.event_type === "DOCUMENT_UPLOADED",
     );
     expect(uploadEvent).toBeTruthy();
     expect(uploadEvent?.payload).toMatchObject({
