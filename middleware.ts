@@ -24,7 +24,6 @@ import {
   ACCESS_DENIED_PATH,
   AGENT_PORTAL_ROOT,
   canAgentOpenRoute,
-  canOpenDevRoute,
 } from "@/config/rbac/route-access";
 import { CITIZEN_LANDING, landingPathForRole } from "@/config/rbac/sidebar-by-role";
 import { refreshSession } from "@/server/supabase/middleware";
@@ -43,22 +42,6 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute = pathname.startsWith(AGENT_PORTAL_ROOT);
   const isCitizenLogin = pathname === CITIZEN_LOGIN_PATH;
   const isAgentLogin = pathname === AGENT_LOGIN_PATH;
-
-  /**
-   * Les routes de développement.
-   *
-   * Elles n'existent qu'en développement : en production, la porte est
-   * fermée — sinon le panneau de démonstration serait accessible à quiconque
-   * connaît l'URL. La décision est prise ici, **côté serveur**.
-   */
-  if (!canOpenDevRoute(pathname)) {
-    const isDevRoute = pathname.startsWith("/dev/");
-    if (isDevRoute) {
-      const redirect = NextResponse.redirect(new URL(CITIZEN_LOGIN_PATH, request.url));
-      response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
-      return redirect;
-    }
-  }
 
   /**
    * La racine publique est la porte d'entrée du Guichet Unique : elle mène

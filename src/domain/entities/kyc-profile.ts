@@ -245,15 +245,6 @@ export function fromStoredProfile(
 /** Ancienneté exigée pour être client du CFC avant de souscrire un prêt. */
 export const CFC_CLIENT_ANCENNETE_MOIS = 6;
 
-/** La durée minimale de la période contractuelle d'épargne (cartographie PR-03). */
-export const PEL_PERIODE_MINIMALE_MOIS = 12;
-
-/** L'ancienneté exigée chez l'employeur actuel par le prêt classique. */
-export const PRET_CLASSIQUE_ANCIENNETE_MOIS = 12;
-
-/** L'ancienneté de CDI exigée par le prêt jeune. */
-export const PRET_JEUNE_ANCIENNETE_CDI_MOIS = 24;
-
 /** Le délai indicatif de reprise du conseiller, après transmission. */
 export const DELAI_REPRISE_CONSEILLER_JOURS = 7;
 

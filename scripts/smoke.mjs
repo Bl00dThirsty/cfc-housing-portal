@@ -179,16 +179,6 @@ async function main() {
     "les quatre écrans du KYC sont annoncés",
   );
 
-  // Le panneau de démonstration n'existe qu'en développement : en production,
-  // la porte est fermée. On vérifie qu'il répond ici — et qu'il est bien
-  // fermé **ailleurs**.
-  const demo = await fetchPage("/dev/demo");
-  check(
-    "le panneau de démonstration est servi en développement",
-    demo.status === 200 && demo.body.includes("Panneau de d"),
-    `status=${demo.status}`,
-  );
-
   // La foire aux questions est un service public, rendu et complet.
   const faq = await fetchPage("/faq");
   check("la foire aux questions est servie", faq.status === 200, `status=${faq.status}`);

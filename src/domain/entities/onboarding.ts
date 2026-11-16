@@ -1,4 +1,3 @@
-import type { SelectedAddress } from "@/domain/entities/address";
 import { isValidPhone } from "@/domain/entities/phone";
 import {
   isValidCniNumber,
@@ -118,12 +117,6 @@ export type StepValidation = {
   fields: Record<string, string>;
 };
 
-export function parseAmount(raw: string): number {
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return 0;
-  return Number.parseInt(digits, 10);
-}
-
 /**
  * Valide une étape du parcours.
  *
@@ -194,21 +187,4 @@ export function resumeStepId(draft: OnboardingDraft): OnboardingStepId {
   if (!validateStep("kyc", draft).valid) return "kyc";
   if (!draft.serviceCode) return "service";
   return "documents";
-}
-
-export function stepStatus(
-  step: OnboardingStepId,
-  draft: OnboardingDraft,
-): "done" | "current" | "todo" {
-  return validateStep(step, draft).valid ? "done" : "todo";
-}
-
-/**
- * L'adresse choisie, telle qu'elle est déclarée.
- *
- * Elle est **une** fois : le profil KYC porte la ville, le quartier et le
- * lieu-dit, et l'adresse complète n'est écrite que sur le dossier.
- */
-export function addressLabelOf(address: SelectedAddress | null): string | null {
-  return address?.label ?? null;
 }

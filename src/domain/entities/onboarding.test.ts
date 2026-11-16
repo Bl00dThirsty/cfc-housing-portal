@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_DRAFT,
   EMPTY_KYC_PROFILE,
-  parseAmount,
   resumeStepId,
   validateStep,
   type OnboardingDraft,
@@ -68,16 +67,6 @@ const validProfile = draft({
   phone: "+237 6 99 00 00 01",
   affiliation: "first_time",
   profile: COMPLETE_PROFILE,
-});
-
-describe("parseAmount", () => {
-  it("reads a formatted amount", () => {
-    expect(parseAmount("850 000")).toBe(850000);
-  });
-
-  it("returns zero for an empty value", () => {
-    expect(parseAmount("")).toBe(0);
-  });
 });
 
 describe("validateStep", () => {

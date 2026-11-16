@@ -54,13 +54,21 @@ export function NotificationBell({ className }: { className?: string }) {
 
     const supabase = getBrowserClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    /**
+     * Le nettoyage peut survenir **avant** que la session soit revenue : le
+     * canal n'existe pas encore, et il ne doit surtout pas s'abonner après
+     * coup. Ce drapeau ferme la porte.
+     */
+    let cancelled = false;
 
     void supabase.auth.getUser().then(({ data }) => {
       const userId = data.user?.id;
-      if (!userId) return;
+      if (!userId || cancelled) return;
 
+      // Le nom du canal porte l'identifiant : deux cloches ne se marchent
+      // pas dessus, et un canal resté vivant ne peut pas être réutilisé.
       channel = supabase
-        .channel("notifications")
+        .channel(`notifications:${userId}`)
         .on(
           "postgres_changes",
           {
@@ -83,6 +91,7 @@ export function NotificationBell({ className }: { className?: string }) {
     });
 
     return () => {
+      cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
   }, [load]);

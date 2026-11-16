@@ -37,36 +37,6 @@ export const COMMON_AGENT_ROUTES = [
 /** Écran de refus d'accès. */
 export const ACCESS_DENIED_PATH = "/portail-cfc/acces-refuse";
 
-/**
- * Les routes de **développement**.
- *
- * Elles n'existent pas en production : le panneau de démonstration joue le
- * rôle du conseiller, il n'a rien à faire d'une plateforme en service. La
- * condition est lue sur l'environnement **serveur** — le middleware est
- * serveur, et un `process.env` dans un composant client serait du vent.
- */
-export const DEV_ROUTES = ["/dev/demo"] as const;
-
-/** L'application est-elle en développement ? */
-export function isDevelopmentEnv(): boolean {
-  return process.env.NODE_ENV !== "production";
-}
-
-/**
- * La route de développement est-elle ouverte ?
- *
- * En production, elle est **refusée** : elle ne fait pas partie de la
- * navigation d'un rôle, et la table d'accès est fermée par défaut.
- */
-export function canOpenDevRoute(pathname: string): boolean {
-  const route = routeOf(pathname);
-  const isDevRoute = DEV_ROUTES.some(
-    (dev) => route === dev || route.startsWith(`${dev}/`),
-  );
-
-  return isDevRoute && isDevelopmentEnv();
-}
-
 /** Retire la chaîne de requête d'une URL de navigation. */
 function routeOf(href: string): string {
   const index = href.indexOf("?");
