@@ -5,6 +5,8 @@ import {
   canAgentOpenRoute,
   isCommonAgentRoute,
 } from "@/config/rbac/route-access";
+import { LANDING_BY_ROLE } from "@/config/rbac/sidebar-by-role";
+import { STAFF_ROLES } from "@/domain/policies/capabilities";
 
 /**
  * La navigation est la seule description des écrans d'un pôle : ce qu'un
@@ -16,11 +18,25 @@ describe("contrôle d'accès aux routes de la console", () => {
     expect(canAgentOpenRoute("GUICHET", "/portail-cfc/clients")).toBe(true);
     expect(canAgentOpenRoute("GUICHET", "/portail-cfc/actors/agency")).toBe(true);
     expect(canAgentOpenRoute("GUICHET", "/portail-cfc/actors/agency/kyc-validation")).toBe(true);
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/dossiers")).toBe(true);
 
     expect(canAgentOpenRoute("NOTAIRE", "/portail-cfc/actors/notary-cadastre")).toBe(true);
     expect(canAgentOpenRoute("COMITE", "/portail-cfc/actors/credit-committees")).toBe(true);
     expect(canAgentOpenRoute("DIASPORA", "/portail-cfc/actors/agency/diaspora")).toBe(true);
     expect(canAgentOpenRoute("RISQUES_BET", "/portail-cfc/actors/risk-engineering")).toBe(true);
+  });
+
+  /**
+   * L'écran d'atterrissage doit être **ouvert**.
+   *
+   * Le middleware y redirige l'agent : un atterrissage absent de la
+   * navigation du rôle mènerait à un refus, et l'agent ne pourrait plus
+   * jamais entrer dans la console.
+   */
+  it("permet à chaque rôle d'atteindre son écran d'atterrissage", () => {
+    for (const role of STAFF_ROLES) {
+      expect(canAgentOpenRoute(role, LANDING_BY_ROLE[role])).toBe(true);
+    }
   });
 
   it("refuse à un agent les écrans d'un autre pôle", () => {

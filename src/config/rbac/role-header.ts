@@ -51,7 +51,7 @@ const STAFF_CONFIGS: Record<string, RoleHeaderConfig> = {
     contextLabel: "Agence commerciale",
     search: { placeholder: "Rechercher un dossier, un emprunteur…", scope: "G1" },
     quickActions: [
-      { id: "enrol", label: "Enrôler un emprunteur", href: "/portail-cfc/clients", icon: "UserPlus", capability: "dossier:create" },
+      { id: "enrol", label: "Enrôler un emprunteur", href: "/portail-cfc/actors/agency", icon: "UserPlus", capability: "dossier:create" },
       { id: "kyc", label: "Valider un KYC", href: "/portail-cfc/actors/agency/kyc-validation", icon: "ShieldCheck", capability: "kyc:read" },
     ],
     showSupport: true,
@@ -60,6 +60,7 @@ const STAFF_CONFIGS: Record<string, RoleHeaderConfig> = {
     contextLabel: "Portefeuille emprunteurs",
     search: { placeholder: "Rechercher un dossier, une épargne…", scope: "G2" },
     quickActions: [
+      { id: "orienter", label: "Orienter un dossier", href: "/portail-cfc/dossiers", icon: "ClipboardCheck", capability: "dossier:read" },
       { id: "kanban", label: "Ouvrir le kanban", href: "/portail-cfc/kanban", icon: "SquareKanban", capability: "dossier:read" },
       { id: "savings", label: "Consulter l'épargne", href: "/portail-cfc/clients?tab=epargne", icon: "PiggyBank", capability: "savings:read" },
     ],
