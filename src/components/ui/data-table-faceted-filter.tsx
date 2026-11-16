@@ -12,14 +12,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { FacetOption } from "@/lib/data-table";
 import { cn } from "@/lib/utils";
 
-export interface FilterOption {
-  label: string;
-  value: string;
-  count?: number;
+/**
+ * Une option de facette : la valeur du module pur, plus l'icône d'affichage.
+ *
+ * Le module pur ne connaît pas React : l'icône est donc ajoutée ici, et
+ * nulle part ailleurs.
+ */
+export type FilterOption = FacetOption & {
   icon?: React.ComponentType<{ className?: string }>;
-}
+};
 
 export interface DataTableFacetedFilterProps {
   title: string;
@@ -68,17 +72,17 @@ export function DataTableFacetedFilter({
           variant="outline"
           size="sm"
           className={cn(
-            "h-8 border-dashed border-input text-xs font-normal gap-1.5 px-2.5 bg-background hover:bg-muted/40 transition-colors",
-            selectedValues.length > 0 && "border-solid border-primary/40 bg-secondary/30",
+            "h-8 gap-1.5 border-dashed border-line-strong bg-secondary px-2.5 text-[12px] font-normal hover:bg-muted",
+            selectedValues.length > 0 && "border-solid border-primary/40 bg-muted/40",
             className
           )}
         >
-          <PlusCircle className="size-3.5 text-muted-foreground shrink-0" />
+          <PlusCircle className="size-3.5 shrink-0 text-subtle" />
           <span>{title}</span>
 
           {selectedValues.length > 0 && (
             <>
-              <span className="h-3.5 w-px bg-border/60 mx-1 shrink-0" />
+              <span className="mx-1 h-3.5 w-px shrink-0 bg-line-strong" />
               {selectedValues.length <= 2 ? (
                 <div className="flex items-center gap-1">
                   {options
@@ -87,7 +91,7 @@ export function DataTableFacetedFilter({
                       <Badge
                         key={opt.value}
                         variant="secondary"
-                        className="px-1.5 py-0 h-4.5 text-[10px] font-normal rounded-sm bg-muted text-foreground"
+                        className="h-4.5 rounded-sm bg-muted px-1.5 py-0 text-[10px] font-normal text-foreground"
                       >
                         {opt.label}
                       </Badge>
@@ -96,7 +100,7 @@ export function DataTableFacetedFilter({
               ) : (
                 <Badge
                   variant="secondary"
-                  className="px-1.5 py-0 h-4.5 text-[10px] font-normal rounded-sm bg-muted text-foreground"
+                  className="h-4.5 rounded-sm bg-muted px-1.5 py-0 text-[10px] font-normal text-foreground"
                 >
                   {selectedValues.length} sélectionnés
                 </Badge>
@@ -106,29 +110,29 @@ export function DataTableFacetedFilter({
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="w-56 p-1.5 rounded-xl shadow-lg border">
-        <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
+      <DropdownMenuContent align="start" className="w-56 p-1.5">
+        <DropdownMenuLabel className="caption-style uppercase tracking-wider text-subtle">
           {title}
         </DropdownMenuLabel>
 
         {options.length > 4 && (
           <div className="px-1.5 pb-1.5">
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground pointer-events-none" />
+              <Search className="pointer-events-none absolute left-2 top-1/2 size-3 -translate-y-1/2 text-subtle" />
               <input
                 type="text"
                 placeholder={`Filtrer ${title.toLowerCase()}...`}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="h-7 w-full rounded-md border bg-muted/30 pl-6 pr-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
+                className="h-7 w-full rounded-md border border-line-strong bg-secondary pl-6 pr-2 text-[12px] text-foreground outline-none transition-[border-color] duration-150 placeholder:text-subtle focus-visible:border-ring"
               />
             </div>
           </div>
         )}
 
-        <div className="max-h-56 overflow-y-auto space-y-0.5 pt-0.5">
+        <div className="max-h-56 space-y-0.5 overflow-y-auto pt-0.5">
           {filteredOptions.length === 0 ? (
-            <div className="py-3 text-center text-xs text-muted-foreground">
+            <div className="py-3 text-center text-[12px] text-subtle">
               Aucun résultat
             </div>
           ) : (
@@ -141,29 +145,29 @@ export function DataTableFacetedFilter({
                     e.preventDefault();
                     toggleOption(opt.value);
                   }}
-                  className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-md cursor-pointer text-xs"
+                  className="cursor-pointer justify-between gap-2 px-2 py-1.5"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
                     <div
                       className={cn(
-                        "size-3.5 rounded-xs border flex items-center justify-center transition-colors shrink-0",
+                        "flex size-3.5 shrink-0 items-center justify-center rounded-xs border transition-colors",
                         isSelected
-                          ? "bg-primary border-primary text-primary-foreground"
-                          : "border-muted-foreground/40 opacity-70"
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-subtle/40 opacity-70"
                       )}
                     >
                       {isSelected && <Check className="size-2.5 stroke-[3]" />}
                     </div>
 
                     {opt.icon && (
-                      <opt.icon className="size-3.5 text-muted-foreground shrink-0" />
+                      <opt.icon className="size-3.5 shrink-0 text-subtle" />
                     )}
 
                     <span className="truncate font-medium">{opt.label}</span>
                   </div>
 
                   {opt.count !== undefined && (
-                    <span className="font-mono text-[10px] text-muted-foreground shrink-0 ml-1">
+                    <span className="ml-1 shrink-0 font-mono text-[10px] text-subtle">
                       {opt.count}
                     </span>
                   )}
@@ -178,7 +182,7 @@ export function DataTableFacetedFilter({
             <DropdownMenuSeparator className="my-1" />
             <DropdownMenuItem
               onSelect={() => clearFilter()}
-              className="justify-center text-center text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer py-1"
+              className="cursor-pointer justify-center py-1 text-center text-[12px] font-medium text-subtle hover:text-foreground"
             >
               Effacer les filtres
             </DropdownMenuItem>
