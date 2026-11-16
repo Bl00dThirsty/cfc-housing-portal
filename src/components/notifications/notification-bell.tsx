@@ -38,6 +38,17 @@ export function NotificationBell({ className }: { className?: string }) {
   /** Message d'erreur : une cloche muette ne doit pas passer pour une boîte vide. */
   const [error, setError] = React.useState<string | null>(null);
 
+  /**
+   * L'identité de cette cloche.
+   *
+   * Le client Supabase **rend le canal déjà connu** sous le même nom : deux
+   * cloches qui réclament le même canal se marchent dessus, et la seconde
+   * reçoit une écoute sur un canal déjà abonné — ce que le relais refuse. Le
+   * nom du canal porte donc l'identité de la cloche, pas seulement celle de
+   * l'utilisateur.
+   */
+  const instanceId = React.useId().replace(/[^a-zA-Z0-9]/g, "");
+
   const load = React.useCallback(async () => {
     const result = await listNotificationsAction();
     if (!result.ok) {
@@ -65,10 +76,11 @@ export function NotificationBell({ className }: { className?: string }) {
       const userId = data.user?.id;
       if (!userId || cancelled) return;
 
-      // Le nom du canal porte l'identifiant : deux cloches ne se marchent
-      // pas dessus, et un canal resté vivant ne peut pas être réutilisé.
+      // Le nom du canal porte l'identifiant de l'utilisateur **et** celui
+      // de la cloche : deux cloches ne se marchent pas dessus, et un canal
+      // resté vivant ne peut pas être réutilisé.
       channel = supabase
-        .channel(`notifications:${userId}`)
+        .channel(`notifications:${userId}:${instanceId}`)
         .on(
           "postgres_changes",
           {
@@ -94,7 +106,7 @@ export function NotificationBell({ className }: { className?: string }) {
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [load]);
+  }, [load, instanceId]);
 
   const handleOpen = async (value: boolean) => {
     setOpen(value);

@@ -8,7 +8,6 @@ import { buildDashboardModel } from "@/components/portail-client/dashboard/dashb
 import DucFileManager from "@/components/portail-client/duc-file-manager";
 import DocumentDropzone from "@/components/portail-client/document-dropzone";
 import { OnboardingWaiting } from "@/components/portail-client/onboarding-waiting";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 import { SupportChat } from "@/components/support/support-chat";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -146,7 +145,6 @@ export default async function CitizenPortalPage({
             échangez avec votre conseiller.
           </p>
         </div>
-        <NotificationBell />
       </header>
 
       {isAwaitingAdvisor ? (
