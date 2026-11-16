@@ -236,8 +236,36 @@ async function main() {
     "l'agent GUICHET atterrit sur son écran de pôle",
     agentLanding.status >= 300 &&
       agentLanding.status < 400 &&
-      (agentLanding.location ?? "").includes("/portail-cfc/clients"),
+      (agentLanding.location ?? "").includes("/portail-cfc/actors/agency"),
     `status=${agentLanding.status} location=${agentLanding.location ?? "—"}`,
+  );
+
+  // L'écran d'atterrissage du guichet est celui de son pôle : il porte de
+  // vrais indicateurs, mesurés dans le périmètre de l'agent.
+  const poleScreen = await fetchPage("/portail-cfc/actors/agency", agent.cookie);
+  check(
+    "l'écran de pôle est servi à l'agent",
+    poleScreen.status === 200,
+    `status=${poleScreen.status}`,
+  );
+  check(
+    "l'écran de pôle mesure ses indicateurs",
+    poleScreen.body.includes("Dossiers ouverts") &&
+      poleScreen.body.includes("Dossiers à orienter"),
+    "les indicateurs mesurés du pôle guichet sont attendus",
+  );
+
+  // La file des dossiers à orienter est le poste de travail du conseiller.
+  const orientation = await fetchPage("/portail-cfc/dossiers", agent.cookie);
+  check(
+    "la file des dossiers à orienter est servie à l'agent",
+    orientation.status === 200,
+    `status=${orientation.status}`,
+  );
+  check(
+    "la file des dossiers à orienter rend son contenu",
+    orientation.body.includes("Dossiers à orienter"),
+    "le titre de la file des dossiers est attendu",
   );
 
   const adminLanding = await fetchPage("/portail-cfc", admin.cookie);
@@ -247,6 +275,19 @@ async function main() {
       adminLanding.status < 400 &&
       (adminLanding.location ?? "").includes("/portail-cfc/analytics"),
     `status=${adminLanding.status} location=${adminLanding.location ?? "—"}`,
+  );
+
+  const adminScreen = await fetchPage("/portail-cfc/analytics", admin.cookie);
+  check(
+    "l'écran de pilotage de l'administrateur est servi",
+    adminScreen.status === 200,
+    `status=${adminScreen.status}`,
+  );
+  check(
+    "l'écran de pilotage mesure ses indicateurs",
+    adminScreen.body.includes("Taux d'activation") &&
+      adminScreen.body.includes("Dossiers ouverts"),
+    "les indicateurs mesurés de la plateforme sont attendus",
   );
 
   const kyc = await fetchPage("/portail-cfc/actors/agency/kyc-validation", agent.cookie);
@@ -370,7 +411,10 @@ async function checkRoleIsolation() {
  * rendu avec une session réelle, pas par une inspection visuelle.
  */
 async function checkCitizenJourney() {
-  const citizen = await signIn("emprunteur@cfc.cm");
+  // Un dossier **en attente d'orientation** n'affiche pas de graphiques :
+  // un tableau de bord vide serait un mensonge. On contrôle donc les deux
+  // états — celui qui dépose ses pièces, et celui qui attend son conseiller.
+  const citizen = await signIn("emprunteur.pieces@cfc.cm");
 
   const dashboard = await fetchPage("/portail-client", citizen.cookie);
   check("le tableau de bord citoyen est servi", dashboard.status === 200, `status=${dashboard.status}`);
@@ -379,6 +423,16 @@ async function checkCitizenJourney() {
     dashboard.body.includes("Avancement") && dashboard.body.includes("Complétude"),
   );
   check("le tableau de bord porte ses graphiques", dashboard.body.includes("recharts"));
+
+  const awaiting = await signIn("emprunteur@cfc.cm");
+  const waiting = await fetchPage("/portail-client", awaiting.cookie);
+  check(
+    "un dossier en attente d'orientation affiche l'écran d'attente",
+    waiting.status === 200 &&
+      waiting.body.includes("conseiller") &&
+      !waiting.body.includes("recharts"),
+    "un dossier qui attend un conseiller ne montre pas de graphiques vides",
+  );
 
   const tracking = await fetchPage("/tracking", citizen.cookie);
   check("le suivi du dossier est servi", tracking.status === 200, `status=${tracking.status}`);
