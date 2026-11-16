@@ -2647,8 +2647,70 @@ visiteur anonyme trouve les deux portes.
 
 ---
 
-*End of document. Part 20 records the four KYC screens, the state the citizen
-does not own, and the three outcomes of the service choice; Part 19 the shared
+## PART 21 — LES PIÈCES, LE PANEAU DU CONSEILLER, LES POINTS DE RUPTURE (2026-11-16)
+
+### 21.1 Les pièces du KYC et celles du service
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Les pièces du KYC | `KYC_DOCUMENTS` (`kyc-profile.ts`) | facultatives : CNI, justificatif de domicile, justificatif de revenus |
+| Le dépôt | `src/components/kyc/kyc-documents.tsx` | il **réutilise** `DocumentUploader` — pas de second composant de dépôt |
+| Les métadonnées | `kyc_documents` | le nom, le type, la taille, la date : les octets restent dans le coffre |
+| Les pièces du service | `src/components/onboarding/service-documents.tsx` | groupées **par catégorie**, chacune avec son état |
+| Les trois états | `markProvidedDocuments` (générique) | à fournir · déjà fournie (KYC) · envoyée |
+| « Passer pour l'instant » | le même écran | il ne bloque **rien** : un dossier incomplet est instruit, pas rejeté |
+
+### 21.2 Le parcours appartient à la plateforme
+
+Le garde-fou du dossier (migration 021) protégeait les champs **dérivés**. Il
+en oubliait quatre, du même genre : l'**activation** du DUC, l'**avancement**
+du parcours, le **conseiller** affecté et la **situation** face au service.
+
+Sans cette extension, un citoyen pouvait écrire `duc_status = 'active'` sur
+son propre dossier — et s'ouvrir, seul, les droits d'un dossier activé.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le garde-fou étendu | `private.guard_citizen_dossier_update()` | quatre champs de plus sont protégés |
+| La situation face au service | `public.set_prior_client_case()` | atomique, par la base |
+| La transmission | `public.submit_service_application()` | atomique, **journalisée**, conseiller affecté |
+
+### 21.3 Le panneau de démonstration
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| L'accès | `canOpenDevRoute()` (`route-access.ts`) | la route n'existe qu'**en développement** ; la condition est lue **côté serveur** |
+| La fermeture | `middleware.ts` | en production, `/dev/*` renvoie vers la porte du citoyen |
+| Les décisions | `src/server/actions/demo.ts` | elles **écrivent** : journal, notification, état |
+
+⚠️ Un module `"use server"` importé par un composant client est concaténé pour
+le navigateur : une affectation à `process.env.NEXT_PUBLIC_*` y devient une
+affectation à une constante, et la construction échoue. Le compte de
+démonstration a donc son propre module, sûr dans le graphe client.
+
+### 21.4 Les points de rupture
+
+Les six points de rupture du diagramme en couloirs (PR-01) sont un **fait de
+la cartographie** : ils vivent dans le domaine (`src/domain/entities/
+ruptures.ts`), et l'écran ne les réécrit pas. Le suivi en montre **un seul**
+sous l'étape ; le panneau d'étape en porte la liste complète.
+
+### 21.5 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **406 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **68/68** |
+
+---
+
+*End of document. Part 21 records the documents, the advisor's demo panel and
+the rupture points; Part 20 the four KYC screens, the state the citizen does
+not own, and the three outcomes of the service choice; Part 19 the shared
 data-table engine and the single account door; Part 18 the repaired onboarding
 journey and the interactive tracker; Part 17 the FAQ, the surfacing of
 failures, the proven messaging and the traced KYC decision; Part 16 the
