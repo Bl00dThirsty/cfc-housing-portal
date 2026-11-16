@@ -91,6 +91,14 @@ export function stageLabel(stage: string): string {
  */
 export type ChecklistStatus =
   | "missing"
+  /**
+   * Fournie au KYC : elle n'est **jamais** demandée deux fois.
+   */
+  | "deja_fournie"
+  /**
+   * Déclarée par le demandeur, en attente de vérification.
+   */
+  | "envoyee"
   | "uploaded"
   | "in_review"
   | "verified"
@@ -135,4 +143,22 @@ export function checklistStatusFor(raw: string | null | undefined): ChecklistSta
     default:
       return "missing";
   }
+}
+
+/**
+ * Croise les exigences d'un service et les pièces déjà fournies.
+ *
+ * Une pièce déjà fournie au KYC (CNI, bulletins, RIB) est marquée
+ * « déjà fournie » : elle n'est **jamais** demandée deux fois.
+ */
+export function markProvidedDocuments(
+  requirements: ChecklistItem[],
+  providedCodes: readonly string[],
+): ChecklistItem[] {
+  const provided = new Set(providedCodes);
+  return requirements.map((item) =>
+    provided.has(item.docTypeCode) && item.status === "missing"
+      ? { ...item, status: "deja_fournie" }
+      : item,
+  );
 }

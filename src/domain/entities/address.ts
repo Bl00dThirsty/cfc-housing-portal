@@ -170,6 +170,39 @@ export const CAMEROON_PLACES: ReadonlyArray<{
   { label: "Bepanda, Douala, Cameroun", shortLabel: "Bepanda, Douala", kind: "neighbourhood", city: "Douala", region: "Littoral" },
 ];
 
+/**
+ * Le chef-lieu de chaque région.
+ *
+ * Il n'est **pas** déductible du catalogue : celui-ci liste aussi des
+ * villes qui ne sont pas des chefs-lieux (Kribi ne l'est pas, Ebolowa si).
+ * La carte est donc déclarée ici — au même endroit, dans le même module, et
+ * jamais ailleurs.
+ */
+const CHEF_LIEU: Record<string, string> = {
+  Adamaoua: "Ngaoundéré",
+  Centre: "Yaoundé",
+  Est: "Bertoua",
+  "Extrême-Nord": "Maroua",
+  Littoral: "Douala",
+  Nord: "Garoua",
+  "Nord-Ouest": "Bamenda",
+  Ouest: "Bafoussam",
+  Sud: "Ebolowa",
+  "Sud-Ouest": "Buea",
+};
+
+/**
+ * Les régions du Cameroun, avec leur chef-lieu.
+ *
+ * La **liste** des régions est dérivée du catalogue des lieux : une région
+ * qui y entre y entre une fois. Le chef-lieu vient de la carte ci-dessus.
+ */
+export const CAMEROON_REGIONS: ReadonlyArray<{ name: string; chefLieu: string }> = [
+  ...new Set(CAMEROON_PLACES.map((place) => place.region)),
+]
+  .sort((a, b) => a.localeCompare(b, "fr"))
+  .map((name) => ({ name, chefLieu: CHEF_LIEU[name] ?? name }));
+
 export function catalogueSuggestions(query: string): AddressSuggestion[] {
   const needle = query.trim().toLowerCase();
   if (needle.length < 2) return [];
