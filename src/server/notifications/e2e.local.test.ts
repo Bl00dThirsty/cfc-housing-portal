@@ -217,17 +217,25 @@ describe.skipIf(!process.env.CFC_E2E)("signalisation des événements métier", 
     });
     expect(confirmed.version).toBe(1);
 
-    // Le conseiller — et lui seul — est prévenu.
+    // L'agent reçoit la demande d'action, et le client une confirmation.
     const { data: notifications } = await admin
       .from("notifications")
       .select("recipient_user_id, type, title, body, action_url")
       .eq("dossier_id", dossierId)
       .eq("type", "document.uploaded");
 
-    expect(notifications).toHaveLength(1);
-    expect(notifications?.[0]?.recipient_user_id).toBe(agentId);
-    expect(notifications?.[0]?.body).toContain("cni-notifiee.pdf");
-    expect(notifications?.[0]?.action_url).toBe("/portail-cfc/clients");
+    const agentNotification = notifications?.find(
+      (notification) => notification.recipient_user_id === agentId,
+    );
+    expect(agentNotification).toBeDefined();
+    expect(agentNotification?.body).toContain("cni-notifiee.pdf");
+    expect(agentNotification?.action_url).toBe("/portail-cfc/clients");
+
+    const citizenNotification = notifications?.find(
+      (notification) => notification.recipient_user_id === citizenId,
+    );
+    expect(citizenNotification).toBeDefined();
+    expect(citizenNotification?.body).toContain("vérification");
   });
 
   it("n'écrit aucune notification pour un événement hors catalogue", async () => {

@@ -199,6 +199,16 @@ grant execute on function public.set_prior_client_case(text, text) to authentica
 -- que le catalogue des notifications et le modèle d'e-mail knew la demande
 -- de pièce. Les rôles qui enrôlent l'emprunteur la portent.
 
+-- Les rôles sont normalement semés par `seed.sql` en développement et par la
+-- migration RBAC en production. Cette migration doit aussi tenir seule.
+insert into ref.role (code, label, scope, landing_path)
+values
+  ('GUICHET', 'Guichetier & Accueil', 'OWN_AGENCY', '/admin/clients'),
+  ('GESTIONNAIRE', 'Conseiller Clientèle', 'OWN_PORTFOLIO', '/admin/clients'),
+  ('DIASPORA', 'Chargé Diaspora & Non-Résidents', 'DIASPORA_FILES', '/admin/clients'),
+  ('ADMIN', 'Administrateur Système', 'ALL', '/admin/clients')
+on conflict (code) do nothing;
+
 insert into ref.role_capability (role_code, capability)
 values
   ('GUICHET', 'document:request'),

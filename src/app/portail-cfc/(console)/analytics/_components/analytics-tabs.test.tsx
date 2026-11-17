@@ -2,13 +2,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DossiersDucTab } from "@/app/portail-cfc/analytics/_components/dossiers-duc-tab";
-import { EpargnantsTab } from "@/app/portail-cfc/analytics/_components/epargnants-tab";
-import { SimulationsTab } from "@/app/portail-cfc/analytics/_components/simulations-tab";
-import { CanauxCollecteTab } from "@/app/portail-cfc/analytics/_components/canaux-collecte-tab";
-import { TopPages } from "@/app/portail-cfc/analytics/_components/top-pages";
-import SaverDetailPage from "@/app/portail-cfc/analytics/savers/[id]/page";
-import SimulationDetailPage from "@/app/portail-cfc/analytics/simulations/[id]/page";
+import { DossiersDucTab } from "@/app/portail-cfc/(console)/analytics/_components/dossiers-duc-tab";
+import { EpargnantsTab } from "@/app/portail-cfc/(console)/analytics/_components/epargnants-tab";
+import { SimulationsTab } from "@/app/portail-cfc/(console)/analytics/_components/simulations-tab";
+import { CanauxCollecteTab } from "@/app/portail-cfc/(console)/analytics/_components/canaux-collecte-tab";
+import { TopPages } from "@/app/portail-cfc/(console)/analytics/_components/top-pages";
+import SaverDetailPage from "@/app/portail-cfc/(console)/analytics/savers/[id]/page";
+import SimulationDetailPage from "@/app/portail-cfc/(console)/analytics/simulations/[id]/page";
 import { useDataTableStore } from "@/stores/data-table-store";
 
 vi.mock("next/navigation", () => ({

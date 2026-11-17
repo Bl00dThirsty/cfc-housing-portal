@@ -7,6 +7,25 @@ import { calculateHousingPlan } from "../src/domain/calculations/index.ts";
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+function isLocalSupabaseUrl(value) {
+  try {
+    const url = new URL(value);
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (!isLocalSupabaseUrl(SUPABASE_URL)) {
+  console.error(
+    "Refusing to seed a non-local Supabase URL. Use a loopback URL such as http://127.0.0.1:54321.",
+  );
+  process.exit(1);
+}
+
 const SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   process.env.SUPABASE_SECRET_KEY;

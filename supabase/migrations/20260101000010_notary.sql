@@ -20,11 +20,9 @@ create table if not exists public.land_titles (
   deleted_at         timestamptz,
   deleted_by         uuid references auth.users (id) on delete set null
 );
-
 create index if not exists land_titles_dossier_idx on public.land_titles (dossier_id);
 create unique index if not exists land_titles_active_number_key
   on public.land_titles (title_number) where deleted_at is null;
-
 create table if not exists public.notary_instruments (
   id                uuid primary key default gen_random_uuid(),
   dossier_id        uuid not null references public.dossiers (id) on delete cascade,
@@ -49,10 +47,8 @@ create table if not exists public.notary_instruments (
   deleted_at        timestamptz,
   deleted_by        uuid references auth.users (id) on delete set null
 );
-
 create index if not exists notary_instruments_dossier_idx on public.notary_instruments (dossier_id);
 create index if not exists notary_instruments_status_idx on public.notary_instruments (status);
-
 create table if not exists public.oppositions (
   id                uuid primary key default gen_random_uuid(),
   dossier_id        uuid not null references public.dossiers (id) on delete cascade,
@@ -71,10 +67,8 @@ create table if not exists public.oppositions (
   deleted_at        timestamptz,
   deleted_by        uuid references auth.users (id) on delete set null
 );
-
 create index if not exists oppositions_dossier_idx on public.oppositions (dossier_id);
 create index if not exists oppositions_open_idx on public.oppositions (dossier_id) where status = 'open' and deleted_at is null;
-
 create table if not exists public.insurances (
   id               uuid primary key default gen_random_uuid(),
   dossier_id       uuid not null references public.dossiers (id) on delete cascade,
@@ -93,22 +87,18 @@ create table if not exists public.insurances (
   deleted_at       timestamptz,
   deleted_by       uuid references auth.users (id) on delete set null
 );
-
 create index if not exists insurances_dossier_idx on public.insurances (dossier_id);
 create index if not exists insurances_expiry_idx on public.insurances (end_date) where deleted_at is null;
-
 select private.attach_audit_trigger('public.land_titles');
 select private.attach_audit_trigger('public.notary_instruments');
 select private.attach_audit_trigger('public.oppositions');
 select private.attach_audit_trigger('public.insurances');
-
 grant select, insert, update, delete on
   public.land_titles, public.notary_instruments, public.oppositions, public.insurances
   to authenticated;
 grant all on
   public.land_titles, public.notary_instruments, public.oppositions, public.insurances
   to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on public.land_titles from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.notary_instruments from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.oppositions from authenticated;

@@ -27,21 +27,16 @@ create table if not exists public.dossier_events (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 create index if not exists dossier_events_dossier_idx
   on public.dossier_events (dossier_id, occurred_at desc);
 create index if not exists dossier_events_type_idx on public.dossier_events (event_type);
 create index if not exists dossier_events_actor_idx on public.dossier_events (actor_id);
-
 select private.attach_audit_trigger('public.dossier_events');
-
 grant select, insert on public.dossier_events to authenticated;
 grant all on public.dossier_events to service_role;
-
 -- Ajout seul : ni modification, ni suppression.
 revoke update, delete on public.dossier_events from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.dossier_events from authenticated;
-
 -- ---------------------------------------------------------------------------
 -- Demandes d'exercice des droits (Loi n° 2024/017)
 -- ---------------------------------------------------------------------------
@@ -64,18 +59,13 @@ create table if not exists public.data_subject_requests (
   deleted_at         timestamptz,
   deleted_by         uuid references auth.users (id) on delete set null
 );
-
 create index if not exists data_subject_requests_requester_idx on public.data_subject_requests (requester_actor_id);
 create index if not exists data_subject_requests_open_idx
   on public.data_subject_requests (received_at desc) where status in ('received', 'in_progress') and deleted_at is null;
-
 select private.attach_audit_trigger('public.data_subject_requests');
-
 grant select, insert, update, delete on public.data_subject_requests to authenticated;
 grant all on public.data_subject_requests to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on public.data_subject_requests from authenticated;
-
 -- ---------------------------------------------------------------------------
 -- Journal d'audit applicatif
 -- ---------------------------------------------------------------------------
@@ -128,6 +118,5 @@ begin
 
   return v_id;
 end $$;
-
 grant execute on function private.append_dossier_event(uuid, text, jsonb, text, text, text)
   to authenticated, service_role;

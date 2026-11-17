@@ -20,11 +20,9 @@ create table if not exists public.disbursements (
   deleted_at          timestamptz,
   deleted_by          uuid references auth.users (id) on delete set null
 );
-
 create index if not exists disbursements_dossier_idx on public.disbursements (dossier_id);
 create unique index if not exists disbursements_active_tranche_key
   on public.disbursements (dossier_id, tranche_number) where deleted_at is null;
-
 create table if not exists public.disbursement_schedules (
   id              uuid primary key default gen_random_uuid(),
   dossier_id      uuid not null references public.dossiers (id) on delete cascade,
@@ -40,11 +38,9 @@ create table if not exists public.disbursement_schedules (
   deleted_at      timestamptz,
   deleted_by      uuid references auth.users (id) on delete set null
 );
-
 create index if not exists disbursement_schedules_dossier_idx on public.disbursement_schedules (dossier_id, due_date);
 create index if not exists disbursement_schedules_due_idx
   on public.disbursement_schedules (due_date) where status in ('scheduled', 'due') and deleted_at is null;
-
 create table if not exists public.reconciliation_runs (
   id                  uuid primary key default gen_random_uuid(),
   run_date            date not null default current_date,
@@ -65,22 +61,18 @@ create table if not exists public.reconciliation_runs (
   deleted_at          timestamptz,
   deleted_by          uuid references auth.users (id) on delete set null
 );
-
 create index if not exists reconciliation_runs_date_idx on public.reconciliation_runs (run_date desc);
 create index if not exists reconciliation_runs_mismatch_idx
   on public.reconciliation_runs (run_date desc) where records_mismatch > 0 and deleted_at is null;
-
 select private.attach_audit_trigger('public.disbursements');
 select private.attach_audit_trigger('public.disbursement_schedules');
 select private.attach_audit_trigger('public.reconciliation_runs');
-
 grant select, insert, update, delete on
   public.disbursements, public.disbursement_schedules, public.reconciliation_runs
   to authenticated;
 grant all on
   public.disbursements, public.disbursement_schedules, public.reconciliation_runs
   to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on public.disbursements from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.disbursement_schedules from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.reconciliation_runs from authenticated;

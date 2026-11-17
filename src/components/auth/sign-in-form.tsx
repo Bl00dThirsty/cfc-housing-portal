@@ -18,7 +18,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { ArrowRight, KeyRound, Layers, Mail, ShieldCheck, UserPlus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +73,6 @@ const COPY = {
 
 export function SignInForm({ audience }: { audience: SignInAudience }) {
   const copy = COPY[audience];
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { session, profile, signIn, signInWithMagicLink, resetPassword } = useAuth();
 
@@ -85,6 +84,15 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
   const [notice, setNotice] = React.useState<string | null>(null);
 
   const nextPath = searchParams.get("next");
+  const confirmationError = searchParams.get("error") === "email_confirmation";
+
+  React.useEffect(() => {
+    if (confirmationError) {
+      setError(
+        "Le lien de confirmation est invalide ou expiré. Demandez un nouveau lien de confirmation.",
+      );
+    }
+  }, [confirmationError]);
 
   React.useEffect(() => {
     if (!session) return;
@@ -94,9 +102,13 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
         ? nextPath
         : landingPathForRole(profile?.role ?? "CITIZEN");
 
-    router.replace(target);
-    router.refresh();
-  }, [session, profile, nextPath, router]);
+    // Navigation **pleine page** : la session vient d'être posée en cookie et
+    // le profil peut encore être en cours de lecture. Un `router.replace`
+    // lancé avant cette lecture viserait le portail citoyen ; la seconde
+    // navigation, concurrente, laisserait alors le formulaire bloqué sur
+    // « Traitement en cours ». Le serveur, lui, résout toujours le rôle réel.
+    window.location.assign(target);
+  }, [session, profile, nextPath]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

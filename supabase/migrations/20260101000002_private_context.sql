@@ -24,7 +24,6 @@ language sql stable security definer set search_path = '' as $$
            (select auth.uid())
          );
 $$;
-
 -- Rôle effectif de l'acteur, lu dans `public.staff_assignments`
 -- (registre de référence — `app_metadata` n'est qu'un cache).
 -- Défini en migration 003, avec les tables dont il dépend.
@@ -45,7 +44,6 @@ begin
   perform set_config('app.current_pole', coalesce(p_pole, ''), true);
   perform set_config('app.current_user_id', coalesce(p_user_id::text, ''), true);
 end $$;
-
 -- ---------------------------------------------------------------------------
 -- Audit
 -- ---------------------------------------------------------------------------
@@ -66,7 +64,6 @@ begin
   end if;
   return new;
 end $$;
-
 -- Attache le trigger d'audit à une table (idempotent).
 create or replace function private.attach_audit_trigger(p_table text) returns void
 language plpgsql security definer set search_path = '' as $$
@@ -86,5 +83,4 @@ begin
     v_trigger, v_schema, v_name
   );
 end $$;
-
 grant execute on all functions in schema private to authenticated, service_role;

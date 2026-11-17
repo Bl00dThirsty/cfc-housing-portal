@@ -5,7 +5,6 @@ import { DossierPhaseCard, DossierTimeline } from "@/components/portail-client/d
 import { DossierRequirements } from "@/components/portail-client/dossier-requirements";
 import { CitizenDashboard } from "@/components/portail-client/dashboard/dashboard";
 import { buildDashboardModel } from "@/components/portail-client/dashboard/dashboard-model";
-import DucFileManager from "@/components/portail-client/duc-file-manager";
 import DocumentDropzone from "@/components/portail-client/document-dropzone";
 import { OnboardingWaiting } from "@/components/portail-client/onboarding-waiting";
 import { SupportChat } from "@/components/support/support-chat";
@@ -200,8 +199,12 @@ export default async function CitizenPortalPage({
         </TabsContent>
 
         <TabsContent value="pieces" className="mt-4 flex flex-col gap-4 focus-visible:outline-none">
-          <DucFileManager ducId={space.ducCode} />
-          <DocumentDropzone ducId={space.ducCode} />
+          <DocumentDropzone
+            dossierId={space.dossierId}
+            ducId={space.ducCode}
+            checklist={space.checklist}
+            steps={space.steps}
+          />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4 focus-visible:outline-none">

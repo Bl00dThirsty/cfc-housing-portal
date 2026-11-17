@@ -53,6 +53,7 @@ async function currentDossier(
     .eq("citizen_id", citizenId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -313,8 +314,19 @@ export async function setPriorClientCaseAction(input: {
   }
 
   if (priorCase.eligible) {
-    // Déjà servi au CFC : la suite est le dépôt des pièces. Le parcours
-    // continue, il n'y a donc rien à signaler.
+    // Déjà servi au CFC : le dépôt des pièces est une nouvelle étape du
+    // parcours, elle est journalisée par la fonction de base et notifiée ici.
+    const dossier = await currentDossier(supabase, citizen.userId);
+
+    if (dossier) {
+      await notifyBusinessEvent({
+        eventType: "DOCUMENTS_READY",
+        dossierId: dossier.id,
+        recipientUserId: citizen.userId,
+        payload: { prior_client_case: input.priorClientCase },
+      });
+    }
+
     return { ok: true, message: "Votre dossier passe au dépôt des pièces." };
   }
 
@@ -328,7 +340,7 @@ export async function setPriorClientCaseAction(input: {
       eventType: "APPLICATION_SUSPENDED",
       dossierId: dossier.id,
       recipientUserId: citizen.userId,
-      payload: { prior_client_case: input.priorClientCase, advisor: advisor.name },
+      payload: { prior_client_case: input.priorClientCase, conseiller: advisor.name },
     });
   }
 
@@ -385,7 +397,7 @@ export async function submitServiceApplicationAction(): Promise<
       eventType: "APPLICATION_SUBMITTED",
       dossierId: dossier.id,
       recipientUserId: citizen.userId,
-      payload: { advisor: advisor.name, service_code: dossier.duc_code },
+      payload: { conseiller: advisor.name, service_code: dossier.duc_code },
     });
   }
 

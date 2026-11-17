@@ -262,6 +262,30 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     ].join("\n"),
   },
 
+  DOCUMENTS_READY: {
+    code: "DOCUMENTS_READY",
+    label: "Dépôt des pièces ouvert",
+    eventType: "DOCUMENTS_READY",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    subject: "Votre dossier est prêt pour le dépôt des pièces — {{reference}}",
+    html: wrapHtml(
+      "Votre dossier est prêt pour le dépôt des pièces",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Votre dossier (référence {{reference}}, DUC {{duc}}) est prêt pour le dépôt de vos pièces justificatives. Vous pouvez les transmettre depuis votre espace CFC Habitat.</p>",
+        cta("Déposer mes pièces", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Votre dossier (référence {{reference}}, DUC {{duc}}) est prêt pour le dépôt de vos pièces justificatives. Vous pouvez les transmettre depuis votre espace CFC Habitat.",
+      "",
+      "Déposer mes pièces : {{lien}}",
+    ].join("\n"),
+  },
+
   DUC_ACTIVATED: {
     code: "DUC_ACTIVATED",
     label: "Dossier activé",
@@ -346,6 +370,30 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     ].join("\n"),
   },
 
+  DOCUMENT_UPLOADED: {
+    code: "DOCUMENT_UPLOADED",
+    label: "Pièce déposée au dossier",
+    eventType: "DOCUMENT_UPLOADED",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "document", "date", "lien"],
+    subject: "Votre pièce a bien été reçue — {{reference}}",
+    html: wrapHtml(
+      "Votre pièce a bien été reçue",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">La pièce « {{document}} » a bien été déposée dans votre dossier (DUC {{duc}}, référence {{reference}}) le {{date}}. Un conseiller la vérifiera.</p>",
+        cta("Suivre mon dossier", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "La pièce « {{document}} » a bien été déposée dans votre dossier (DUC {{duc}}, référence {{reference}}) le {{date}}. Un conseiller la vérifiera.",
+      "",
+      "Suivre mon dossier : {{lien}}",
+    ].join("\n"),
+  },
+
   DOCUMENT_VALIDATED: {
     code: "DOCUMENT_VALIDATED",
     label: "Pièce justificative validée",
@@ -417,7 +465,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
       [
         "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
         "<p style=\"margin:0 0 12px 0;\">Le comité de crédit s'est prononcé le {{date}} sur votre dossier (DUC {{duc}}, référence {{reference}}).</p>",
-        "<p style=\"margin:0 0 12px 0;padding:12px;background-color:#f3f4f6;border-radius:6px;\"><strong>Décision :</strong> {{decision}}<br /><strong>Montion retenu :</strong> {{montant}}</p>",
+        "<p style=\"margin:0 0 12px 0;padding:12px;background-color:#f3f4f6;border-radius:6px;\"><strong>Décision :</strong> {{decision}}<br /><strong>Montant retenu :</strong> {{montant}}</p>",
         cta("Consulter mon dossier", "{{lien}}"),
       ].join(""),
     ),
@@ -534,6 +582,56 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
       "L'acte de mainlevée de l'hypothèque de votre dossier (DUC {{duc}}, référence {{reference}}) est disponible depuis le {{date}}.",
       "",
       "Consulter mon dossier : {{lien}}",
+    ].join("\n"),
+  },
+
+  DOSSIER_UPDATED: {
+    code: "DOSSIER_UPDATED",
+    label: "Mise à jour du dossier",
+    eventType: "DOSSIER_UPDATED",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    subject: "Votre dossier a été mis à jour — {{reference}}",
+    html: wrapHtml(
+      "Votre dossier a été mis à jour",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Une mise à jour a été apportée à votre dossier (DUC {{duc}}, référence {{reference}}) le {{date}}. Connectez-vous pour consulter son état et les éventuelles actions à effectuer.</p>",
+        cta("Consulter mon dossier", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Une mise à jour a été apportée à votre dossier (DUC {{duc}}, référence {{reference}}) le {{date}}. Connectez-vous pour consulter son état et les éventuelles actions à effectuer.",
+      "",
+      "Consulter mon dossier : {{lien}}",
+    ].join("\n"),
+  },
+
+  SUPPORT_MESSAGE: {
+    code: "SUPPORT_MESSAGE",
+    label: "Nouveau message du conseiller",
+    eventType: "SUPPORT_MESSAGE",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    subject: "Un nouveau message de votre conseiller — {{reference}}",
+    html: wrapHtml(
+      "Un nouveau message vous attend",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Votre conseiller vous a envoyé un message au sujet de votre dossier (DUC {{duc}}, référence {{reference}}) le {{date}}.</p>",
+        "<p style=\"margin:0 0 12px 0;\">Pour protéger la confidentialité de vos échanges, le contenu du message est accessible uniquement après connexion au portail.</p>",
+        cta("Lire le message", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Votre conseiller vous a envoyé un message au sujet de votre dossier (DUC {{duc}}, référence {{reference}}) le {{date}}.",
+      "Pour protéger la confidentialité de vos échanges, le contenu du message est accessible uniquement après connexion au portail.",
+      "",
+      "Lire le message : {{lien}}",
     ].join("\n"),
   },
 

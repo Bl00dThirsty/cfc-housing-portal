@@ -58,4 +58,25 @@ describe("Supabase service key safety", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("SUPABASE_SERVICE_ROLE_KEY");
   });
+
+  it("refuses to seed a hosted Supabase project", () => {
+    const env = {
+      ...process.env,
+      SUPABASE_URL: "https://production-project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "test-only-key",
+    };
+
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/seed-dev-users.mjs"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env,
+      },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Refusing to seed a non-local Supabase URL");
+  });
 });

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { factKey } from "@/domain/entities/processes";
+import { DOMAIN_EVENT_NOTIFICATIONS } from "@/server/notifications/notify";
 import { DEFAULT_EMAIL_TEMPLATES } from "./defaults";
 import { buildVariables, DOMAIN_EVENT_TEMPLATES } from "./events";
 import { renderTemplate } from "./render";
@@ -105,5 +107,66 @@ describe("modèles d'e-mail par défaut", () => {
     for (const code of reachable) {
       expect(DEFAULT_EMAIL_TEMPLATES[code]).toBeDefined();
     }
+  });
+
+  it("associe chaque notification citoyenne à un modèle correspondant", () => {
+    for (const eventType of Object.keys(DOMAIN_EVENT_NOTIFICATIONS)) {
+      const templateCode = DOMAIN_EVENT_TEMPLATES[eventType];
+      expect(templateCode, `${eventType} doit avoir un modèle`).toBeDefined();
+      expect(DEFAULT_EMAIL_TEMPLATES[templateCode!]?.eventType).toBe(eventType);
+    }
+
+    expect(DEFAULT_EMAIL_TEMPLATES[DOMAIN_EVENT_TEMPLATES.SUPPORT_MESSAGE]?.eventType).toBe(
+      "SUPPORT_MESSAGE",
+    );
+  });
+
+  it("distingue les dépôts de pièces et les messages de support pour l'idempotence", () => {
+    const shared = {
+      dossierId: RECIPIENT.dossierId,
+      recipientUserId: "citizen-1",
+    };
+
+    expect(
+      factKey({
+        ...shared,
+        eventType: "DOCUMENT_UPLOADED",
+        payload: { document_id: "document-1" },
+      }),
+    ).not.toBe(
+      factKey({
+        ...shared,
+        eventType: "DOCUMENT_UPLOADED",
+        payload: { document_id: "document-2" },
+      }),
+    );
+
+    expect(
+      factKey({
+        ...shared,
+        eventType: "SUPPORT_MESSAGE",
+        payload: { message_id: "message-1" },
+      }),
+    ).not.toBe(
+      factKey({
+        ...shared,
+        eventType: "SUPPORT_MESSAGE",
+        payload: { message_id: "message-2" },
+      }),
+    );
+
+    expect(
+      factKey({
+        ...shared,
+        eventType: "DOCUMENTS_READY",
+        payload: { prior_client_case: "deja_au_cfc" },
+      }),
+    ).not.toBe(
+      factKey({
+        ...shared,
+        eventType: "DOCUMENTS_READY",
+        payload: { prior_client_case: "premiere_fois" },
+      }),
+    );
   });
 });

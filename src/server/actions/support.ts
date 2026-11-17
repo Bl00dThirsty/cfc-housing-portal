@@ -353,6 +353,10 @@ async function notifyCounterpart(input: {
       body: input.message.content.slice(0, 280) || "Pièce jointe",
       dossierId: input.dossierId,
       actionUrl: isCitizen ? "/portail-client" : "/portail-cfc/clients",
+      dedupeKey: `SUPPORT_MESSAGE:${input.message.id}:${recipientId}`,
+      email: isCitizen
+        ? null
+        : { eventType: "SUPPORT_MESSAGE", payload: { message_id: input.message.id } },
     });
   } catch (error) {
     console.error("[support] notification de l'interlocuteur impossible :", error);

@@ -179,9 +179,36 @@ export function requireServiceRoleKey(): string {
   return key;
 }
 
-/** URL publique du site, utilisée pour les redirections de callback. */
+/**
+ * URL publique du site, utilisée pour les liens d'authentification et les
+ * notifications. En production, une URL locale implicite est dangereuse :
+ * elle produit des liens qui ne peuvent pas fonctionner pour les clients.
+ */
 export function getSiteUrl(): string {
-  return getPublicEnv()?.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const isPreview = process.env.VERCEL_ENV === "preview";
+  const deploymentUrl =
+    process.env.NEXT_PUBLIC_VERCEL_URL?.trim() || process.env.VERCEL_URL?.trim();
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const value = isPreview ? deploymentUrl || configuredUrl : configuredUrl;
+
+  if (!value) {
+    if (process.env.NODE_ENV !== "production") return "http://localhost:3000";
+    throw new Error(
+      "NEXT_PUBLIC_SITE_URL est requise en production pour générer des liens publics fiables.",
+    );
+  }
+
+  const url = new URL(value.includes("://") ? value : `https://${value}`);
+  if (
+    (url.protocol !== "https:" && url.protocol !== "http:") ||
+    url.username ||
+    url.password ||
+    (process.env.NODE_ENV === "production" && url.protocol !== "https:")
+  ) {
+    throw new Error("NEXT_PUBLIC_SITE_URL doit être une URL HTTPS valide en production.");
+  }
+
+  return url.origin;
 }
 
 /**

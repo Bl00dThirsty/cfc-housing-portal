@@ -14,6 +14,7 @@
  */
 
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { getSiteUrl } from "@/server/env";
 import { toE164 } from "@/domain/entities/phone";
 import {
   SIGNUP_CONSENT_TEXT,
@@ -65,6 +66,12 @@ export async function signupAction(input: SignupInput): Promise<SignupResult> {
   const { data, error: signUpError } = await supabase.auth.signUp({
     email,
     password: input.password,
+    options: {
+      emailRedirectTo: new URL(
+        "/auth/callback?next=/onboarding",
+        getSiteUrl(),
+      ).toString(),
+    },
   });
 
   if (signUpError) {

@@ -100,6 +100,51 @@ Pour réinitialiser la base locale, démarrez Supabase localement puis exécutez
 La commande `supabase db push` applique les migrations à l'instance liée :
 vérifiez toujours le projet ciblé avant de l'exécuter.
 
+`npm run db:seed:users` est réservé au Supabase local. Le script refuse toute
+URL qui n'utilise pas `localhost`, `127.0.0.1` ou `::1`, même si une clé de
+service est définie. Les comptes et dossiers créés par ce script sont des
+données de démonstration, pas des identités de production.
+
+### Confirmation d'adresse e-mail
+
+Les e-mails de compte (confirmation, invitation, lien de connexion,
+réinitialisation du mot de passe, changement d'adresse et alertes de sécurité)
+utilisent **Supabase Auth**, et non le service d'e-mails métier de
+l'application. Leurs modèles CFC se trouvent dans `supabase/templates/` et
+sont activés dans `supabase/config.toml`. Après le démarrage de Supabase local,
+les e-mails de test sont consultables dans Mailpit à
+[http://localhost:54324](http://localhost:54324).
+
+Pour le projet Supabase hébergé et Vercel :
+
+1. Définissez `NEXT_PUBLIC_SITE_URL` sur l'URL HTTPS canonique du portail dans
+   l'environnement Vercel **Production**. Les Preview utilisent l'URL Vercel
+   courante.
+2. Dans Supabase **Authentication → URL Configuration**, définissez la même
+   URL comme Site URL et autorisez `/auth/callback` pour le domaine de
+   production et les domaines Preview requis.
+3. Dans Supabase **Authentication → Email Templates**, publiez les modèles
+   correspondants de `supabase/templates/` pour Confirm signup, Invite user,
+   Magic link, Reset password et Change email. Dans **Email Notifications**,
+   activez et publiez les modèles `password_changed` et `email_changed`.
+4. Configurez le SMTP personnalisé Supabase Auth avec une adresse CFC vérifiée
+   et un domaine dont l'envoi est autorisé (SPF/DKIM). Le SMTP et l'expéditeur
+   d'Auth sont distincts de `RESEND_API_KEY` / `EMAIL_FROM`, réservés aux
+   notifications métier de l'application.
+
+Le code ne substitue pas d'adresse d'expédition non vérifiée à celle du CFC.
+Le propriétaire du domaine doit fournir/configurer l'adresse officielle et les
+identifiants SMTP dans les paramètres hébergés, jamais dans le dépôt.
+
+Les notifications métier (soumission KYC, ouverture du dépôt des pièces,
+décisions, pièces, offres et messages du conseiller) passent par les modèles
+de `src/server/email/defaults.ts` et le fournisseur configuré pour
+l'application. Configurez `RESEND_API_KEY` et un `EMAIL_FROM` autorisé dans
+Vercel. Les transitions KYC et DUC correspondantes sont journalisées de façon
+atomique dans `dossier_events`; les événements directement déclenchés par une
+action sont envoyés sans dépendre du relais base de données, désactivé par
+défaut. Les livraisons sont journalisées dans `email_deliveries`.
+
 ## Structure
 
 ```text

@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { ClientWorkspaceHub } from "@/app/portail-cfc/clients/_components/client-workspace-hub";
+import { ClientWorkspaceHub } from "@/app/portail-cfc/(console)/clients/_components/client-workspace-hub";
 import { useDataTableStore } from "@/stores/data-table-store";
 
 beforeEach(() => {

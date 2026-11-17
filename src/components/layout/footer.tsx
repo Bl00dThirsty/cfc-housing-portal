@@ -36,7 +36,7 @@ export default function Footer() {
               <li><Link href="/faq" className="hover:text-white transition-colors">Foire aux questions</Link></li>
               <li><Link href="/inscription" className="hover:text-white transition-colors">Création Dossier Unique (DUC)</Link></li>
               <li><Link href="/tracking" className="hover:text-white transition-colors font-medium text-emerald-400">Suivi en Direct de Prêt (DUC)</Link></li>
-              <li><Link href="/verify/CFC-VERIF-78A9B2" className="hover:text-white transition-colors">Vérification d&apos;Actes (Sceau QR)</Link></li>
+              <li><Link href="/verify" className="hover:text-white transition-colors">Vérification d&apos;Actes</Link></li>
               <li>
                 <Link href="/portail-cfc/login" className="hover:text-white transition-colors">
                   Espace Agent CFC

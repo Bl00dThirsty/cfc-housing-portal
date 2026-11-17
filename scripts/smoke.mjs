@@ -17,10 +17,7 @@ import { createServerClient } from "@supabase/ssr";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
-
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY 
 const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD ?? "CfcDev2026!";
 
 const results = [];

@@ -35,6 +35,7 @@ export const DOMAIN_EVENT_TEMPLATES: Record<string, string> = {
   KYC_REJECTED: "KYC_REJECTED",
   APPLICATION_SUBMITTED: "APPLICATION_SUBMITTED",
   APPLICATION_SUSPENDED: "APPLICATION_SUSPENDED",
+  DOCUMENTS_READY: "DOCUMENTS_READY",
   DUC_ACTIVATED: "DUC_ACTIVATED",
   DUC_REFUSED: "DUC_REFUSED",
   DOCUMENT_REQUESTED: "DOCUMENT_REQUESTED",
@@ -46,6 +47,9 @@ export const DOMAIN_EVENT_TEMPLATES: Record<string, string> = {
   PAYOFF_STATEMENT: "PAYOFF_STATEMENT",
   MAINLEVEE_READY: "MAINLEVEE_READY",
   SAVE_CONTACT: "SAVE_CONTACT",
+  DOCUMENT_UPLOADED: "DOCUMENT_UPLOADED",
+  DOSSIER_UPDATED: "DOSSIER_UPDATED",
+  SUPPORT_MESSAGE: "SUPPORT_MESSAGE",
 };
 
 /**
@@ -159,6 +163,10 @@ export function buildVariables(
     variables[key] = typeof value === "string" || typeof value === "number" ? value : JSON.stringify(value);
   }
 
+  if (!variables.document && typeof payload.original_filename === "string") {
+    variables.document = payload.original_filename;
+  }
+
   return variables;
 }
 
@@ -263,13 +271,18 @@ export async function notifyDomainEvent(event: DomainEvent): Promise<SendEmailRe
   // de pièces différentes sur un même dossier sont deux courriels, pas un.
   const subject = factSubject(event.eventType, event.payload);
 
+  const idempotencyKey =
+    event.eventType === "PROFILE_CREATED"
+      ? `PROFILE_CREATED:${event.citizenId ?? to}`
+      : event.dossierId
+        ? `${event.eventType}:${recipient.dossierId ?? to}:${subject}`
+        : `${event.eventType}:${to}:${new Date().toISOString().slice(0, 10)}`;
+
   return sendTemplatedEmail({
     templateCode,
     to,
     variables,
     recipientUserId: event.citizenId ?? null,
-    idempotencyKey: event.dossierId
-      ? `${event.eventType}:${recipient.dossierId ?? to}:${subject}`
-      : `${event.eventType}:${to}:${new Date().toISOString().slice(0, 10)}`,
+    idempotencyKey,
   });
 }

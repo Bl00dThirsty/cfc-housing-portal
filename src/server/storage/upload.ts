@@ -28,7 +28,7 @@ import { hasCapability } from "@/domain/policies/permissions";
 import { isInScope, resolveScope } from "@/domain/policies/scope";
 import { getAdminClient } from "@/server/supabase/admin";
 import { createServerSupabaseClient } from "@/server/supabase/server";
-import { notifyBusinessEvent } from "@/server/notifications/notify";
+import { notify, notifyBusinessEvent } from "@/server/notifications/notify";
 import { checksumBlob, isValidChecksum } from "./checksum";
 import { buildStoragePath, STORAGE_BUCKET, storageFileName } from "./paths";
 import type {
@@ -359,6 +359,7 @@ function readObjectSize(object: {
  */
 async function notifyDossierAgent(
   dossierId: string,
+  documentId: string,
   filename: string,
   actorId: string,
 ): Promise<void> {
@@ -374,12 +375,14 @@ async function notifyDossierAgent(
     const agentId = (dossier as { owner_user_id: string | null } | null)?.owner_user_id ?? null;
     if (!agentId || agentId === actorId) return;
 
-    await notifyBusinessEvent({
-      eventType: "DOCUMENT_UPLOADED",
-      dossierId,
+    await notify({
       recipientUserId: agentId,
+      type: "document.uploaded",
+      title: "Pièce déposée au dossier",
       body: filename,
+      dossierId,
       actionUrl: "/portail-cfc/clients",
+      dedupeKey: `DOCUMENT_UPLOADED:${documentId}:${agentId}`,
     });
   } catch (error) {
     console.warn("[storage] notification du conseiller impossible :", error);
@@ -497,20 +500,22 @@ export async function confirmUpload(
   const version = Number(appliedRow?.version ?? plan.version);
   const supersedesId = appliedRow?.supersedes_id ?? plan.supersedesId;
 
+  const eventPayload = {
+    document_id: document.id,
+    doc_type_code: document.doc_type_code,
+    chemise_code: document.chemise_code,
+    original_filename: document.original_filename,
+    storage_path: document.storage_path,
+    checksum_sha256: document.checksum_sha256,
+    size_bytes: document.size_bytes,
+    version,
+    supersedes_id: supersedesId,
+  };
+
   const { error: eventError } = await supabase.rpc("append_dossier_event", {
     p_dossier_id: document.dossier_id,
     p_event_type: "DOCUMENT_UPLOADED",
-    p_payload: {
-      document_id: document.id,
-      doc_type_code: document.doc_type_code,
-      chemise_code: document.chemise_code,
-      original_filename: document.original_filename,
-      storage_path: document.storage_path,
-      checksum_sha256: document.checksum_sha256,
-      size_bytes: document.size_bytes,
-      version,
-      supersedes_id: supersedesId,
-    },
+    p_payload: eventPayload,
   });
 
   if (eventError) {
@@ -519,7 +524,15 @@ export async function confirmUpload(
 
   // Le conseiller du dossier est prévenu : une pièce attend sa vérification.
   // C'est l'agent qui doit agir, pas l'emprunteur qui vient de déposer.
-  await notifyDossierAgent(document.dossier_id, document.original_filename, actor.id);
+  await notifyDossierAgent(document.dossier_id, document.id, document.original_filename, actor.id);
+
+  // Le client reçoit aussi une confirmation de dépôt, même si le relais
+  // d'e-mails Supabase est désactivé sur l'environnement.
+  await notifyBusinessEvent({
+    eventType: "DOCUMENT_UPLOADED",
+    dossierId: document.dossier_id,
+    payload: eventPayload,
+  });
 
   return {
     documentId: document.id,

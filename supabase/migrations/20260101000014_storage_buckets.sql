@@ -16,7 +16,6 @@ on conflict (id) do update
   set public = excluded.public,
       file_size_limit = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
-
 -- Les agents lisent les pièces de leur périmètre. La fronts de lecture suit
 -- le rattachement du dossier, pas le rôle seul.
 create policy dossier_docs_staff_read on storage.objects for select to authenticated
@@ -44,7 +43,6 @@ create policy dossier_docs_staff_read on storage.objects for select to authentic
         )
     )
   );
-
 -- L'emprunteur lit les pièces de son propre dossier.
 create policy dossier_docs_citizen_read on storage.objects for select to authenticated
   using (
@@ -57,7 +55,6 @@ create policy dossier_docs_citizen_read on storage.objects for select to authent
         and d.citizen_id = (select auth.uid())
     )
   );
-
 -- Dépôt : dans un dossier dont l'acteur a la charge, sous un premier
 -- niveau de chemin indexé sur son propre identifiant.
 create policy dossier_docs_upload on storage.objects for insert to authenticated
@@ -81,7 +78,6 @@ create policy dossier_docs_upload on storage.objects for insert to authenticated
         )
     )
   );
-
 -- Suppression : l'auteur de la pièce, ou l'administrateur.
 create policy dossier_docs_delete on storage.objects for delete to authenticated
   using (

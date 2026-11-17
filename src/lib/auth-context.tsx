@@ -155,6 +155,10 @@ function translateAuthError(message: string): string {
   return message;
 }
 
+function authCallbackUrl(path: string): string {
+  return new URL(path, window.location.origin).toString();
+}
+
 /**
  * Charge le profil de l'utilisateur connecté.
  *
@@ -376,6 +380,9 @@ export function AuthProvider({
         const supabase = getBrowserClient();
         const { error: authError } = await supabase.auth.signInWithOtp({
           email: email.trim().toLowerCase(),
+          options: {
+            emailRedirectTo: authCallbackUrl("/auth/callback?next=/portail-client"),
+          },
         });
 
         if (authError) {
@@ -411,6 +418,7 @@ export function AuthProvider({
             // Seule l'identité civile est transmise. Le rôle n'est **jamais**
             // écrit dans `user_metadata`, que l'utilisateur peut réécrire.
             data: { full_name: fullName },
+            emailRedirectTo: authCallbackUrl("/auth/callback?next=/onboarding"),
           },
         });
 
@@ -441,6 +449,9 @@ export function AuthProvider({
       const supabase = getBrowserClient();
       const { error: authError } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
+        {
+          redirectTo: authCallbackUrl("/auth/callback?next=/login/reset-password"),
+        },
       );
 
       if (authError) {

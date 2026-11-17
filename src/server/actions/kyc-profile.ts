@@ -22,6 +22,7 @@ import { createServerSupabaseClient } from "@/server/supabase/server";
 import { getServerProfile } from "@/server/auth/profile";
 import { hasCapability } from "@/domain/policies/permissions";
 import { toE164 } from "@/domain/entities/phone";
+import { notifyBusinessEvent } from "@/server/notifications/notify";
 import {
   missingRequiredFields,
   toStoredProfile,
@@ -232,6 +233,28 @@ export async function submitKycAction(input: {
       return { ok: false, error: "Session requise." };
     }
     return { ok: false, error: submitError.message };
+  }
+
+  const { data: dossier, error: dossierError } = await supabase
+    .from("dossiers")
+    .select("id")
+    .eq("citizen_id", citizen.id)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (dossierError) {
+    console.error("[kyc] dossier transmis, mais dossier introuvable pour la notification :", dossierError.message);
+  } else if (dossier) {
+    await notifyBusinessEvent({
+      eventType: "KYC_SUBMITTED",
+      dossierId: dossier.id,
+      recipientUserId: citizen.id,
+    });
+  } else {
+    console.warn("[kyc] dossier transmis sans dossier associé pour la notification.");
   }
 
   return {

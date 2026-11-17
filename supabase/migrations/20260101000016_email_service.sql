@@ -35,7 +35,6 @@
 -- propres erreurs).
 
 create extension if not exists pg_net with schema extensions;
-
 -- ---------------------------------------------------------------------------
 -- Catalogue des modèles
 -- ---------------------------------------------------------------------------
@@ -64,20 +63,16 @@ create table if not exists ref.email_template (
   constraint email_template_window_ck
     check (effective_to is null or effective_to > effective_from)
 );
-
 comment on table ref.email_template is
   'Catalogue versionné des modèles d''e-mail CFC. Une ligne = une version ; un modèle expédié n''est jamais réécrit.';
-
 -- Une seule version ouverte par code : la version courante.
 create unique index if not exists email_template_current_key
   on ref.email_template (code)
   where effective_to is null and deleted_at is null;
-
 -- Recherche de la version courante d'un code.
 create index if not exists email_template_code_idx
   on ref.email_template (code, version desc)
   where deleted_at is null;
-
 -- ---------------------------------------------------------------------------
 -- Journal des livraisons
 -- ---------------------------------------------------------------------------
@@ -103,21 +98,16 @@ create table if not exists public.email_deliveries (
   deleted_at          timestamptz,
   deleted_by          uuid references auth.users (id) on delete set null
 );
-
 comment on table public.email_deliveries is
   'Journal des envois d''e-mail : chaque tentative, avec son état, son fournisseur et les variables utilisées.';
-
 create index if not exists email_deliveries_recipient_idx
   on public.email_deliveries (recipient_email, created_at desc);
-
 create index if not exists email_deliveries_status_idx
   on public.email_deliveries (status);
-
 -- Un envoi ne passe pas deux fois sous la même clé d'idempotence.
 create unique index if not exists email_deliveries_idempotency_key_uidx
   on public.email_deliveries (idempotency_key)
   where idempotency_key is not null;
-
 -- ---------------------------------------------------------------------------
 -- Paramétrage du relais base → application
 -- ---------------------------------------------------------------------------
@@ -134,10 +124,8 @@ create table if not exists ref.email_settings (
   deleted_at     timestamptz,
   deleted_by     uuid references auth.users (id) on delete set null
 );
-
 comment on table ref.email_settings is
   'Point d''entrée HTTP du relais d''e-mail. Ligne unique (id = 1). Désactivé par défaut.';
-
 -- ---------------------------------------------------------------------------
 -- Déclencheurs d'audit
 -- ---------------------------------------------------------------------------
@@ -145,7 +133,6 @@ comment on table ref.email_settings is
 select private.attach_audit_trigger('ref.email_template');
 select private.attach_audit_trigger('public.email_deliveries');
 select private.attach_audit_trigger('ref.email_settings');
-
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
@@ -156,24 +143,19 @@ alter table ref.email_settings enable row level security;
 alter table ref.email_settings force row level security;
 alter table public.email_deliveries enable row level security;
 alter table public.email_deliveries force row level security;
-
 -- Catalogue : lecture pour les agents, écriture réservée à l'administrateur
 -- du catalogue (`catalogue:write`).
 create policy email_template_read on ref.email_template for select to authenticated
   using (true);
-
 create policy email_template_write on ref.email_template for all to authenticated
   using ((select private.has_capability((select private.current_role()), 'catalogue:write')))
   with check ((select private.has_capability((select private.current_role()), 'catalogue:write')));
-
 -- Paramétrage du relais : même habilitation que le catalogue.
 create policy email_settings_read on ref.email_settings for select to authenticated
   using ((select private.has_capability((select private.current_role()), 'catalogue:write')));
-
 create policy email_settings_write on ref.email_settings for all to authenticated
   using ((select private.has_capability((select private.current_role()), 'catalogue:write')))
   with check ((select private.has_capability((select private.current_role()), 'catalogue:write')));
-
 -- Journal des livraisons : lecture réservée au personnel habilité à
 -- l'audit ou à la gestion du catalogue. Le journal contient des données
 -- personnelles (destinataire, variables), il n'est pas ouvert au public du
@@ -183,7 +165,6 @@ create policy email_deliveries_read on public.email_deliveries for select to aut
     (select private.has_capability((select private.current_role()), 'catalogue:write'))
     or (select private.has_capability((select private.current_role()), 'admin:audit'))
   );
-
 -- Aucune politique d'insertion : le journal est écrit par la chaîne d'envoi
 -- (rôle de service), jamais par un agent.
 
@@ -195,13 +176,10 @@ grant select on ref.email_template to authenticated;
 grant insert, update, delete on ref.email_template to authenticated;
 grant select on ref.email_settings to authenticated;
 grant insert, update, delete on ref.email_settings to authenticated;
-
 grant select on public.email_deliveries to authenticated;
-
 grant all on ref.email_template to service_role;
 grant all on ref.email_settings to service_role;
 grant all on public.email_deliveries to service_role;
-
 -- ---------------------------------------------------------------------------
 -- Publication d'une version de modèle
 -- ---------------------------------------------------------------------------
@@ -273,11 +251,9 @@ begin
 
   return to_jsonb(v_row);
 end $$;
-
 grant execute on function public.publish_email_template(
   text, text, text, text, text, text, text, boolean, text[], integer
 ) to authenticated, service_role;
-
 -- ---------------------------------------------------------------------------
 -- Relais des événements métier vers l'application
 -- ---------------------------------------------------------------------------
@@ -328,14 +304,11 @@ begin
 
   return new;
 end $$;
-
 grant execute on function private.email_dispatch_event() to service_role;
-
 -- Un fait métier daté (dossier_events) ou la création d'un profil citoyen.
 create trigger trg_email_dispatch_dossier_event
   after insert on public.dossier_events
   for each row execute function private.email_dispatch_event();
-
 create trigger trg_email_dispatch_citizen_profile
   after insert on public.citizen_profiles
   for each row execute function private.email_dispatch_event();

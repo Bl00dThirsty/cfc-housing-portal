@@ -70,6 +70,11 @@ export interface NotifyInput {
   email?: { eventType: string; payload?: Record<string, unknown> } | null;
 }
 
+export interface NotificationDispatchResult {
+  notified: boolean;
+  emailed: boolean;
+}
+
 /**
  * Ce qu'un événement métier produit comme signal in-app.
  *
@@ -116,6 +121,10 @@ export const DOMAIN_EVENT_NOTIFICATIONS: Record<string, NotificationSignal> = {
   APPLICATION_SUSPENDED: {
     type: "dossier.updated",
     body: "Votre dossier attend l'orientation de votre conseiller.",
+  },
+  DOCUMENTS_READY: {
+    type: "dossier.updated",
+    body: "Votre dossier est prêt : vous pouvez déposer les pièces justificatives.",
   },
   DUC_ACTIVATED: {
     type: "dossier.updated",
@@ -170,7 +179,7 @@ export const DOMAIN_EVENT_NOTIFICATIONS: Record<string, NotificationSignal> = {
  * l'action métier qui l'a déclenchée. Le journal `public.dossier_events`
  * reste, lui, la preuve de l'événement.
  */
-export async function notify(input: NotifyInput): Promise<boolean> {
+export async function notify(input: NotifyInput): Promise<NotificationDispatchResult> {
   try {
     const admin = getAdminClient();
 
@@ -194,29 +203,37 @@ export async function notify(input: NotifyInput): Promise<boolean> {
 
     if (error) {
       console.error("[notifications] écriture refusée :", error.message);
-      return false;
+      return { notified: false, emailed: false };
     }
 
+    let emailed = false;
     if (input.email) {
       // Le courriel est un canal **complémentaire** : son échec ne doit pas
       // faire perdre la notification in-app, qui est déjà écrite.
       try {
-        await notifyDomainEvent({
+        const result = await notifyDomainEvent({
           eventType: input.email.eventType,
           dossierId: input.dossierId ?? null,
           citizenId: input.recipientUserId,
           recipientEmail: input.recipientEmail ?? null,
           payload: input.email.payload ?? {},
         });
+        emailed = result?.status === "sent";
+        if (!emailed) {
+          console.error(
+            "[notifications] courriel non envoyé :",
+            result?.error ?? `aucun modèle pour ${input.email.eventType}`,
+          );
+        }
       } catch (error) {
         console.error("[notifications] envoi du courriel impossible :", error);
       }
     }
 
-    return true;
+    return { notified: true, emailed };
   } catch (error) {
     console.error("[notifications] échec :", error);
-    return false;
+    return { notified: false, emailed: false };
   }
 }
 
@@ -272,15 +289,17 @@ async function resolveDossierCitizen(dossierId: string): Promise<string | null> 
  * Ne lève jamais : l'action métier ne doit pas échouer parce qu'une
  * notification n'a pas pu être écrite.
  */
-export async function notifyBusinessEvent(input: BusinessEventInput): Promise<boolean> {
+async function dispatchBusinessEvent(
+  input: BusinessEventInput,
+): Promise<NotificationDispatchResult> {
   try {
     const signal = DOMAIN_EVENT_NOTIFICATIONS[input.eventType];
-    if (!signal) return false;
+    if (!signal) return { notified: false, emailed: false };
 
     const dossierId = input.dossierId ?? null;
     const recipientUserId =
       input.recipientUserId ?? (dossierId ? await resolveDossierCitizen(dossierId) : null);
-    if (!recipientUserId) return false;
+    if (!recipientUserId) return { notified: false, emailed: false };
 
     const hasEmail = Boolean(DOMAIN_EVENT_TEMPLATES[input.eventType]);
 
@@ -310,8 +329,13 @@ export async function notifyBusinessEvent(input: BusinessEventInput): Promise<bo
     });
   } catch (error) {
     console.error("[notifications] dispatch impossible :", error);
-    return false;
+    return { notified: false, emailed: false };
   }
+}
+
+/** Fait métier à signaler ; conserve l'interface booléenne historique. */
+export async function notifyBusinessEvent(input: BusinessEventInput): Promise<boolean> {
+  return (await dispatchBusinessEvent(input)).notified;
 }
 
 /**
@@ -337,7 +361,7 @@ export async function handleBusinessEventEnvelope(
     if (!email) return { notified: false, emailed: false };
 
     const { prenom, nom } = splitName(fullName);
-    await sendTemplatedEmail({
+    const result = await sendTemplatedEmail({
       templateCode: DOMAIN_EVENT_TEMPLATES.PROFILE_CREATED,
       to: email,
       recipientUserId: citizenId,
@@ -351,7 +375,7 @@ export async function handleBusinessEventEnvelope(
       idempotencyKey: `PROFILE_CREATED:${citizenId ?? email}`,
     });
 
-    return { notified: false, emailed: true };
+    return { notified: false, emailed: result.status === "sent" };
   }
 
   const eventType =
@@ -370,7 +394,7 @@ export async function handleBusinessEventEnvelope(
       ? (row.payload as Record<string, unknown>)
       : {};
 
-  const notified = await notifyBusinessEvent({ eventType, dossierId, payload });
-
-  return { notified, emailed: notified };
+  const eventPayload =
+    typeof row.id === "string" ? { ...payload, event_id: row.id } : payload;
+  return dispatchBusinessEvent({ eventType, dossierId, payload: eventPayload });
 }

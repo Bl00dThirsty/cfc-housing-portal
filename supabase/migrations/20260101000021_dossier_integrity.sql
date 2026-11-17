@@ -10,7 +10,6 @@
 --- par chaque écran : un indicateur ne peut pas diverger de ce qu'il mesure.
 
 set search_path = public, extensions;
-
 -- ---------------------------------------------------------------------------
 -- Vocabulaire de l'état du dossier
 -- ---------------------------------------------------------------------------
@@ -22,17 +21,13 @@ set search_path = public, extensions;
 -- plutôt que de laisser passer un état indéfini.
 alter table public.dossiers
   drop constraint if exists dossiers_status_check;
-
 alter table public.dossiers
   add constraint dossiers_status_check
   check (status in ('open', 'on_hold', 'closed')) not valid;
-
 alter table public.dossiers
   validate constraint dossiers_status_check;
-
 comment on column public.dossiers.status is
   'État du dossier : open (en cours), on_hold (en attente), closed (clos).';
-
 -- ---------------------------------------------------------------------------
 -- Garde-fou de champs : les valeurs dérivées restent écrites par la base
 -- ---------------------------------------------------------------------------
@@ -87,13 +82,10 @@ begin
 
   return new;
 end $function$;
-
 drop trigger if exists trg_guard_citizen_dossier_update on public.dossiers;
-
 create trigger trg_guard_citizen_dossier_update
   before update on public.dossiers
   for each row execute function private.guard_citizen_dossier_update();
-
 -- ---------------------------------------------------------------------------
 -- Tenue des valeurs dérivées
 -- ---------------------------------------------------------------------------
@@ -186,10 +178,8 @@ begin
   perform set_config('app.system_update', '0', true);
 end;
 $$;
-
 revoke all on function private.refresh_dossier_progress(uuid) from public, anon, authenticated;
 grant execute on function private.refresh_dossier_progress(uuid) to service_role;
-
 -- Chaque dépôt, validation ou retrait de pièce met l'avancement à jour.
 create or replace function private.dossier_documents_progress_trigger()
 returns trigger
@@ -202,13 +192,10 @@ begin
   return null;
 end;
 $$;
-
 drop trigger if exists trg_dossier_documents_progress on public.dossier_documents;
-
 create trigger trg_dossier_documents_progress
   after insert or update or delete on public.dossier_documents
   for each row execute function private.dossier_documents_progress_trigger();
-
 -- Un versement d'épargne met la part constituée à jour — et l'ouverture du
 -- dossier aussi, puisque ses entrées sont écrites à la création.
 --
@@ -225,9 +212,7 @@ begin
   return null;
 end;
 $$;
-
 drop trigger if exists trg_dossier_savings_progress on public.dossiers;
-
 create trigger trg_dossier_savings_progress
   after insert or update on public.dossiers
   for each row execute function private.dossier_savings_progress_trigger();

@@ -327,6 +327,7 @@ export const DOSSIER_EVENT_LABELS: Record<string, string> = {
   KYC_REJECTED: "Décision KYC refusée",
   APPLICATION_SUBMITTED: "Dossier transmis au conseiller",
   APPLICATION_SUSPENDED: "Dossier en attente d'orientation",
+  DOCUMENTS_READY: "Dépôt des pièces ouvert",
   DUC_ACTIVATED: "Dossier activé",
   DUC_REFUSED: "Éligibilité refusée",
   DOCUMENT_REQUESTED: "Pièce justificative demandée",
@@ -357,8 +358,13 @@ export function eventLabel(eventType: string): string {
  */
 const FACT_DISCRIMINATOR: Record<string, string> = {
   DOCUMENT_REQUESTED: "doc_type_code",
+  DOCUMENT_UPLOADED: "document_id",
   DOCUMENT_VALIDATED: "document_id",
   DOCUMENT_REJECTED: "document_id",
+  APPLICATION_SUSPENDED: "prior_client_case",
+  DOCUMENTS_READY: "prior_client_case",
+  DOSSIER_UPDATED: "event_id",
+  SUPPORT_MESSAGE: "message_id",
 };
 
 /**

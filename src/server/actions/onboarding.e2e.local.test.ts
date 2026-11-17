@@ -301,6 +301,32 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
 
     expect(state?.kyc_state).toBe("document_verification");
 
+    const { data: initialDossier } = await admin
+      .from("dossiers")
+      .select("id")
+      .eq("citizen_id", createdUserId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .single();
+    expect(initialDossier).toBeTruthy();
+    if (!initialDossier) return;
+
+    const { data: kycEvents } = await admin
+      .from("dossier_events")
+      .select("event_type")
+      .eq("dossier_id", initialDossier.id)
+      .eq("event_type", "KYC_SUBMITTED");
+    expect(kycEvents).toHaveLength(1);
+
+    const { data: kycNotifications } = await admin
+      .from("notifications")
+      .select("title")
+      .eq("dossier_id", initialDossier.id)
+      .eq("title", "Dossier KYC transmis");
+    expect(kycNotifications).toHaveLength(1);
+
     const { data: kycState } = await admin
       .from("kyc_profiles")
       .select("submitted_at, employment, compliance, identity")
@@ -399,6 +425,20 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
 
     expect(eligibleDossier?.onboarding_state).toBe("documents");
     expect(eligibleDossier?.prior_client_case).toBe("deja_au_cfc");
+
+    const { data: documentPhaseEvents } = await admin
+      .from("dossier_events")
+      .select("event_type")
+      .eq("dossier_id", initialDossier.id)
+      .eq("event_type", "DOCUMENTS_READY");
+    expect(documentPhaseEvents).toHaveLength(1);
+
+    const { data: documentPhaseNotifications } = await admin
+      .from("notifications")
+      .select("title")
+      .eq("dossier_id", initialDossier.id)
+      .eq("title", "Dépôt des pièces ouvert");
+    expect(documentPhaseNotifications).toHaveLength(1);
 
     // --- La reprise : le parcours sait où l'emprunteur s'est arrêté -------
     const resumed = await loadOnboardingDraft();

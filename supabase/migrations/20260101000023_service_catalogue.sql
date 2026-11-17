@@ -11,7 +11,7 @@
 --    pièces par catégorie (emprunteur, projet, programme, partenaires). Le
 --    regroupement est **déclaratif** : il vit avec le type de document, pas
 --    dans l'écran.
--- 3. Les six services du cahier des charges, leurs produits, leurs barèmes,
+-- 3. Les sept services du cahier des charges, leurs produits, leurs barèmes,
 --    leurs types de documents et leurs exigences de pièces.
 --
 -- ⚠️ Le prêt aux collectivités (CTD) n'est **pas** ajouté : il n'est pas
@@ -37,7 +37,32 @@ comment on column ref.document_type.category is
   'Catégorie d''exigence de pièces : emprunteur, projet, programme ou partenaires.';
 
 -- ---------------------------------------------------------------------------
--- Les six services du cahier des charges
+-- Les natures de documents utilisées par le catalogue
+--
+-- La base historique de production nommait la nature « REVENUS » ; le reste du
+-- dépôt utilise « REVENU ». On normalise ici, puis on retire l'ancien code.
+-- ---------------------------------------------------------------------------
+
+insert into ref.document_nature
+  (code, label, description, requires_issuer_check, requires_validity_check, requires_human_review, sort_order)
+values
+  ('IDENTITE', 'Identité', 'Pièce d''état civil ou titre de voyage identifiant le candidat.', true, true, true, 1),
+  ('FONCIER', 'Foncier', 'Titre foncier, certificat de propriété, documents cadastraux.', true, true, true, 5),
+  ('REVENU', 'Revenus', 'Justificatifs de revenus : bulletins de salaire, attestations, relevés.', true, true, false, 3),
+  ('CONFORMITE', 'Conformité', 'Attestations de conformité et documents d''état.', true, true, true, 9),
+  ('TECHNIQUE', 'Technique', 'Études et devis d''œuvre : BET, plans, permis de bâtir.', true, false, true, 6)
+on conflict (code) do nothing;
+
+update ref.document_type
+set nature_code = 'REVENU'
+where nature_code = 'REVENUS';
+
+update ref.document_nature
+set deleted_at = now()
+where code = 'REVENUS' and deleted_at is null;
+
+-- ---------------------------------------------------------------------------
+-- Les sept services du cahier des charges
 -- ---------------------------------------------------------------------------
 
 insert into ref.service (code, label, description, audience, sort_order)
@@ -83,6 +108,13 @@ values
     'Prêt foncier destiné à l''acquéreur d''un logement mis en vente par un opérateur de programme immobilier.',
     'Acquéreurs d''un programme immobilier',
     60
+  ),
+  (
+    'PRET_FONCIER_CLASSIQUE_ORDINAIRE',
+    'Prêt Foncier Classique — Particulier',
+    'Construction ou acquisition d''un logement en propre, parcours standard.',
+    'Particuliers',
+    70
   )
 on conflict (code) do update
   set label = excluded.label,
@@ -101,7 +133,8 @@ values
   ('PFC_SOCIAL_15', 'Prêt Foncier Classique Social — 15 ans', 'Prêt foncier classique social, durée maximale de 15 ans.', 'PRET_FONCIER_CLASSIQUE_SOCIAL', 10.00, 15),
   ('PFL_ORD_15', 'Prêt Foncier Locatif Ordinaire — 15 ans', 'Prêt foncier locatif ordinaire, durée maximale de 15 ans.', 'PRET_FONCIER_LOCATIF_ORDINAIRE', 30.00, 15),
   ('PFL_SOCIAL_15', 'Prêt Foncier Locatif Social — 15 ans', 'Prêt foncier locatif social, durée maximale de 15 ans.', 'PRET_FONCIER_LOCATIF_SOCIAL', 20.00, 15),
-  ('PROMO_15', 'Prévente Foncière — 15 ans', 'Prêt de prévente foncière, durée maximale de 15 ans.', 'PROMO_FONCIER', 30.00, 15)
+  ('PROMO_15', 'Prévente Foncière — 15 ans', 'Prêt de prévente foncière, durée maximale de 15 ans.', 'PROMO_FONCIER', 30.00, 15),
+  ('PFC_ORD_15', 'Prêt Foncier Classique — Particulier, 15 ans', 'Prêt classique du parcours standard, durée maximale de 15 ans.', 'PRET_FONCIER_CLASSIQUE_ORDINAIRE', 20.00, 15)
 on conflict (code) do update
   set label = excluded.label,
       description = excluded.description,
@@ -122,7 +155,8 @@ values
   ('PFC_SOCIAL_15', 'TAUX_SOLIDAIRE', 'Taux social', 5.000, 15, 4.000, current_date),
   ('PFL_ORD_15', 'TAUX_STANDARD', 'Taux standard', 6.250, 15, 3.000, current_date),
   ('PFL_SOCIAL_15', 'TAUX_SOLIDAIRE', 'Taux social', 5.500, 15, 4.000, current_date),
-  ('PROMO_15', 'TAUX_STANDARD', 'Taux standard', 6.250, 15, 3.000, current_date)
+  ('PROMO_15', 'TAUX_STANDARD', 'Taux standard', 6.250, 15, 3.000, current_date),
+  ('PFC_ORD_15', 'TAUX_STANDARD', 'Taux standard', 5.750, 15, 3.500, current_date)
 on conflict (product_code, rate_code, duration_years, valid_from) where deleted_at is null
 do update
   set label = excluded.label,
@@ -135,6 +169,12 @@ do update
 
 insert into ref.document_type (code, nature_code, label, issuing_authority, category, validity_months)
 values
+  ('CNI_BIOMETRIQUE', 'IDENTITE', 'Carte nationale d''identité biométrique', 'DGSN', 'emprunteur', 120),
+  ('PAYSLIP', 'REVENU', 'Bulletin de salaire', 'Employeur', 'emprunteur', 3),
+  ('INCOME_ATTESTATION', 'REVENU', 'Attestation de revenu', 'Employeur', 'emprunteur', 3),
+  ('LAND_TITLE', 'FONCIER', 'Titre foncier', 'Conservation foncière / MINDCAF', 'projet', null),
+  ('PROPERTY_CERTIFICATE', 'FONCIER', 'Certificat de propriété foncière', 'Service domanial', 'projet', 3),
+  ('BUILD_PERMIT', 'TECHNIQUE', 'Permis de bâtir / certificat d''urbanisme', 'Mairie, communauté urbaine', 'projet', 12),
   ('NIU_ATTESTATION', 'IDENTITE', 'Attestation d''immatriculation (NIU)', 'Direction générale des impôts', 'emprunteur', 12),
   ('MARRIAGE_CERTIFICATE', 'IDENTITE', 'Acte de mariage ou certificat de célibat', 'Délégation départementale', 'emprunteur', 6),
   ('EMPLOYMENT_CERTIFICATE', 'REVENU', 'Attestation d''emploi ou de présence effective', 'Employeur', 'emprunteur', 3),
@@ -164,7 +204,8 @@ values
   ('TAX_FILE', 'CONFORMITE', 'Dossier fiscal', 'Conseil', 'partenaires', 12),
   ('PARTNERSHIP_CONTRACT', 'FONCIER', 'Contrats de partenariat', 'Partenaire', 'partenaires', 12)
 on conflict (code) do update
-  set label = excluded.label,
+  set nature_code = excluded.nature_code,
+      label = excluded.label,
       issuing_authority = excluded.issuing_authority,
       category = excluded.category,
       validity_months = excluded.validity_months;
@@ -243,7 +284,7 @@ services (code) as (
   ) as v(code)
 ),
 pieces (service_code, doc_code, min_count) as (
-  -- Le classique pour les six services du cahier des charges.
+  -- Le classique pour les six nouveaux services du cahier des charges.
   select services.code, classic.doc_code, classic.min_count
   from services cross join classic
   union all

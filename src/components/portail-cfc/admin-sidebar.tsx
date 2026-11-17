@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { getSidebarSectionsForRole } from "@/config/rbac/sidebar-by-role";
+import { APP_VERSION } from "@/config/app-version";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
@@ -37,7 +38,7 @@ export default function AdminSidebar() {
           </div>
         </Link>
         <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 h-4.5">
-          v2.2
+          {APP_VERSION}
         </Badge>
       </div>
 
