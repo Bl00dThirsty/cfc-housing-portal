@@ -52,6 +52,14 @@ const emailEnvSchema = z.object({
   SMTP_HOST: z.string().trim().min(1).optional().catch(undefined),
   SMTP_PORT: z.coerce.number().int().positive().max(65535).optional().catch(undefined),
   SMTP_USER: z.string().trim().min(1).optional().catch(undefined),
+  /**
+   * Alias de `SMTP_USER`.
+   *
+   * Les hébergements de messagerie nomment la boîte `SMTP_USERNAME` ; le
+   * service acceptait seulement `SMTP_USER`, et une configuration donnée
+   * ainsi se retrouvait sans expéditeur.
+   */
+  SMTP_USERNAME: z.string().trim().min(1).optional().catch(undefined),
   SMTP_PASSWORD: z.string().trim().min(1).optional().catch(undefined),
   SMTP_TLS_REJECT_UNAUTHORIZED: z
     .enum(["true", "false"])
@@ -227,7 +235,8 @@ export function getEmailEnv(): EmailEnv {
     EMAIL_FROM: process.env.EMAIL_FROM,
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
-    SMTP_USER: process.env.SMTP_USER,
+    SMTP_USER: process.env.SMTP_USER ?? process.env.SMTP_USERNAME,
+    SMTP_USERNAME: process.env.SMTP_USERNAME,
     SMTP_PASSWORD: process.env.SMTP_PASSWORD,
   });
 

@@ -24,6 +24,7 @@
 
 import { getServerProfile } from "@/server/auth/profile";
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { referenceView } from "@/server/queries/reference";
 import { notifyBusinessEvent } from "@/server/notifications/notify";
 import { hasCapability } from "@/domain/policies/permissions";
 
@@ -78,8 +79,7 @@ export async function listDocumentTypesAction(): Promise<
   const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
-    .schema("ref")
-    .from("document_type")
+    .from(referenceView("document_type"))
     .select("code, label")
     .is("deleted_at", null)
     .order("label", { ascending: true });
@@ -344,8 +344,7 @@ export async function requestDossierDocumentAction(input: {
   // Le libellé de la pièce : le courriel dit « CNI biométrique », pas
   // `CNI_BIO`.
   const { data: docType } = await supabase
-    .schema("ref")
-    .from("document_type")
+    .from(referenceView("document_type"))
     .select("label")
     .eq("code", returnedCode)
     .maybeSingle();
@@ -447,8 +446,7 @@ export async function decideDossierDocumentAction(input: {
 
     if (citizenId) {
       const { data: docType } = await supabase
-        .schema("ref")
-        .from("document_type")
+        .from(referenceView("document_type"))
         .select("label")
         .eq("code", (document as { doc_type_code: string }).doc_type_code)
         .maybeSingle();

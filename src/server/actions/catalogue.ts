@@ -1,8 +1,8 @@
 "use server";
 
 import { getServerProfile } from "@/server/auth/profile";
-import { getAdminClient } from "@/server/supabase/admin";
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { referenceView } from "@/server/queries/reference";
 import { type Capability } from "@/domain/policies/capabilities";
 import { hasCapability } from "@/domain/policies/permissions";
 
@@ -72,28 +72,27 @@ export async function listCatalogueAction(): Promise<CatalogueResult<CatalogueSn
   if (!profile) return { ok: false, error: "Session requise." };
 
   const supabase = await createServerSupabaseClient();
-  const ref = supabase.schema("ref");
 
   const [services, natures, documentTypes, requirements] = await Promise.all([
-    ref
-      .from("service")
+    supabase
+      .from(referenceView("service"))
       .select("code, label, description, is_active, sort_order")
       .is("deleted_at", null)
       .order("sort_order", { ascending: true }),
-    ref
-      .from("document_nature")
+    supabase
+      .from(referenceView("document_nature"))
       .select("code, label, description")
       .is("deleted_at", null)
       .order("code", { ascending: true }),
-    ref
-      .from("document_type")
+    supabase
+      .from(referenceView("document_type"))
       .select(
         "code, label, nature_code, issuing_authority, validity_months, accepted_mime, max_size_bytes, min_count, max_count, valid_from, valid_to",
       )
       .is("deleted_at", null)
       .order("code", { ascending: true }),
-    ref
-      .from("service_document_requirement")
+    supabase
+      .from(referenceView("service_document_requirement"))
       .select(
         "id, service_code, stage, doc_type_code, required, min_count, max_count, effective_from, effective_to",
       )
@@ -132,26 +131,20 @@ export async function upsertDocumentTypeAction(input: {
   const code = input.code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
   if (!code) return { ok: false, error: "Le code de la pièce est obligatoire." };
 
-  const admin = getAdminClient();
-  const { error } = await admin
-    .schema("ref")
-    .from("document_type")
-    .upsert(
-      {
-        code,
-        label: input.label.trim(),
-        nature_code: input.nature_code,
-        issuing_authority: input.issuing_authority?.trim() || null,
-        validity_months: input.validity_months,
-        max_size_bytes: input.max_size_bytes,
-        min_count: Math.max(1, input.min_count),
-        max_count: input.max_count,
-        accepted_mime: ["application/pdf", "image/jpeg", "image/png"],
-        valid_from: new Date().toISOString().slice(0, 10),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "code" },
-    );
+  // L'écriture du référentiel passe par une **fonction** de la plateforme :
+  // le schéma `ref` n'est pas exposé à l'API, et c'est la fonction qui
+  // vérifie l'habilitation — `security definer` contourne la RLS.
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc("cfc_upsert_document_type", {
+    p_code: code,
+    p_label: input.label.trim(),
+    p_nature_code: input.nature_code,
+    p_issuing_authority: input.issuing_authority?.trim() || null,
+    p_validity_months: input.validity_months,
+    p_max_size_bytes: input.max_size_bytes,
+    p_min_count: Math.max(1, input.min_count),
+    p_max_count: input.max_count,
+  });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: null };
@@ -169,20 +162,13 @@ export async function upsertServiceAction(input: {
   const code = input.code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
   if (!code) return { ok: false, error: "Le code du service est obligatoire." };
 
-  const admin = getAdminClient();
-  const { error } = await admin
-    .schema("ref")
-    .from("service")
-    .upsert(
-      {
-        code,
-        label: input.label.trim(),
-        description: input.description.trim() || null,
-        is_active: input.is_active,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "code" },
-    );
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc("cfc_upsert_service", {
+    p_code: code,
+    p_label: input.label.trim(),
+    p_description: input.description.trim() || null,
+    p_is_active: input.is_active,
+  });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: null };
@@ -199,19 +185,12 @@ export async function upsertNatureAction(input: {
   const code = input.code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
   if (!code) return { ok: false, error: "Le code de la nature est obligatoire." };
 
-  const admin = getAdminClient();
-  const { error } = await admin
-    .schema("ref")
-    .from("document_nature")
-    .upsert(
-      {
-        code,
-        label: input.label.trim(),
-        description: input.description.trim() || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "code" },
-    );
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc("cfc_upsert_document_nature", {
+    p_code: code,
+    p_label: input.label.trim(),
+    p_description: input.description.trim() || null,
+  });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: null };
@@ -236,33 +215,28 @@ export async function upsertRequirementAction(input: {
   if (!auth.ok) return auth;
 
   const today = new Date().toISOString().slice(0, 10);
-  const admin = getAdminClient();
-  const ref = admin.schema("ref");
+  const supabase = await createServerSupabaseClient();
 
-  const { error: closeError } = await ref
-    .from("service_document_requirement")
-    .update({ effective_to: today })
-    .eq("service_code", input.service_code)
-    .eq("stage", input.stage)
-    .eq("doc_type_code", input.doc_type_code)
-    .is("effective_to", null);
+  // La ligne vivante est **fermée**, jamais réécrite : un dossier ouvert sous
+  // l'ancienne règle reste auditable sous cette règle.
+  const { error: closeError } = await supabase.rpc("cfc_close_service_requirement", {
+    p_service_code: input.service_code,
+    p_stage: input.stage,
+    p_doc_type_code: input.doc_type_code,
+    p_effective_to: today,
+  });
 
   if (closeError) return { ok: false, error: closeError.message };
 
-  const { error } = await ref.from("service_document_requirement").upsert(
-    {
-      service_code: input.service_code,
-      stage: input.stage,
-      doc_type_code: input.doc_type_code,
-      required: input.required,
-      min_count: Math.max(1, input.min_count),
-      max_count: input.max_count,
-      effective_from: today,
-      effective_to: null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "service_code,stage,doc_type_code,effective_from" },
-  );
+  const { error } = await supabase.rpc("cfc_open_service_requirement", {
+    p_service_code: input.service_code,
+    p_stage: input.stage,
+    p_doc_type_code: input.doc_type_code,
+    p_required: input.required,
+    p_min_count: Math.max(1, input.min_count),
+    p_max_count: input.max_count,
+    p_effective_from: today,
+  });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: null };
@@ -277,16 +251,14 @@ export async function deleteRequirementAction(input: {
   if (!auth.ok) return auth;
 
   const today = new Date().toISOString().slice(0, 10);
-  const admin = getAdminClient();
+  const supabase = await createServerSupabaseClient();
 
-  const { error } = await admin
-    .schema("ref")
-    .from("service_document_requirement")
-    .update({ effective_to: today })
-    .eq("service_code", input.service_code)
-    .eq("stage", input.stage)
-    .eq("doc_type_code", input.doc_type_code)
-    .is("effective_to", null);
+  const { error } = await supabase.rpc("cfc_close_service_requirement", {
+    p_service_code: input.service_code,
+    p_stage: input.stage,
+    p_doc_type_code: input.doc_type_code,
+    p_effective_to: today,
+  });
 
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: null };

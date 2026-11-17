@@ -31,18 +31,16 @@ import {
   isStaffRole,
 } from "@/lib/auth-data";
 import { getBrowserClient } from "@/lib/supabase/client";
+import {
+  requestMagicLinkAction,
+  requestPasswordResetAction,
+} from "@/server/actions/auth-links";
 
 export type { ActorType, AuthProfile } from "@/lib/auth-data";
 
 export type AuthResult =
   | { ok: true; message?: string }
   | { ok: false; error: string };
-
-interface SignUpPayload {
-  email: string;
-  password: string;
-  fullName: string;
-}
 
 interface AuthContextValue {
   /** Session Supabase courante, `null` si non authentifié. */
@@ -66,8 +64,6 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<AuthResult>;
   /** Connexion par lien magique (sans mot de passe). */
   signInWithMagicLink: (email: string) => Promise<AuthResult>;
-  /** Création de compte citoyen. */
-  signUp: (payload: SignUpPayload) => Promise<AuthResult>;
   /** Demande d'envoi du lien de réinitialisation. */
   resetPassword: (email: string) => Promise<AuthResult>;
   /** Application d'un nouveau mot de passe. */
@@ -153,10 +149,6 @@ function translateAuthError(message: string): string {
     return "Service d'authentification injoignable. Réessayez dans un instant.";
   }
   return message;
-}
-
-function authCallbackUrl(path: string): string {
-  return new URL(path, window.location.origin).toString();
 }
 
 /**
@@ -377,24 +369,17 @@ export function AuthProvider({
     async (email: string): Promise<AuthResult> => {
       setError(null);
       try {
-        const supabase = getBrowserClient();
-        const { error: authError } = await supabase.auth.signInWithOtp({
-          email: email.trim().toLowerCase(),
-          options: {
-            emailRedirectTo: authCallbackUrl("/auth/callback?next=/portail-client"),
-          },
-        });
+        // Le lien est **produit** par la plateforme et **envoyé** par la
+        // messagerie du CFC : la messagerie de la plateforme a un quota, et
+        // quelques envois suffisent à le saturer.
+        const result = await requestMagicLinkAction(email.trim().toLowerCase());
 
-        if (authError) {
-          const message = translateAuthError(authError.message);
-          setError(message);
-          return { ok: false, error: message };
+        if (!result.ok) {
+          setError(result.error);
+          return { ok: false, error: result.error };
         }
 
-        return {
-          ok: true,
-          message: "Si un compte est associé à cette adresse, un lien de connexion vient d'être envoyé.",
-        };
+        return { ok: true, message: result.message };
       } catch (caught) {
         const message = translateAuthError(
           caught instanceof Error ? caught.message : "Envoi du lien impossible.",
@@ -406,65 +391,20 @@ export function AuthProvider({
     [],
   );
 
-  const signUp = React.useCallback(
-    async ({ email, password, fullName }: SignUpPayload): Promise<AuthResult> => {
-      setError(null);
-      try {
-        const supabase = getBrowserClient();
-        const { error: authError } = await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
-          password,
-          options: {
-            // Seule l'identité civile est transmise. Le rôle n'est **jamais**
-            // écrit dans `user_metadata`, que l'utilisateur peut réécrire.
-            data: { full_name: fullName },
-            emailRedirectTo: authCallbackUrl("/auth/callback?next=/onboarding"),
-          },
-        });
-
-        if (authError) {
-          const message = translateAuthError(authError.message);
-          setError(message);
-          return { ok: false, error: message };
-        }
-
-        return {
-          ok: true,
-          message: "Compte créé. Vous pouvez finaliser votre dossier sur le portail citoyen.",
-        };
-      } catch (caught) {
-        const message = translateAuthError(
-          caught instanceof Error ? caught.message : "Création du compte impossible.",
-        );
-        setError(message);
-        return { ok: false, error: message };
-      }
-    },
-    [],
-  );
-
   const resetPassword = React.useCallback(async (email: string): Promise<AuthResult> => {
     setError(null);
     try {
-      const supabase = getBrowserClient();
-      const { error: authError } = await supabase.auth.resetPasswordForEmail(
-        email.trim().toLowerCase(),
-        {
-          redirectTo: authCallbackUrl("/auth/callback?next=/login/reset-password"),
-        },
-      );
+      // Comme le lien de connexion : produit par la plateforme, envoyé par
+      // la messagerie du CFC.
+      const result = await requestPasswordResetAction(email.trim().toLowerCase());
 
-      if (authError) {
-        const message = translateAuthError(authError.message);
-        setError(message);
-        return { ok: false, error: message };
+      if (!result.ok) {
+        setError(result.error);
+        return { ok: false, error: result.error };
       }
 
       // Réponse générique : la demande ne doit pas révéler l'existence d'un compte.
-      return {
-        ok: true,
-        message: "Si un compte est associé à cette adresse, un lien de réinitialisation vient d'être envoyé.",
-      };
+      return { ok: true, message: result.message };
     } catch (caught) {
       const message = translateAuthError(
         caught instanceof Error ? caught.message : "Demande impossible.",
@@ -525,7 +465,6 @@ export function AuthProvider({
       error,
       signIn,
       signInWithMagicLink,
-      signUp,
       resetPassword,
       updatePassword,
       signOut,
@@ -539,7 +478,6 @@ export function AuthProvider({
       error,
       signIn,
       signInWithMagicLink,
-      signUp,
       resetPassword,
       updatePassword,
       signOut,

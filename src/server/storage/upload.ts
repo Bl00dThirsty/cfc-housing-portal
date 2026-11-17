@@ -28,6 +28,7 @@ import { hasCapability } from "@/domain/policies/permissions";
 import { isInScope, resolveScope } from "@/domain/policies/scope";
 import { getAdminClient } from "@/server/supabase/admin";
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { referenceView } from "@/server/queries/reference";
 import { notify, notifyBusinessEvent } from "@/server/notifications/notify";
 import { checksumBlob, isValidChecksum } from "./checksum";
 import { buildStoragePath, STORAGE_BUCKET, storageFileName } from "./paths";
@@ -144,8 +145,7 @@ async function authorizeDossier(actor: UploadActor, dossierId: string): Promise<
 async function loadDocumentType(docTypeCode: string): Promise<DocumentTypeRow> {
   const admin = getAdminClient();
   const { data, error } = await admin
-    .schema("ref")
-    .from("document_type")
+    .from(referenceView("document_type"))
     .select("code, label, accepted_mime, max_size_bytes")
     .eq("code", docTypeCode)
     .is("deleted_at", null)
@@ -683,8 +683,7 @@ export async function findDossierByDucCode(ducCode: string): Promise<{ id: strin
 export async function listDocumentTypes(): Promise<DocumentTypeOption[]> {
   const admin = getAdminClient();
   const { data, error } = await admin
-    .schema("ref")
-    .from("document_type")
+    .from(referenceView("document_type"))
     .select("code, label, accepted_mime, max_size_bytes")
     .is("deleted_at", null)
     .order("code", { ascending: true });

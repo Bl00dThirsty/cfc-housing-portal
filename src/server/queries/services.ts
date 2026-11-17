@@ -1,5 +1,6 @@
 import { getPublicEnv } from "@/server/env";
-import { createServerReferenceClient } from "@/server/supabase/server";
+import { createServerSupabaseClient } from "@/server/supabase/server";
+import { referenceView } from "@/server/queries/reference";
 import type {
   DocumentNature,
   DocumentTypeSummary,
@@ -23,7 +24,7 @@ export async function listServices(): Promise<ServiceSummary[]> {
   const env = getPublicEnv();
   if (!env) return [];
 
-  const ref = await createServerReferenceClient();
+  const client = await createServerSupabaseClient();
 
   const [
     servicesResult,
@@ -33,37 +34,43 @@ export async function listServices(): Promise<ServiceSummary[]> {
     productsResult,
     ratesResult,
   ] = await Promise.all([
-    ref
-      .from("service")
+    client
+      .from(referenceView("service"))
       .select("code, label, description, audience, is_active, sort_order")
       .eq("is_active", true)
       .is("deleted_at", null)
       .order("sort_order", { ascending: true }),
-    ref
-      .from("service_document_requirement")
+    client
+      .from(referenceView("service_document_requirement"))
       .select("service_code, stage, doc_type_code, required, min_count")
       .is("deleted_at", null),
-    ref
-      .from("document_type")
+    client
+      .from(referenceView("document_type"))
       .select("code, label, nature_code, issuing_authority, category")
       .is("deleted_at", null),
-    ref.from("document_nature").select("code, label").is("deleted_at", null),
+    client.from(referenceView("document_nature")).select("code, label").is("deleted_at", null),
     // Les produits portent l'apport minimal et la durée maximale : ce sont
     // les deux conditions que la carte doit afficher.
-    ref
-      .from("product")
+    client
+      .from(referenceView("product"))
       .select("code, label, service_code, min_apport_percent, max_duration_years")
       .is("deleted_at", null)
       .order("code", { ascending: true }),
     // Les barèmes : le taux indicatif du service. Seul le barème **en
     // vigueur** est retenu — un taux périmé ne s'affiche pas.
-    ref
-      .from("product_rate")
+    client
+      .from(referenceView("product_rate"))
       .select("product_code, annual_rate, savings_rate, valid_from, valid_to")
       .is("deleted_at", null),
   ]);
 
-  if (servicesResult.error) return [];
+  // Le catalogue est **la**_condition de l'onboarding : sans lui, le
+  // demandeur ne peut pas choisir son service. Un échec de lecture doit donc
+  // se voir — dans les journaux comme à l'écran.
+  if (servicesResult.error) {
+    console.error("[services] catalogue illisible :", servicesResult.error.message);
+    return [];
+  }
 
   const services = (servicesResult.data ?? []) as (ServiceRow & {
     audience: string | null;
@@ -146,9 +153,9 @@ export async function listDocumentNatures(): Promise<NatureRow[]> {
   const env = getPublicEnv();
   if (!env) return [];
 
-  const ref = await createServerReferenceClient();
-  const { data, error } = await ref
-    .from("document_nature")
+  const client = await createServerSupabaseClient();
+  const { data, error } = await client
+    .from(referenceView("document_nature"))
     .select("code, label")
     .is("deleted_at", null)
     .order("code", { ascending: true });

@@ -14,7 +14,9 @@
  */
 
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { getAdminClient } from "@/server/supabase/admin";
 import { getSiteUrl } from "@/server/env";
+import { sendTemplatedEmail } from "@/server/email/send";
 import { toE164 } from "@/domain/entities/phone";
 import {
   SIGNUP_CONSENT_TEXT,
@@ -62,21 +64,28 @@ export async function signupAction(input: SignupInput): Promise<SignupResult> {
   const cniNumber = input.cniNumber.trim().toUpperCase();
 
   const supabase = await createServerSupabaseClient();
+  const admin = getAdminClient();
 
-  const { data, error: signUpError } = await supabase.auth.signUp({
+  // Le compte est ouvert par la **plateforme**, et son adresse confirmée
+  // d'emblée.
+  //
+  // La confirmation par e-mail dépend de la messagerie de la plateforme,
+  // dont le quota sature : le compte existait, mais l'emprunteur ne
+  // recevait jamais le lien, et ne pouvait donc jamais entrer. L'identité,
+  // elle, est vérifiée par le parcours KYC — CNI, justificatifs, contrôle de
+  // vigilance.
+  const { error: createError } = await admin.auth.admin.createUser({
     email,
     password: input.password,
-    options: {
-      emailRedirectTo: new URL(
-        "/auth/callback?next=/onboarding",
-        getSiteUrl(),
-      ).toString(),
-    },
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
   });
 
-  if (signUpError) {
-    if (!/already registered|already exists/i.test(signUpError.message)) {
-      return { ok: false, error: signUpError.message };
+  if (createError) {
+    // L'API d'administration dit « a user with this email address has already
+    // been registered » ; l'API publique dit « user already registered ».
+    if (!/already (been )?registered|already exists/i.test(createError.message)) {
+      return { ok: false, error: createError.message };
     }
 
     // Le compte existe : c'est peut-être le mot de passe qui ne va pas.
@@ -93,15 +102,21 @@ export async function signupAction(input: SignupInput): Promise<SignupResult> {
           "Un compte existe déjà avec cette adresse e-mail. Connectez-vous pour reprendre votre dossier.",
       };
     }
-  } else if (!data?.session) {
-    // Le compte est créé, mais la session attend la confirmation de l'e-mail.
-    return {
-      ok: true,
-      pendingConfirmation: true,
-      redirectTo: "/login",
-      message:
-        "Votre compte a été créé. Confirmez votre adresse e-mail, puis connectez-vous pour reprendre votre dossier.",
-    };
+  } else {
+    // Le compte vient d'être ouvert : la session est ouverte tout de suite,
+    // pour que le parcours puisse enregistrer le dossier sans interruption.
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: input.password,
+    });
+
+    if (signInError) {
+      return {
+        ok: false,
+        error:
+          "Votre compte a été créé, mais la session n'a pas pu être ouverte. Reconnectez-vous pour le reprendre.",
+      };
+    }
   }
 
   const {
@@ -218,6 +233,25 @@ export async function signupAction(input: SignupInput): Promise<SignupResult> {
         "Votre compte a été créé, mais votre dossier n'a pas pu être ouvert. Reconnectez-vous pour le reprendre.",
     };
   }
+
+  // Le message de bienvenue part **ici**, et non par le relais d'événements :
+  // le relais n'est pas actif partout, et un message de bienvenue qui ne
+  // part pas est un compte sans explication. La clé d'idempotence est celle
+  // du même fait : le relais, s'il est actif, n'enverra pas de second
+  // message.
+  await sendTemplatedEmail({
+    templateCode: "WELCOME",
+    to: email,
+    recipientUserId: user.id,
+    variables: {
+      prenom: fullName.split(" ")[0] ?? fullName,
+      nom: fullName.split(" ").slice(1).join(" "),
+      email,
+      date: new Date().toLocaleDateString("fr-FR", { dateStyle: "long" }),
+      lien: `${getSiteUrl()}/onboarding`,
+    },
+    idempotencyKey: `PROFILE_CREATED:${user.id}`,
+  });
 
   return {
     ok: true,

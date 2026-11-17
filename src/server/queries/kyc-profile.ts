@@ -1,4 +1,4 @@
-import { createServerReferenceClient } from "@/server/supabase/server";
+import { createServerSupabaseClient } from "@/server/supabase/server";
 import { fromStoredProfile, type KycProfile } from "@/domain/entities/kyc-profile";
 import type { AffiliationStatus } from "@/domain/entities/onboarding";
 
@@ -50,15 +50,15 @@ export interface KycProfileView {
  * l'écran sait remplir.
  */
 export async function getKycProfileQuery(citizenId: string): Promise<KycProfileView> {
-  const ref = await createServerReferenceClient();
+  const supabase = await createServerSupabaseClient();
 
   const [profileResult, dossierResult, documentsResult] = await Promise.all([
-    ref
+    supabase
       .from("citizen_profiles")
       .select("full_name, phone, affiliation_status, kyc_state")
       .eq("id", citizenId)
       .maybeSingle(),
-    ref
+    supabase
       .from("dossiers")
       .select("duc_code, onboarding_state")
       .eq("citizen_id", citizenId)
@@ -66,7 +66,7 @@ export async function getKycProfileQuery(citizenId: string): Promise<KycProfileV
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    ref
+    supabase
       .from("kyc_documents")
       .select(
         "id, doc_code, label, category, file_name, file_type, file_size, sent_at",
@@ -101,7 +101,7 @@ export async function getKycProfileQuery(citizenId: string): Promise<KycProfileV
 
   // Le profil déclaratif est une autre table : il porte les quatre groupes
   // de déclarations.
-  const { data: kyc } = await ref
+  const { data: kyc } = await supabase
     .from("kyc_profiles")
     .select("identity, residence, employment, compliance")
     .eq("citizen_id", citizenId)

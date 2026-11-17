@@ -1,9 +1,44 @@
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync } from "node:fs";
 
 // Le plan de financement est calculé par le **domaine** : les montants
 // affichés en démonstration sont donc ceux que la plateforme produirait
 // réellement, et non des chiffres écrits à la main.
 import { calculateHousingPlan } from "../src/domain/calculations/index.ts";
+
+/**
+ * L'environnement local, quand il n'est pas déjà dans le processus.
+ *
+ * Le script doit pouvoir être lancé tel quel : `node scripts/seed-dev-users.mjs`.
+ * Le fichier `.env.local` est ignoré par git — c'est donc le bon endroit pour
+ * une clé de service.
+ */
+function loadLocalEnv() {
+  try {
+    const content = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const index = trimmed.indexOf("=");
+      if (index === -1) continue;
+      const key = trimmed.slice(0, index).trim();
+      let value = trimmed.slice(index + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      // Une variable **vide** n'est pas une configuration : elle ne doit pas
+      // masquer la valeur du fichier local.
+      if (!process.env[key]) process.env[key] = value;
+    }
+  } catch {
+    // Pas de fichier local : l'environnement du processus suffit.
+  }
+}
+
+loadLocalEnv();
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";

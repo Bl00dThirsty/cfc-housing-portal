@@ -29,17 +29,6 @@ export function getBrowserClient(): SupabaseClient {
   return browserClient;
 }
 
-/**
- * Accès au référentiel déclarable (schéma `ref`).
- *
- * PostgREST choisit le schéma par l'en-tête `Accept-Profile` (RFC 6906) :
- * écrire `ref.document_type` comme nom de table ne fonctionne pas.
- * `supabase.schema("ref")` pose l'en-tête automatiquement.
- */
-export function getBrowserReferenceClient() {
-  return getBrowserClient().schema("ref");
-}
-
 /** Réinitialise le singleton (tests, changement d'environnement). */
 export function resetBrowserClient(): void {
   browserClient = undefined;

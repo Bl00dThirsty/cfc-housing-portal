@@ -1,5 +1,6 @@
 import { getPublicEnv } from "@/server/env";
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { referenceView } from "@/server/queries/reference";
 import type { DossierEvent } from "@/domain/entities/processes";
 import {
   checklistStatusFor,
@@ -229,8 +230,7 @@ async function resolveServiceLabel(
 ): Promise<string | null> {
   if (!serviceCode) return null;
   const { data } = await supabase
-    .schema("ref")
-    .from("service")
+    .from(referenceView("service"))
     .select("label")
     .eq("code", serviceCode)
     .maybeSingle();
@@ -245,8 +245,7 @@ async function buildChecklist(
   if (!serviceCode) return [];
 
   const { data: requirements } = await supabase
-    .schema("ref")
-    .from("service_document_requirement")
+    .from(referenceView("service_document_requirement"))
     .select("stage, doc_type_code, required, min_count")
     .eq("service_code", serviceCode)
     .in("stage", ["ONBOARDING", "SAVINGS", "CREDIT_FILE"])
@@ -254,14 +253,12 @@ async function buildChecklist(
     .is("effective_to", null);
 
   const { data: types } = await supabase
-    .schema("ref")
-    .from("document_type")
+    .from(referenceView("document_type"))
     .select("code, label, nature_code, issuing_authority")
     .is("deleted_at", null);
 
   const { data: natures } = await supabase
-    .schema("ref")
-    .from("document_nature")
+    .from(referenceView("document_nature"))
     .select("code, label")
     .is("deleted_at", null);
 

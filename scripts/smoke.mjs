@@ -14,11 +14,47 @@
  */
 
 import { createServerClient } from "@supabase/ssr";
+import { readFileSync } from "node:fs";
+
+/**
+ * L'environnement local, quand il n'est pas déjà dans le processus.
+ *
+ * Le contrôle doit pouvoir être lancé tel quel : `node scripts/smoke.mjs`.
+ * Une variable **vide** n'est pas une configuration : elle ne doit pas
+ * masquer la valeur du fichier local.
+ */
+function loadLocalEnv() {
+  try {
+    const content = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const index = trimmed.indexOf("=");
+      if (index === -1) continue;
+      const key = trimmed.slice(0, index).trim();
+      let value = trimmed.slice(index + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (!process.env[key]) process.env[key] = value;
+    }
+  } catch {
+    // Pas de fichier local : l'environnement du processus suffit.
+  }
+}
+
+loadLocalEnv();
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY 
-const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD ?? "CfcDev2026!";
+const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
+const SUPABASE_ANON_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD || "CfcDev2026!";
 
 const results = [];
 
