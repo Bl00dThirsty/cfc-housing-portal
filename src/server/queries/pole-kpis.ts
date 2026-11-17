@@ -64,7 +64,7 @@ const KYC_PENDING_STATES = [
 /** Extrait le compte d'une requête de comptage. */
 function countOf(result: { count: number | null; error: { message: string } | null }): number {
   if (result.error) {
-    console.error("[kpi] comptement impossible :", result.error.message);
+    console.error("[kpi] comptage impossible :", result.error.message);
     return 0;
   }
   return result.count ?? 0;

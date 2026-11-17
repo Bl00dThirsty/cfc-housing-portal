@@ -269,53 +269,14 @@ function generateClientFiles(client: ClientItem): DucFile[] {
   ];
 }
 
-const initialAuditLogs: DucAuditLogEntry[] = [
-  {
-    id: "log-1",
-    date: "12/08/2026 10:14",
-    docName: "CNI_Certifiee.pdf",
-    folderId: "c1-id",
-    action: "Visa Favorable",
-    author: "M. Eko (Guichet)",
-    role: "Chargé d'Accueil",
-    version: "v1.0",
-    status: "Validé",
-  },
-  {
-    id: "log-2",
-    date: "16/08/2026 14:30",
-    docName: "3_Derniers_Bulletins_Paie_Signes.pdf",
-    folderId: "c2-instruction",
-    action: "Visa Favorable",
-    author: "Mme Atangana (Risques)",
-    role: "Analyste Risques / Crédit",
-    version: "v1.0",
-    status: "Validé",
-  },
-  {
-    id: "log-3",
-    date: "19/08/2026 11:22",
-    docName: "Plan_Bornage_Geometre_Assermente.dwg",
-    folderId: "c3-garanties",
-    action: "Rejet Documentaire",
-    author: "BET BTP Cameroun",
-    role: "Expert Foncier / BET",
-    version: "v0.9",
-    comment: "Signature de l'Ordre des Géomètres manquante au verso.",
-    status: "Rejeté",
-  },
-  {
-    id: "log-4",
-    date: "02/09/2026 16:45",
-    docName: "PV_Decision_Comite_Credit_CRC.pdf",
-    folderId: "c2-instruction",
-    action: "Visa Favorable",
-    author: "Comité CRC",
-    role: "Direction Générale",
-    version: "v1.0",
-    status: "Validé",
-  },
-];
+/**
+ * Le journal d'audit démarre **vide**.
+ *
+ * Il ne contient que les événements réellement posés pendant la visite ;
+ * les visas historiques vivent dans `dossier_events`. Un journal pré-rempli
+ * de lignes fictives donnerait à un contrôleur l'illusion d'une piste
+ * d'audit scellée qui n'existe pas.
+ */
 
 interface ClientDucManagerProps {
   client: ClientItem | null;
@@ -330,7 +291,7 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
   const [previewFile, setPreviewFile] = React.useState<DucFile | null>(null);
   const [isUploadOpen, setIsUploadOpen] = React.useState(false);
   const [customFiles, setCustomFiles] = React.useState<Record<string, DucFile[]>>({});
-  const [auditLogs, setAuditLogs] = React.useState<DucAuditLogEntry[]>(initialAuditLogs);
+  const [auditLogs, setAuditLogs] = React.useState<DucAuditLogEntry[]>([]);
 
   const baseFiles = React.useMemo(() => (client ? generateClientFiles(client) : []), [client]);
   const clientFiles = React.useMemo(() => {
@@ -705,6 +666,15 @@ export function ClientDucManager({ client, onSelectClient }: ClientDucManagerPro
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
+              {auditLogs.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 px-2 text-center text-muted-foreground">
+                    Aucun événement enregistré sur cette session. Les visas et
+                    rejets posés pendant cette visite apparaîtront ici ; le
+                    journal de référence reste `dossier_events` en base.
+                  </td>
+                </tr>
+              )}
               {auditLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                   <td className="py-2 px-2 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
