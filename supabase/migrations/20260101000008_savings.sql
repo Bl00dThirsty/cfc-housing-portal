@@ -19,12 +19,10 @@ create table if not exists public.savings_accounts (
   deleted_at      timestamptz,
   deleted_by      uuid references auth.users (id) on delete set null
 );
-
 create unique index if not exists savings_accounts_number_key
   on public.savings_accounts (account_number) where deleted_at is null;
 create index if not exists savings_accounts_dossier_idx on public.savings_accounts (dossier_id);
 create index if not exists savings_accounts_citizen_idx on public.savings_accounts (citizen_id);
-
 create table if not exists public.savings_transactions (
   id             uuid primary key default gen_random_uuid(),
   account_id     uuid not null references public.savings_accounts (id) on delete cascade,
@@ -50,19 +48,15 @@ create table if not exists public.savings_transactions (
   deleted_at      timestamptz,
   deleted_by      uuid references auth.users (id) on delete set null
 );
-
 create index if not exists savings_transactions_account_idx
   on public.savings_transactions (account_id, transaction_date desc);
 create index if not exists savings_transactions_dossier_idx on public.savings_transactions (dossier_id);
 create index if not exists savings_transactions_validated_idx
   on public.savings_transactions (validated_by) where validated_at is null and deleted_at is null;
-
 select private.attach_audit_trigger('public.savings_accounts');
 select private.attach_audit_trigger('public.savings_transactions');
-
 grant select, insert, update, delete on
   public.savings_accounts, public.savings_transactions to authenticated;
 grant all on public.savings_accounts, public.savings_transactions to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on public.savings_accounts from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.savings_transactions from authenticated;

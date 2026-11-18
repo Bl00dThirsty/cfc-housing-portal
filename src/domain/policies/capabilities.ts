@@ -30,6 +30,7 @@ export type Capability =
   | "kyc:escalate"
   | "document:read"
   | "document:upload"
+  | "document:request"
   | "document:validate"
   | "document:reject"
   | "savings:read"
@@ -95,6 +96,23 @@ export const POLE_CODES = [
 
 export type PoleCode = (typeof POLE_CODES)[number];
 
+/**
+ * Le pôle organisationnel de chaque rôle.
+ *
+ * La relation est bijective : un rôle, un pôle. Elle est la même en base
+ * (`ref.role.pole_code`) — l'application s'en sert pour choisir les
+ * indicateurs qu'un agent surveille.
+ */
+export const ROLE_POLES: Record<StaffRole, PoleCode> = {
+  GUICHET: "G1",
+  GESTIONNAIRE: "G2",
+  RISQUES_BET: "G3",
+  NOTAIRE: "G8",
+  COMITE: "G6",
+  DIASPORA: "DIASPORA",
+  ADMIN: "ADMIN",
+};
+
 /** Capacité du super-utilisateur : la totalité du modèle. */
 export const ALL_CAPABILITIES: readonly Capability[] = [
   "dossier:read",
@@ -111,6 +129,7 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
   "kyc:escalate",
   "document:read",
   "document:upload",
+  "document:request",
   "document:validate",
   "document:reject",
   "savings:read",

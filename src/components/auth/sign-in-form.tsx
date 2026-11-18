@@ -18,8 +18,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, KeyRound, Layers, Mail, ShieldCheck } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ArrowRight, KeyRound, Layers, Mail, ShieldCheck, UserPlus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Separator } from "@/components/ui/separator";
 import { landingPathForRole } from "@/config/rbac/sidebar-by-role";
+import { APP_VERSION } from "@/config/app-version";
+import { reportAction } from "@/lib/action-feedback";
 import { useAuth } from "@/lib/auth-context";
 
 export type SignInAudience = "citizen" | "staff";
@@ -71,7 +73,6 @@ const COPY = {
 
 export function SignInForm({ audience }: { audience: SignInAudience }) {
   const copy = COPY[audience];
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { session, profile, signIn, signInWithMagicLink, resetPassword } = useAuth();
 
@@ -83,6 +84,15 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
   const [notice, setNotice] = React.useState<string | null>(null);
 
   const nextPath = searchParams.get("next");
+  const confirmationError = searchParams.get("error") === "email_confirmation";
+
+  React.useEffect(() => {
+    if (confirmationError) {
+      setError(
+        "Le lien de confirmation est invalide ou expiré. Demandez un nouveau lien de confirmation.",
+      );
+    }
+  }, [confirmationError]);
 
   React.useEffect(() => {
     if (!session) return;
@@ -92,9 +102,13 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
         ? nextPath
         : landingPathForRole(profile?.role ?? "CITIZEN");
 
-    router.replace(target);
-    router.refresh();
-  }, [session, profile, nextPath, router]);
+    // Navigation **pleine page** : la session vient d'être posée en cookie et
+    // le profil peut encore être en cours de lecture. Un `router.replace`
+    // lancé avant cette lecture viserait le portail citoyen ; la seconde
+    // navigation, concurrente, laisserait alors le formulaire bloqué sur
+    // « Traitement en cours ». Le serveur, lui, résout toujours le rôle réel.
+    window.location.assign(target);
+  }, [session, profile, nextPath]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -104,6 +118,9 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
 
     if (mode === "password") {
       const result = await signIn(email, password);
+      // Le toast **accompagne** l'écran : le refus reste affiché sous le
+      // formulaire, il ne se perd pas dans un coin de l'interface.
+      reportAction(result, "Connexion réussie — bienvenue.");
       if (!result.ok) {
         setError(result.error);
         setSubmitting(false);
@@ -146,7 +163,7 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
           <div className="flex items-center justify-between">
             <span className="eyebrow-style font-normal text-subtle">{copy.badge}</span>
             <Badge variant="outline" className="bg-background/80 px-2 py-0 font-mono text-[10px]">
-              v1.6.3
+              {APP_VERSION}
             </Badge>
           </div>
 
@@ -200,7 +217,7 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
         <div className="mb-6 flex items-center justify-between lg:hidden">
           <span className="eyebrow-style font-normal text-subtle">{copy.badge}</span>
           <Badge variant="outline" className="font-mono text-[10px]">
-            CFC v1.6.3
+            CFC {APP_VERSION}
           </Badge>
         </div>
 
@@ -329,6 +346,16 @@ export function SignInForm({ audience }: { audience: SignInAudience }) {
                   Session sécurisée, journalisée et rattachée à votre habilitation.
                 </span>
               </div>
+
+              {audience === "citizen" && (
+                <Link
+                  href="/inscription"
+                  className="flex items-center justify-center gap-1.5 rounded-md border border-line-strong px-3 py-2 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/50"
+                >
+                  <UserPlus className="size-3.5" aria-hidden />
+                  Créer un compte
+                </Link>
+              )}
 
               <Link
                 href={copy.switchHref}

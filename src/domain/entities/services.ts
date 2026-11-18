@@ -13,15 +13,35 @@ export type RequiredDocument = {
   natureCode: string;
   natureLabel: string;
   issuingAuthority: string | null;
+  /** La catégorie de la pièce : emprunteur, projet, programme ou partenaires. */
+  category: string | null;
   required: boolean;
   minCount: number;
   stage: string;
+};
+
+/** Un produit d'un service : l'apport, la durée, le taux. */
+export type ServiceProduct = {
+  code: string;
+  label: string;
+  /** L'apport minimal, en pourcentage du prix. */
+  minApportPercent: number | null;
+  /** La durée maximale, en années. */
+  maxDurationYears: number | null;
+  /** Le taux indicatif, en pourcentage annuel. */
+  indicativeRate: number | null;
+  /** Le taux d'épargne, en pourcentage. */
+  savingsRate: number | null;
 };
 
 export type ServiceSummary = {
   code: string;
   label: string;
   description: string | null;
+  /** À qui le service s'adresse — il est affiché sur la carte. */
+  audience: string | null;
+  /** Les produits du service : apport, durée, taux. */
+  products: ServiceProduct[];
   documents: RequiredDocument[];
 };
 
@@ -36,6 +56,8 @@ export type DocumentTypeSummary = {
   label: string;
   nature_code: string;
   issuing_authority: string | null;
+  /** La catégorie de la pièce : emprunteur, projet, programme ou partenaires. */
+  category: string | null;
   validity_months: number | null;
   accepted_mime: string[];
   max_size_bytes: number;
@@ -91,6 +113,14 @@ export function stageLabel(stage: string): string {
  */
 export type ChecklistStatus =
   | "missing"
+  /**
+   * Fournie au KYC : elle n'est **jamais** demandée deux fois.
+   */
+  | "deja_fournie"
+  /**
+   * Déclarée par le demandeur, en attente de vérification.
+   */
+  | "envoyee"
   | "uploaded"
   | "in_review"
   | "verified"
@@ -135,4 +165,25 @@ export function checklistStatusFor(raw: string | null | undefined): ChecklistSta
     default:
       return "missing";
   }
+}
+
+/**
+ * Croise les exigences d'un service et les pièces déjà fournies.
+ *
+ * Une pièce déjà fournie au KYC (CNI, bulletins, RIB) est marquée
+ * « déjà fournie » : elle n'est **jamais** demandée deux fois.
+ *
+ * La fonction est **générique** : elle ne connaît que le code de la pièce
+ * et son état. La checklist du dossier et la liste des pièces du service
+ * l'utilisent tous les deux, sans dupliquer la règle.
+ */
+export function markProvidedDocuments<
+  T extends { docTypeCode: string; status: ChecklistStatus },
+>(requirements: readonly T[], providedCodes: readonly string[]): T[] {
+  const provided = new Set(providedCodes);
+  return requirements.map((item) =>
+    provided.has(item.docTypeCode) && item.status === "missing"
+      ? { ...item, status: "deja_fournie" }
+      : item,
+  );
 }

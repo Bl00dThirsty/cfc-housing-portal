@@ -2372,8 +2372,349 @@ test** dédié (`e2e.cloisonnement@cfc.cm`) et un nettoyage garanti par `finally
 
 ---
 
-*End of document. Part 17 records the FAQ, the surfacing of failures, the
-proven messaging and the traced KYC decision; Part 16 the navigation and the
-data integrity; Part 15 the citizen space, the messaging and the role
-isolation; Part 14 the two portals and the working document deposit; Part 13
-the alignment on the official cartography; Parts 0–11 remain the target.*
+## PART 18 — LE PARCOURS D'INSCRIPTION, RÉPARÉ (2026-11-13)
+
+### 18.1 Les trois défauts qui le rendaient inutilisable
+
+Le parcours d'inscription ne pouvait pas aboutir. L'emprunteur lisait
+« **Votre session a expiré. Reconnectez-vous pour continuer.** » — un refus
+qui racontait autre chose.
+
+| Défaut | Cause | Correctif |
+|---|---|---|
+| Aucun **acteur** n'était créé avec le compte | `citizen_profiles.id` référence `public.actors(id)` : sans acteur, pas de profil, et le serveur ne reconnaissait pas le nouvel emprunteur | le déclencheur `20260101000024_actor_on_user_signup.sql` crée l'acteur **avec** le compte, et rattrapage les comptes déjà créés |
+| Le compte était créé **dans le navigateur** | la session était posée après coup ; la requête suivante — celle qui enregistre la situation — partait sans elle | `createAccountAction` fait tout **côté serveur**, et vérifie que la session est utilisable avant de répondre |
+| Le parcours lisait des **colonnes inexistantes** | `citizen_profiles` n'a ni `profession` ni `employer` : la lecture du brouillon échouait, le brouillon était toujours vide, et la reprise du dossier ne pouvait pas fonctionner | le profil est lu avec ses vraies colonnes ; la profession et l'employeur viennent du dossier |
+
+### 18.2 Où vivent les déclarations du citoyen
+
+Le formulaire demande le **revenu déclaré**, les **personnes à charge** et les
+**crédits en cours**. Le dossier ne peut pas les porter : son revenu
+`*_assessé*` est protégé contre l'écriture par le client
+(`guard_citizen_dossier_update`).
+
+Les déclarations ont donc leur table — `kyc_profiles`
+(`20260101000025_kyc_profile.sql`), celle du parcours d'inscription et de KYC :
+
+| Contenu | Seau |
+|---|---|
+| identité (nom, naissance, CNI) | `kyc_profiles.identity` |
+| résidence (adresse, ville, région) | `kyc_profiles.residence` |
+| emploi (profession, employeur, **revenu déclaré**) | `kyc_profiles.employment` |
+| conformité (personnes à charge, crédits en cours) | `kyc_profiles.compliance` |
+| copie de travail de la plateforme | `dossiers` |
+
+Le **revenu évalué** reste à la plateforme : `dossiers.monthly_income`.
+
+### 18.3 Le téléphone : une bibliothèque, pas une table maison
+
+Les plans de numérotation sont ceux de `libphonenumber-js`. Le module
+`src/domain/entities/phone.ts` les **applique** (validation, forme
+internationale, regroupement) ; le composant `src/components/ui/phone-input.tsx`
+les **montre** : indicatif au choix parmi les plans du monde, drapeaux,
+recherche, regroupement au fil de la frappe.
+
+Deux formes, et une seule stockée :
+
+- la forme **nationale** est ce que l'utilisateur tape ;
+- la forme **internationale** (`+237699000001`) est ce que la base stocke et
+  ce que l'affichage reformate.
+
+### 18.4 La couche de toasts
+
+`sonner` est monté **une seule fois**, à la racine (`CfcToaster`). Le retour
+d'action passe par **un seul** propriétaire, `src/lib/action-feedback.ts`, qui
+traduit la convention `{ ok, error }` déjà utilisée par tous les appels
+serveur.
+
+Un toast **accompagne** l'état d'erreur affiché à l'écran, il ne le remplace
+jamais : un refus qui bloque la tâche garde son refus à l'écran.
+
+### 18.5 L'isolation des suites de bout en bout, corrigée
+
+Plusieurs clients Supabase dans un **même processus** partagent la même clé de
+stockage et se renvoient une session périmée. Une suite par **processus** :
+le parcours d'inscription vit dans son propre fichier
+(`onboarding.e2e.local.test.ts`), comme le dépôt, la signalisation et le fil.
+
+**9 exécutions consécutives** de la suite complète, sans échec.
+
+### 18.6 Le suivi devient cliquable
+
+Le suivi n'était qu'une **frise** : l'emprunteur voyait où il en était, mais
+pas ce qui s'était passé. Chaque étape est maintenant un **bouton** qui ouvre
+le journal de cette étape du parcours — qui a fait quoi, quand.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le mapping étape ↔ événements | `src/domain/workflows/tracking.ts` (`STEP_EVENT_TYPES`, `eventsForStep`, `unassignedEvents`) | c'est une décision **métier** : elle est dans le domaine, pas dans l'écran |
+| « Qui » est un rôle | `src/domain/entities/processes.ts` (`actorRoleLabel`) | un nom de personne n'a pas à quitter la banque |
+| Le panneau | `src/components/tracking/step-detail-drawer.tsx` | il est **partagé** par les portails ; seul le citizen l'utilise aujourd'hui |
+| Le journal exposé au suivi | `CitizenTracking.events` | le journal était déjà lu pour indexer les étapes : l'exposer évite une seconde lecture |
+
+Deux états restent **distincts** : un panneau sans événement n'est pas un
+panneau en erreur, et un événement qui n'atteste aucune étape n'est pas perdu
+— il est montré à part, sous « Autres événements du dossier ».
+
+### 18.7 L'en-tête, une coque paramétrée par le rôle
+
+Le client et la console étaient **deux implémentations parallèles** d'une barre
+supérieure. Ils rendent maintenant la même coque.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| La configuration par rôle | `src/config/rbac/role-header.ts` | le libellé du pôle, la recherche scopée et les actions rapides ont **un seul** propriétaire, à côté des autres règles RBAC |
+| La coque | `src/components/layout/portal-header.tsx` | ce qui change d'un écran à l'autre est le **contenu**, pas la coque |
+| Les actions rapides | `visibleQuickActions(role)` | une action exige une **capacité** : elle n'est jamais offerte à qui ne peut pas l'accomplir |
+
+La navigation du portail citoyen n'est plus écrite deux fois : la coque place
+le contenu central **sous** la barre quand l'écran est étroit — une seule
+barre d'onglets, pas deux.
+
+### 18.8 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **369 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — **9 exécutions consécutives** sans échec |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **63/63** |
+
+---
+
+## PART 19 — LE MOTEUR DE TABLE, ET LA PORTE UNIQUE D'INSCRIPTION (2026-11-16)
+
+### 19.1 Un seul moteur pour tous les tableaux
+
+L'agent disposait de **quarante-deux tableaux** écrits à la main : chacun
+avait sa recherche, son tri, ses filtres, sa pagination. Le portail citoyen
+en avait déjà un, piloté par un moteur — et il rendait mieux que les autres.
+
+La migration ne change pas le rendu des écrans : elle change **qui** possède
+le tri, la recherche et les facettes.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Les règles | `src/lib/data-table.ts` | module **pur** : ni React, ni base, ni store |
+| L'état par tableau | `src/stores/data-table-store.ts` | un `tableId` isole l'état ; le store est le **seul** propriétaire du tri choisi |
+| Le tableau | `src/components/data-table/data-table.tsx` | il rend, et rien d'autre : une ligne fournie **possède** sa mise en page |
+| La barre d'outils | `src/components/ui/data-table-toolbar.tsx` | elle est **canonique** : recherche, facettes, regroupement, tri, compte, export |
+
+Les colonnes sont des **constantes de module** : le moteur mémoïse sur leur
+identité, et une écriture en ligne dans le JSX l'invaliderait à chaque rendu.
+
+Le tri porte sur la **valeur**, jamais sur la forme affichée : un montant
+« 18 500 000 FCFA » se compare par son montant, une date française par son
+horodatage. Sans cette distinction, le tri devenait alphabétique — et donc
+faux.
+
+Le **kanban** reste hors du moteur, et le dit dans son fichier : c'est une
+grille de colonnes dans lesquelles on glisse des cartes, pas un tableau de
+lignes. Le tri, les facettes et le groupement n'y ont pas de sens.
+
+### 19.2 La porte unique d'inscription
+
+Il y avait **deux** endroits qui ouvraient un compte : l'étape « Votre
+compte » de l'assistant, et (aujourd'hui) `/inscription`. Deux portes, c'est
+un seul concept dupliqué — et c'est la première cause de désaccord entre
+deux écrans.
+
+Il n'y en a plus qu'une.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| La porte | `src/app/inscription` | `/inscription` — la **seule** qui ouvre un compte et le premier dossier |
+| L'action | `src/server/actions/signup.ts` | tout se passe **côté serveur**, dans une seule requête : compte, profil, dossier, consentement |
+| Le consentement | `kyc_profiles.consent_at` | daté par le **serveur** : la date du navigateur n'est pas une preuve |
+| Le code du DUC | `public.next_duc_code()` | une **séquence** : deux inscriptions simultanées ne peuvent pas obtenir le même code |
+| L'assistant | `src/components/onboarding/onboarding-wizard.tsx` | il suppose le demandeur **connecté** ; il ne crée plus de compte |
+
+L'assistant de dossier est passé de quatre étapes à trois : le dossier vient
+**avant** le service — on ne choisit pas un prêt avant d'avoir dit qui l'on
+est. Le téléphone et la situation bancaire, qui vivaient dans l'étape de
+compte, ont rejoint l'étape « Votre dossier ».
+
+Le compte entreprise est **affiché mais désactivé** : la porte existe, elle
+n'est pas ouverte. Un demandeur ne doit pas avoir à deviner qu'elle existe.
+
+### 19.3 Le domaine du parcours, et sa base
+
+Le domaine du demandeur est écrit (`src/domain/entities/kyc-profile.ts`) :
+cas « déjà client », rotation des conseillers, durées d'ancienneté, champs
+bloquants, validation du profil, badge du citoyen.
+
+Le badge KYC à quatre valeurs est une **projection** de la machine à états
+existante : l'état reste la propriété de `citizen_profiles.kyc_state`, il
+n'y a pas de second vocabulaire.
+
+La base porte le parcours (migrations 022, 023, 026) :
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Les pièces déclarées | `public.kyc_documents` | seuls le nom, le type, la taille et la date : les octets restent dans le coffre |
+| L'activation du DUC | `dossiers.duc_status` | **distincte** de `status`, qui porte l'avancement du traitement |
+| L'avancement du parcours | `dossiers.onboarding_state` | KYC, service, pièces, examen, pause, actif |
+| Le catalogue des services | `ref.service`, `ref.product`, `ref.product_rate` | une **donnée** : audience, produits, barèmes et exigences de pièces y sont déclarés |
+| La catégorie d'une pièce | `ref.document_type.category` | le regroupement est déclaratif, pas écrit dans l'écran |
+
+La numérotation des DUC passe désormais par une **séquence** : le code n'est
+plus tiré au sort, et le code du DUC est unique parmi les dossiers actifs.
+
+### 19.4 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **404 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — dont le parcours d'inscription complet, de bout en bout |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **66/66** |
+
+---
+
+## PART 20 — LE KYC EN QUATRE ÉCRANS, ET L'ÉTAT QUI N'APPARTIENT PAS AU CITOYEN (2026-11-16)
+
+### 20.1 Quatre écrans, une seule déclaration
+
+Le demandeur ne remplit plus un formulaire unique : il déclare qui il est,
+écran par écran — **identité**, **résidence et contact**, **situation
+professionnelle**, **conformité et déclaration** — puis il relit, et il
+transmet.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le profil du demandeur | `src/domain/entities/kyc.ts` | les formes des quatre groupes de déclarations |
+| Les règles | `src/domain/entities/kyc-profile.ts` | champs bloquants, validation, badge — un module **pur** |
+| La forme **stockée** | `toStoredProfile` / `fromStoredProfile` | les colonnes JSONB sont en `snake_case` ; la traduction vit dans le domaine, **une fois** |
+| L'écran | `src/components/kyc/kyc-wizard.tsx` | progression, brouillon auto-sauvegardé, champs bloquants annoncés, récapitulatif |
+
+Le brouillon est **conservé automatiquement** : un déclarant n'a pas à
+valider pour que ses saisies restent. Le « Continuer » est **désactivé**
+tant qu'un champ bloquant manque, et il dit **lequel**.
+
+L'identité que l'inscription a portée est **pré-remplie** : le demandeur la
+vérifie, il ne la ressaisit pas.
+
+### 20.2 L'état du KYC n'appartient pas au citoyen
+
+La RLS de `citizen_profiles` n'interdisait pas au citoyen d'écrire
+**n'importe quelle colonne** de sa ligne — y compris `kyc_state`. Un
+demandeur pouvait donc s'accorder l'approbation lui-même, sans passer par
+le contrôle de filtrage.
+
+Deux corrections, et une seule idée : **l'état a un propriétaire**.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le garde-fou | `private.guard_citizen_profile_update()` | un citoyen ne peut pas écrire `kyc_state` ; un agent, si |
+| La soumission | `public.submit_kyc_profile()` | horodatage et transition **en une opération**, par la base |
+| L'écriture système | `app.system_update` | une valeur tenue par la plateforme n'est pas une déclaration du citoyen |
+
+La soumission mène à `document_verification`, **pas** à `approval_pending` :
+le contrôle de filtrage est une grille, et aucun dossier ne sort de
+`screening_pending` sans décision de contrôle écrite. Le conseiller reste
+le maître de la suite.
+
+### 20.3 Le choix du service, et ses trois issues
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| La carte de service | `src/components/onboarding/service-picker.tsx` | elle est lue du **catalogue** : public, audience, apport, durée, taux, pièces |
+| La fenêtre | `PRIOR_CLIENT_CASES` | trois situations, et chacune décide de la suite |
+| La suspension | `dossiers.onboarding_state = 'suspension'` | le demandeur n'est pas encore client du CFC : six mois d'ancienneté |
+| Le conseiller | `dossiers.advisor` | il est **dérivé de l'identifiant** : le même demandeur retrouve le même conseiller |
+| L'espace d'attente | `src/components/portail-client/onboarding-waiting.tsx` | un dossier en attente n'a **rien** à montrer : ni graphiques, ni dépôt |
+
+### 20.4 L'en-tête public sait qui le regarde
+
+Il demande la session au navigateur et n'offre plus « Se connecter » à
+quelqu'un qui l'est déjà : un visiteur connecté trouve « Mon espace », et un
+visiteur anonyme trouve les deux portes.
+
+### 20.5 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **397 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés — dont la tentative de s'auto-approuver, **refusée par la base**, et les deux issues de la fenêtre du service |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **67/67** |
+
+---
+
+## PART 21 — LES PIÈCES, LE PANEAU DU CONSEILLER, LES POINTS DE RUPTURE (2026-11-16)
+
+### 21.1 Les pièces du KYC et celles du service
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Les pièces du KYC | `KYC_DOCUMENTS` (`kyc-profile.ts`) | facultatives : CNI, justificatif de domicile, justificatif de revenus |
+| Le dépôt | `src/components/kyc/kyc-documents.tsx` | il **réutilise** `DocumentUploader` — pas de second composant de dépôt |
+| Les métadonnées | `kyc_documents` | le nom, le type, la taille, la date : les octets restent dans le coffre |
+| Les pièces du service | `src/components/onboarding/service-documents.tsx` | groupées **par catégorie**, chacune avec son état |
+| Les trois états | `markProvidedDocuments` (générique) | à fournir · déjà fournie (KYC) · envoyée |
+| « Passer pour l'instant » | le même écran | il ne bloque **rien** : un dossier incomplet est instruit, pas rejeté |
+
+### 21.2 Le parcours appartient à la plateforme
+
+Le garde-fou du dossier (migration 021) protégeait les champs **dérivés**. Il
+en oubliait quatre, du même genre : l'**activation** du DUC, l'**avancement**
+du parcours, le **conseiller** affecté et la **situation** face au service.
+
+Sans cette extension, un citoyen pouvait écrire `duc_status = 'active'` sur
+son propre dossier — et s'ouvrir, seul, les droits d'un dossier activé.
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| Le garde-fou étendu | `private.guard_citizen_dossier_update()` | quatre champs de plus sont protégés |
+| La situation face au service | `public.set_prior_client_case()` | atomique, par la base |
+| La transmission | `public.submit_service_application()` | atomique, **journalisée**, conseiller affecté |
+
+### 21.3 Le panneau de démonstration
+
+| Décision | Lieu | Règle |
+|---|---|---|
+| L'accès | `canOpenDevRoute()` (`route-access.ts`) | la route n'existe qu'**en développement** ; la condition est lue **côté serveur** |
+| La fermeture | `middleware.ts` | en production, `/dev/*` renvoie vers la porte du citoyen |
+| Les décisions | `src/server/actions/demo.ts` | elles **écrivent** : journal, notification, état |
+
+⚠️ Un module `"use server"` importé par un composant client est concaténé pour
+le navigateur : une affectation à `process.env.NEXT_PUBLIC_*` y devient une
+affectation à une constante, et la construction échoue. Le compte de
+démonstration a donc son propre module, sûr dans le graphe client.
+
+### 21.4 Les points de rupture
+
+Les six points de rupture du diagramme en couloirs (PR-01) sont un **fait de
+la cartographie** : ils vivent dans le domaine (`src/domain/entities/
+ruptures.ts`), et l'écran ne les réécrit pas. Le suivi en montre **un seul**
+sous l'étape ; le panneau d'étape en porte la liste complète.
+
+### 21.5 Vérifié
+
+| Contrôle | Résultat |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm run lint` | exit 0 — 0 erreur, 0 avertissement |
+| `npm test` | **406 tests** passés, 16 ignorés (e2e) |
+| `CFC_E2E=1 vitest run` (4 fichiers e2e) | **16 tests** passés |
+| `npm run build` | exit 0 |
+| `node scripts/smoke.mjs` | **68/68** |
+
+---
+
+*End of document. Part 21 records the documents, the advisor's demo panel and
+the rupture points; Part 20 the four KYC screens, the state the citizen does
+not own, and the three outcomes of the service choice; Part 19 the shared
+data-table engine and the single account door; Part 18 the repaired onboarding
+journey and the interactive tracker; Part 17 the FAQ, the surfacing of
+failures, the proven messaging and the traced KYC decision; Part 16 the
+navigation and the data integrity; Part 15 the citizen space, the messaging and
+the role isolation; Part 14 the two portals and the working document deposit;
+Part 13 the alignment on the official cartography; Parts 0–11 remain the
+target.*

@@ -5,7 +5,6 @@
 
 -- `citext` est installé dans le schéma `extensions` (cf. migration 001).
 set search_path = public, extensions;
-
 -- ---------------------------------------------------------------------------
 -- Dossier
 -- ---------------------------------------------------------------------------
@@ -80,7 +79,6 @@ create table if not exists public.dossiers (
   deleted_at           timestamptz,
   deleted_by           uuid references auth.users (id) on delete set null
 );
-
 -- Index sur les clés étrangères : PostgreSQL ne le fait pas à la place de
 -- l'application, et chaque politique RLS filtre sur ces colonnes.
 create index if not exists dossiers_citizen_idx on public.dossiers (citizen_id);
@@ -90,13 +88,11 @@ create index if not exists dossiers_service_idx on public.dossiers (service_code
 create index if not exists dossiers_product_idx on public.dossiers (product_code);
 create index if not exists dossiers_phase_idx on public.dossiers (current_phase);
 create index if not exists dossiers_sla_idx on public.dossiers (sla_deadline) where deleted_at is null;
-
 -- Index partiels d'unicité : une suppression logique libère la clé.
 create unique index if not exists dossiers_active_duc_key
   on public.dossiers (duc_code) where deleted_at is null;
 create unique index if not exists dossiers_active_cni_key
   on public.dossiers (cni_normalised) where deleted_at is null;
-
 -- ---------------------------------------------------------------------------
 -- Tiers (BET, notaires, promoteurs, assureurs, MINDCAF…)
 -- ---------------------------------------------------------------------------
@@ -123,11 +119,9 @@ create table if not exists public.parties (
   deleted_at          timestamptz,
   deleted_by          uuid references auth.users (id) on delete set null
 );
-
 create index if not exists parties_type_idx on public.parties (party_type) where deleted_at is null;
 create unique index if not exists parties_registration_key
   on public.parties (registration_number) where deleted_at is null and registration_number is not null;
-
 -- ---------------------------------------------------------------------------
 -- Rattachement d'un tiers à un dossier
 -- ---------------------------------------------------------------------------
@@ -150,12 +144,10 @@ create table if not exists public.dossier_parties (
   deleted_at        timestamptz,
   deleted_by        uuid references auth.users (id) on delete set null
 );
-
 create index if not exists dossier_parties_dossier_idx on public.dossier_parties (dossier_id);
 create index if not exists dossier_parties_party_idx on public.dossier_parties (party_id);
 create unique index if not exists dossier_parties_active_key
   on public.dossier_parties (dossier_id, party_id, role_in_dossier) where deleted_at is null;
-
 -- ---------------------------------------------------------------------------
 -- Mandats : un tiers ↔ un dossier ↔ un jeu de capacités, borné dans le temps
 -- ---------------------------------------------------------------------------
@@ -176,12 +168,10 @@ create table if not exists public.grants (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 create index if not exists grants_dossier_idx on public.grants (dossier_id);
 create index if not exists grants_party_idx on public.grants (party_id);
 create index if not exists grants_active_idx
   on public.grants (dossier_id, party_id) where revoked_at is null and deleted_at is null;
-
 -- ---------------------------------------------------------------------------
 -- Prédicat d'action sur un dossier
 --
@@ -245,7 +235,6 @@ language sql stable security definer set search_path = '' as $$
   end
   from ctx;
 $$;
-
 -- ---------------------------------------------------------------------------
 -- Audit et privilèges
 -- ---------------------------------------------------------------------------
@@ -254,14 +243,12 @@ select private.attach_audit_trigger('public.dossiers');
 select private.attach_audit_trigger('public.parties');
 select private.attach_audit_trigger('public.dossier_parties');
 select private.attach_audit_trigger('public.grants');
-
 grant select, insert, update, delete on
   public.dossiers, public.parties, public.dossier_parties, public.grants
   to authenticated;
 grant all on
   public.dossiers, public.parties, public.dossier_parties, public.grants
   to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on public.dossiers from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.parties from authenticated;
 revoke update (created_by, updated_by, deleted_by) on public.dossier_parties from authenticated;

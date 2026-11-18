@@ -142,6 +142,7 @@ export default async function TrackingPage() {
       <TrackingStepper
         steps={tracking.steps}
         progress={tracking.progress}
+        events={tracking.events}
         discussionPath="/portail-client"
       />
 

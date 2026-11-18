@@ -21,7 +21,9 @@
 
 import * as React from "react";
 import { CheckCircle2, FileText, Loader2, UploadCloud, XCircle } from "lucide-react";
+import { toast } from "sonner";
 
+import { reportError } from "@/lib/action-feedback";
 import { useAuth } from "@/lib/auth-context";
 import { UploadError, type UploadErrorPayload } from "./upload-error";
 import {
@@ -174,8 +176,15 @@ export function DocumentUploader({
     );
   }, []);
 
+  /**
+   * Dépose **un** fichier.
+   *
+   * Renvoie `true` quand la pièce est déposée et confirmée, `false` sinon.
+   * Le motif du refus est porté par l'item lui-même : l'agent le lit sous
+   * le nom du fichier, pas dans un coin de l'interface.
+   */
   const uploadOne = React.useCallback(
-    async (file: File, key: string) => {
+    async (file: File, key: string): Promise<boolean> => {
       // 1. Validation — un fichier non conforme n'est jamais envoyé.
       const validation = validateUploadCandidate(
         { name: file.name, mimeType: file.type, sizeBytes: file.size },
@@ -183,7 +192,7 @@ export function DocumentUploader({
       );
       if (!validation.ok) {
         patchItem(key, { status: "error", error: validation.error });
-        return;
+        return false;
       }
 
       // 2. Empreinte — calculée ici, jamais côté serveur.
@@ -199,16 +208,21 @@ export function DocumentUploader({
             message: "Empreinte SHA-256 impossible à calculer sur ce fichier.",
           },
         });
-        return;
+        return false;
       }
 
       const accessToken = session?.access_token;
       if (!accessToken) {
-        patchItem(key, {
-          status: "error",
-          error: { code: "unauthenticated", message: "Session expirée : reconnectez-vous." },
-        });
-        return;
+        // La session est une cause **globale** : elle ne concerne pas le
+        // fichier, elle concerne le poste. Elle se dit à l'écran, en grand.
+        const error = {
+          code: "unauthenticated",
+          message: "Session expirée : reconnectez-vous pour déposer une pièce.",
+        };
+        setGlobalError(error);
+        reportError(error.message);
+        patchItem(key, { status: "error", error });
+        return false;
       }
 
       // 3. URL signée — le serveur est la porte.
@@ -224,7 +238,7 @@ export function DocumentUploader({
 
       if (!ticket.ok) {
         patchItem(key, { status: "error", error: ticket.error });
-        return;
+        return false;
       }
 
       // 4. Envoi direct au coffre.
@@ -241,7 +255,7 @@ export function DocumentUploader({
             message: error instanceof Error ? error.message : "Le transfert a échoué.",
           },
         });
-        return;
+        return false;
       }
 
       // 5. Confirmation — vérification serveur, chaînage, journal.
@@ -255,7 +269,7 @@ export function DocumentUploader({
 
       if (!confirmed.ok) {
         patchItem(key, { status: "error", error: confirmed.error });
-        return;
+        return false;
       }
 
       const document: UploadedDocument = {
@@ -266,6 +280,7 @@ export function DocumentUploader({
       };
       patchItem(key, { status: "done", document });
       onUploaded?.(document);
+      return true;
     },
     [chemiseCode, docTypeCode, dossierId, onUploaded, patchItem, rules, session?.access_token],
   );
@@ -286,9 +301,29 @@ export function DocumentUploader({
       }));
       setItems((previous) => [...previous, ...created]);
 
+      // Un dépôt se **dit une fois** : un résumé du lot, pas un toast par
+      // fichier. Le motif de chaque refus reste sous le fichier concerné.
       void Promise.all(
-        created.map((item, index) => uploadOne(files[index], item.key).catch(() => undefined)),
-      );
+        created.map((item, index) => uploadOne(files[index], item.key)),
+      ).then((results) => {
+        const deposited = results.filter(Boolean).length;
+        const refused = results.length - deposited;
+
+        if (deposited > 0) {
+          toast.success(
+            deposited === 1 ? "Pièce déposée." : `${deposited} pièces déposées.`,
+          );
+        }
+
+        if (refused > 0) {
+          toast.error(
+            refused === 1
+              ? "Une pièce a été refusée."
+              : `${refused} pièces ont été refusées.`,
+            { description: "Le motif est indiqué sous chaque fichier." },
+          );
+        }
+      });
     },
     [disabled, uploadOne],
   );

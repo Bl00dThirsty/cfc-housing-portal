@@ -1,5 +1,6 @@
 import { getPublicEnv } from "@/server/env";
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { referenceView } from "@/server/queries/reference";
 import type { DossierEvent } from "@/domain/entities/processes";
 import {
   checklistStatusFor,
@@ -31,6 +32,10 @@ export type CitizenSpace = {
   currentPhase: string | null;
   completionPercent: number | null;
   status: string | null;
+  /** L'avancement du parcours : KYC, service, pièces, examen, pause. */
+  onboardingState: string | null;
+  /** Le conseiller qui examine le dossier, s'il y en a un. */
+  advisor: string | null;
   events: DossierEvent[];
   checklist: ChecklistItem[];
   documentCount: number;
@@ -66,6 +71,13 @@ export type CitizenTracking = {
   progress: number;
   /** Pièces attendues, avec leur état. */
   checklist: ChecklistItem[];
+  /**
+   * Le journal du dossier.
+   *
+   * Il est déjà lu pour indexer les étapes : l'exposer évite une seconde
+   * lecture et permet au panneau d'étape de dire qui a fait quoi, quand.
+   */
+  events: DossierEvent[];
 };
 
 export async function getCitizenSpace(userId: string): Promise<{
@@ -79,7 +91,7 @@ export async function getCitizenSpace(userId: string): Promise<{
   const { data: dossier, error: dossierError } = await supabase
     .from("dossiers")
     .select(
-      "id, duc_code, service_code, current_phase, completion_percent, status, loan_amount, rate, duration_years, monthly_payment, savings_target, savings_current, savings_percent, debt_ratio",
+      "id, duc_code, service_code, current_phase, completion_percent, status, onboarding_state, advisor, loan_amount, rate, duration_years, monthly_payment, savings_target, savings_current, savings_percent, debt_ratio",
     )
     .eq("citizen_id", userId)
     .is("deleted_at", null)
@@ -160,6 +172,8 @@ export async function getCitizenSpace(userId: string): Promise<{
       completionPercent:
         dossier.completion_percent === null ? null : Number(dossier.completion_percent),
       status: dossier.status as string | null,
+      onboardingState: (dossier.onboarding_state as string | null) ?? null,
+      advisor: (dossier.advisor as string | null) ?? null,
       events: (eventsResult.data ?? []) as DossierEvent[],
       checklist,
       documentCount: documentsResult.count ?? 0,
@@ -205,6 +219,7 @@ export async function getCitizenTracking(userId: string): Promise<{
       steps: space.steps,
       progress: processProgress(space.steps),
       checklist: space.checklist,
+      events: space.events,
     },
   };
 }
@@ -215,8 +230,7 @@ async function resolveServiceLabel(
 ): Promise<string | null> {
   if (!serviceCode) return null;
   const { data } = await supabase
-    .schema("ref")
-    .from("service")
+    .from(referenceView("service"))
     .select("label")
     .eq("code", serviceCode)
     .maybeSingle();
@@ -231,8 +245,7 @@ async function buildChecklist(
   if (!serviceCode) return [];
 
   const { data: requirements } = await supabase
-    .schema("ref")
-    .from("service_document_requirement")
+    .from(referenceView("service_document_requirement"))
     .select("stage, doc_type_code, required, min_count")
     .eq("service_code", serviceCode)
     .in("stage", ["ONBOARDING", "SAVINGS", "CREDIT_FILE"])
@@ -240,14 +253,12 @@ async function buildChecklist(
     .is("effective_to", null);
 
   const { data: types } = await supabase
-    .schema("ref")
-    .from("document_type")
+    .from(referenceView("document_type"))
     .select("code, label, nature_code, issuing_authority")
     .is("deleted_at", null);
 
   const { data: natures } = await supabase
-    .schema("ref")
-    .from("document_nature")
+    .from(referenceView("document_nature"))
     .select("code, label")
     .is("deleted_at", null);
 

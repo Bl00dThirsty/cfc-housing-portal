@@ -14,14 +14,47 @@
  */
 
 import { createServerClient } from "@supabase/ssr";
+import { readFileSync } from "node:fs";
+
+/**
+ * L'environnement local, quand il n'est pas déjà dans le processus.
+ *
+ * Le contrôle doit pouvoir être lancé tel quel : `node scripts/smoke.mjs`.
+ * Une variable **vide** n'est pas une configuration : elle ne doit pas
+ * masquer la valeur du fichier local.
+ */
+function loadLocalEnv() {
+  try {
+    const content = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const index = trimmed.indexOf("=");
+      if (index === -1) continue;
+      const key = trimmed.slice(0, index).trim();
+      let value = trimmed.slice(index + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (!process.env[key]) process.env[key] = value;
+    }
+  } catch {
+    // Pas de fichier local : l'environnement du processus suffit.
+  }
+}
+
+loadLocalEnv();
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
 const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
-
-const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD ?? "CfcDev2026!";
+const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD || "CfcDev2026!";
 
 const results = [];
 
@@ -86,7 +119,7 @@ async function main() {
     `status=${root.status} location=${root.location ?? "—"}`,
   );
 
-  for (const path of ["/login", "/onboarding", "/portail-client", "/simulator"]) {
+  for (const path of ["/login", "/inscription", "/onboarding", "/portail-client", "/simulator"]) {
     const page = await fetchPage(path);
     check(`route publique ${path} répond 200`, page.status === 200, `status=${page.status}`);
   }
@@ -108,30 +141,75 @@ async function main() {
     `status=${accueil.status}`,
   );
 
-  // L'en-tête public n'annonce que ce qui est ouvert à tous : le simulateur
-  // et la foire aux questions. L'onboarding vient après l'inscription, l'espace
-  // et le suivi après l'authentification — ils ne doivent donc pas figurer
-  // dans l'en-tête.
+  // L'en-tête public n'annonce que ce qui est ouvert à tous : le simulateur,
+  // la foire aux questions, et les deux portes du citoyen — **créer un
+  // compte** et **se connecter**. L'espace citoyen et le suivi viennent
+  // *après* l'authentification : ils ne doivent donc pas figurer dans
+  // l'en-tête.
   const login = await fetchPage("/login");
   const header = login.body.slice(0, login.body.indexOf("</header>"));
   check(
     "l'en-tête public n'annonce que les services ouverts à tous",
     header.includes("Simulateur") &&
       header.includes("FAQ") &&
-      !header.includes('href="/onboarding"') &&
+      header.includes("Créer un compte") &&
+      header.includes('href="/inscription"') &&
+      header.includes('href="/login"') &&
       !header.includes('href="/portail-client"') &&
       !header.includes('href="/tracking"'),
-    "onglets publics : simulateur et FAQ",
+    "onglets publics : simulateur et FAQ ; portes du citoyen : créer un compte, se connecter",
   );
   check(
-    "la porte de l'agent reste accessible",
-    header.includes("/portail-cfc/login"),
-    "lien vers la porte agent attendu",
+    "l'en-tête ne répète pas la porte de l'agent",
+    !header.includes("/portail-cfc/login"),
+    "la porte de l'agent est dans le pied de page",
   );
   check(
     "le pied de page offre la porte de l'agent",
     login.body.includes("/portail-cfc/login"),
     "lien de pied de page attendu",
+  );
+
+  // Sur la page d'inscription, l'appel à l'action ne mène nulle part : on y
+  // est déjà. La même porte ne doit pas s'afficher deux fois sur la page.
+  const inscription = await fetchPage("/inscription");
+  const inscriptionHeader = inscription.body.slice(0, inscription.body.indexOf("</header>"));
+  check(
+    "la page d'inscription ne répète pas l'appel à l'action",
+    !inscriptionHeader.includes('href="/inscription"') &&
+      inscriptionHeader.includes('href="/login"'),
+    "seule la connexion reste dans l'en-tête",
+  );
+
+  // La porte d'inscription est **la** porte qui ouvre un compte : le
+  // formulaire doit être là, et il doit le dire.
+  check(
+    "la porte d'inscription présente le formulaire",
+    inscription.body.includes("Créer un compte") &&
+      inscription.body.includes("Numéro de CNI") &&
+      inscription.body.includes("Confirmer le mot de passe"),
+    "nom, CNI, mot de passe et confirmation sont demandés",
+  );
+
+  // L'assistant de dossier ne crée plus de compte : il suppose le demandeur
+  // connecté, et le renvoie vers l'inscription s'il ne l'est pas.
+  const onboarding = await fetchPage("/onboarding");
+  check(
+    "l'assistant de dossier ne crée plus de compte",
+    !onboarding.body.includes("Créer mon compte et continuer") &&
+      onboarding.body.includes("Créer mon compte"),
+    "la seule porte de création est /inscription",
+  );
+
+  // Le KYC se déroule en quatre écrans : identité, résidence et contact,
+  // situation professionnelle, conformité et déclaration.
+  check(
+    "le KYC se déroule en quatre écrans",
+    onboarding.body.includes("Écran 1 sur 4") &&
+      onboarding.body.includes("Résidence et contact") &&
+      onboarding.body.includes("Situation professionnelle") &&
+      onboarding.body.includes("Conformité et déclaration"),
+    "les quatre écrans du KYC sont annoncés",
   );
 
   // La foire aux questions est un service public, rendu et complet.
@@ -169,13 +247,58 @@ async function main() {
     !console_.body.includes("Changer de profil m") && !console_.body.includes("loginAsUser"),
   );
 
+  // L'en-tête de la console nomme le **pôle** de l'agent connecté : un
+  // en-tête identique pour les sept rôles ne dit rien de l'endroit où l'agent
+  // se trouve.
+  check(
+    "l'en-tête de la console nomme le pôle",
+    console_.body.includes("Agence commerciale"),
+    "le libellé de pôle est absent de l'en-tête",
+  );
+  // Les actions rapides sont filtrées par capacité : le guichet voit les
+  // siennes, pas celles du comité.
+  check(
+    "l'en-tête de la console propose les actions du rôle",
+    console_.body.includes("Enrôler un emprunteur") &&
+      !console_.body.includes("Dossier en délibération"),
+    "les actions rapides doivent suivre les capacités du rôle",
+  );
+
   const agentLanding = await fetchPage("/portail-cfc", agent.cookie);
   check(
     "l'agent GUICHET atterrit sur son écran de pôle",
     agentLanding.status >= 300 &&
       agentLanding.status < 400 &&
-      (agentLanding.location ?? "").includes("/portail-cfc/clients"),
+      (agentLanding.location ?? "").includes("/portail-cfc/actors/agency"),
     `status=${agentLanding.status} location=${agentLanding.location ?? "—"}`,
+  );
+
+  // L'écran d'atterrissage du guichet est celui de son pôle : il porte de
+  // vrais indicateurs, mesurés dans le périmètre de l'agent.
+  const poleScreen = await fetchPage("/portail-cfc/actors/agency", agent.cookie);
+  check(
+    "l'écran de pôle est servi à l'agent",
+    poleScreen.status === 200,
+    `status=${poleScreen.status}`,
+  );
+  check(
+    "l'écran de pôle mesure ses indicateurs",
+    poleScreen.body.includes("Dossiers ouverts") &&
+      poleScreen.body.includes("Dossiers à orienter"),
+    "les indicateurs mesurés du pôle guichet sont attendus",
+  );
+
+  // La file des dossiers à orienter est le poste de travail du conseiller.
+  const orientation = await fetchPage("/portail-cfc/dossiers", agent.cookie);
+  check(
+    "la file des dossiers à orienter est servie à l'agent",
+    orientation.status === 200,
+    `status=${orientation.status}`,
+  );
+  check(
+    "la file des dossiers à orienter rend son contenu",
+    orientation.body.includes("Dossiers à orienter"),
+    "le titre de la file des dossiers est attendu",
   );
 
   const adminLanding = await fetchPage("/portail-cfc", admin.cookie);
@@ -185,6 +308,19 @@ async function main() {
       adminLanding.status < 400 &&
       (adminLanding.location ?? "").includes("/portail-cfc/analytics"),
     `status=${adminLanding.status} location=${adminLanding.location ?? "—"}`,
+  );
+
+  const adminScreen = await fetchPage("/portail-cfc/analytics", admin.cookie);
+  check(
+    "l'écran de pilotage de l'administrateur est servi",
+    adminScreen.status === 200,
+    `status=${adminScreen.status}`,
+  );
+  check(
+    "l'écran de pilotage mesure ses indicateurs",
+    adminScreen.body.includes("Taux d'activation") &&
+      adminScreen.body.includes("Dossiers ouverts"),
+    "les indicateurs mesurés de la plateforme sont attendus",
   );
 
   const kyc = await fetchPage("/portail-cfc/actors/agency/kyc-validation", agent.cookie);
@@ -308,7 +444,10 @@ async function checkRoleIsolation() {
  * rendu avec une session réelle, pas par une inspection visuelle.
  */
 async function checkCitizenJourney() {
-  const citizen = await signIn("emprunteur@cfc.cm");
+  // Un dossier **en attente d'orientation** n'affiche pas de graphiques :
+  // un tableau de bord vide serait un mensonge. On contrôle donc les deux
+  // états — celui qui dépose ses pièces, et celui qui attend son conseiller.
+  const citizen = await signIn("emprunteur.pieces@cfc.cm");
 
   const dashboard = await fetchPage("/portail-client", citizen.cookie);
   check("le tableau de bord citoyen est servi", dashboard.status === 200, `status=${dashboard.status}`);
@@ -318,12 +457,27 @@ async function checkCitizenJourney() {
   );
   check("le tableau de bord porte ses graphiques", dashboard.body.includes("recharts"));
 
+  const awaiting = await signIn("emprunteur@cfc.cm");
+  const waiting = await fetchPage("/portail-client", awaiting.cookie);
+  check(
+    "un dossier en attente d'orientation affiche l'écran d'attente",
+    waiting.status === 200 &&
+      waiting.body.includes("conseiller") &&
+      !waiting.body.includes("recharts"),
+    "un dossier qui attend un conseiller ne montre pas de graphiques vides",
+  );
+
   const tracking = await fetchPage("/tracking", citizen.cookie);
   check("le suivi du dossier est servi", tracking.status === 200, `status=${tracking.status}`);
   check(
     "le suivi indexe les étapes du circuit",
     tracking.body.includes("CRD-01"),
     "codes d'étape (CRD-…) attendus",
+  );
+  check(
+    "le suivi rend chaque étape cliquable",
+    tracking.body.includes("aria-expanded"),
+    "les étapes du parcours doivent ouvrir leur historique",
   );
 
   const profile = await fetchPage("/portail-client/profil", citizen.cookie);
@@ -347,6 +501,14 @@ async function checkCitizenJourney() {
     "le suivi propose de discuter d'une étape",
     tracking.body.includes("Discuter"),
     "action « Discuter » attendue sur chaque étape",
+  );
+
+  // L'en-tête citoyen offre le simulateur et la FAQ : ce sont les parcours
+  // publics que l'emprunteur vit depuis son espace.
+  check(
+    "l'en-tête citoyen porte le simulateur et la FAQ",
+    dashboard.body.includes("Simulateur") && dashboard.body.includes("FAQ"),
+    "les onglets du portail citoyen sont absents",
   );
 
   const agent = await signIn("admin@cfc.cm");

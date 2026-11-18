@@ -21,6 +21,7 @@ import "server-only";
 
 import { getSiteUrl } from "@/server/env";
 import { getAdminClient } from "@/server/supabase/admin";
+import { factSubject } from "@/domain/entities/processes";
 import { sendTemplatedEmail, type SendEmailResult } from "./send";
 import type { EmailVariables } from "./types";
 
@@ -32,13 +33,23 @@ export const DOMAIN_EVENT_TEMPLATES: Record<string, string> = {
   KYC_SUBMITTED: "KYC_SUBMITTED",
   KYC_APPROVED: "KYC_APPROVED",
   KYC_REJECTED: "KYC_REJECTED",
+  APPLICATION_SUBMITTED: "APPLICATION_SUBMITTED",
+  APPLICATION_SUSPENDED: "APPLICATION_SUSPENDED",
+  DOCUMENTS_READY: "DOCUMENTS_READY",
+  DUC_ACTIVATED: "DUC_ACTIVATED",
+  DUC_REFUSED: "DUC_REFUSED",
   DOCUMENT_REQUESTED: "DOCUMENT_REQUESTED",
+  DOCUMENT_VALIDATED: "DOCUMENT_VALIDATED",
+  DOCUMENT_REJECTED: "DOCUMENT_REJECTED",
   COMMITTEE_DECISION: "COMMITTEE_DECISION",
   LOAN_OFFER_ISSUED: "LOAN_OFFER_ISSUED",
   DISBURSEMENT_RELEASED: "DISBURSEMENT_RELEASED",
   PAYOFF_STATEMENT: "PAYOFF_STATEMENT",
   MAINLEVEE_READY: "MAINLEVEE_READY",
   SAVE_CONTACT: "SAVE_CONTACT",
+  DOCUMENT_UPLOADED: "DOCUMENT_UPLOADED",
+  DOSSIER_UPDATED: "DOSSIER_UPDATED",
+  SUPPORT_MESSAGE: "SUPPORT_MESSAGE",
 };
 
 /**
@@ -76,6 +87,8 @@ interface ResolvedRecipient {
   rate: number | null;
   durationYears: number | null;
   monthlyPayment: number | null;
+  /** Le conseiller affecté au dossier — celui qui instruit. */
+  advisor: string | null;
 }
 
 /** Découpe un nom complet en prénom et nom. */
@@ -140,11 +153,18 @@ export function buildVariables(
     document: "",
     decision: "",
     telephone: "",
+    // Le conseiller instruit le dossier : son nom figure dans les messages
+    // qui engagent la banque. Sans lui, le message ne peut pas être rendu.
+    conseiller: recipient.advisor ?? "",
   };
 
   for (const [key, value] of Object.entries(payload)) {
     if (value === null || value === undefined) continue;
     variables[key] = typeof value === "string" || typeof value === "number" ? value : JSON.stringify(value);
+  }
+
+  if (!variables.document && typeof payload.original_filename === "string") {
+    variables.document = payload.original_filename;
   }
 
   return variables;
@@ -161,6 +181,7 @@ async function resolveDossier(dossierId: string): Promise<ResolvedRecipient> {
     rate: null,
     durationYears: null,
     monthlyPayment: null,
+    advisor: null,
   };
 
   try {
@@ -169,7 +190,7 @@ async function resolveDossier(dossierId: string): Promise<ResolvedRecipient> {
     const { data: dossier } = await client
       .from("dossiers")
       .select(
-        "id, duc_code, name, email, citizen_id, loan_amount, rate, duration_years, monthly_payment",
+        "id, duc_code, name, email, citizen_id, loan_amount, rate, duration_years, monthly_payment, advisor",
       )
       .eq("id", dossierId)
       .is("deleted_at", null)
@@ -203,6 +224,7 @@ async function resolveDossier(dossierId: string): Promise<ResolvedRecipient> {
       rate: dossier.rate === null ? null : Number(dossier.rate),
       durationYears: dossier.duration_years === null ? null : Number(dossier.duration_years),
       monthlyPayment: dossier.monthly_payment === null ? null : Number(dossier.monthly_payment),
+      advisor: (dossier.advisor as string | null) ?? null,
     };
   } catch {
     return empty;
@@ -232,6 +254,7 @@ export async function notifyDomainEvent(event: DomainEvent): Promise<SendEmailRe
       rate: null,
       durationYears: null,
       monthlyPayment: null,
+      advisor: null,
     };
   }
 
@@ -244,13 +267,22 @@ export async function notifyDomainEvent(event: DomainEvent): Promise<SendEmailRe
 
   const variables = buildVariables({ recipient, payload: event.payload, link });
 
+  // La clé d'idempotence distingue deux faits **de même type** : deux demandes
+  // de pièces différentes sur un même dossier sont deux courriels, pas un.
+  const subject = factSubject(event.eventType, event.payload);
+
+  const idempotencyKey =
+    event.eventType === "PROFILE_CREATED"
+      ? `PROFILE_CREATED:${event.citizenId ?? to}`
+      : event.dossierId
+        ? `${event.eventType}:${recipient.dossierId ?? to}:${subject}`
+        : `${event.eventType}:${to}:${new Date().toISOString().slice(0, 10)}`;
+
   return sendTemplatedEmail({
     templateCode,
     to,
     variables,
     recipientUserId: event.citizenId ?? null,
-    idempotencyKey: event.dossierId
-      ? `${event.eventType}:${recipient.dossierId ?? to}`
-      : `${event.eventType}:${to}:${new Date().toISOString().slice(0, 10)}`,
+    idempotencyKey,
   });
 }

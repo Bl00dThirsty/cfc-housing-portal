@@ -10,6 +10,19 @@
  * - `src/domain/policies/permissions.ts` — le rôle a-t-il la capacité ?
  * - `src/domain/policies/chemise.ts` — le rôle lit-il cette chemise ?
  * - `src/domain/policies/scope.ts` — sur quel périmètre ?
+ *
+ * **La navigation est aussi la table d'accès.** `route-access.ts` en déduit
+ * les routes que chaque rôle peut ouvrir : une page absente de la navigation
+ * d'un rôle lui est refusée. Les deux ne peuvent donc pas diverger.
+ *
+ * Trois règles de fond :
+ *
+ * 1. **La première entrée est l'écran d'atterrissage** du rôle. L'agent
+ *    atterrit là où le menu annonce qu'il est.
+ * 2. **Une entrée, une route.** Deux entrées qui mènent à la même page se
+ *    mentent l'une l'autre.
+ * 3. **Une entrée est un travail réel**, pas un écran de démonstration :
+ *    la file des dossiers à orienter, le contrôle KYC, le paramétrage.
  */
 
 import {
@@ -54,10 +67,13 @@ export interface NavSection {
  * Page d'atterrissage par défaut selon le rôle, après connexion.
  *
  * Un citoyen atterrit sur son portail ; un agent sur l'écran de son pôle.
+ *
+ * L'écran d'atterrissage est **celui du pôle**, et il porte de vrais
+ * indicateurs : les chiffres sont mesurés, pas écrits à la main.
  */
 export const LANDING_BY_ROLE: Record<StaffRole, string> = {
-  GUICHET: "/portail-cfc/clients",
-  GESTIONNAIRE: "/portail-cfc/clients",
+  GUICHET: "/portail-cfc/actors/agency",
+  GESTIONNAIRE: "/portail-cfc/dossiers",
   RISQUES_BET: "/portail-cfc/actors/risk-engineering",
   NOTAIRE: "/portail-cfc/actors/notary-cadastre",
   COMITE: "/portail-cfc/actors/credit-committees",
@@ -71,7 +87,7 @@ export const CITIZEN_LANDING = "/portail-client";
 /** Page d'atterrissage d'un rôle, citoyen compris. */
 export function landingPathForRole(role: AppRole): string {
   if (role === "CITIZEN") return CITIZEN_LANDING;
-  return LANDING_BY_ROLE[role] ?? "/portail-cfc/clients";
+  return LANDING_BY_ROLE[role] ?? "/portail-cfc/actors/agency";
 }
 
 /** Le rôle peut-il voir cette entrée de navigation ? */
@@ -108,62 +124,94 @@ export function getSidebarSectionsForRole(role: AppRole): NavSection[] {
 }
 
 const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
+  // ---------------------------------------------------------------------------
+  // G1 — Guichetier & Accueil : enrôler, contrôler, constituer l'épargne.
+  // ---------------------------------------------------------------------------
   GUICHET: [
     {
       title: "Accueil & Enrôlement (G1)",
       items: [
         {
-          id: "clients",
-          title: "Emprunteurs & Dossier Unique Client (DUC)",
-          href: "/portail-cfc/clients",
+          id: "agency",
+          title: "Enrôlement & Épargne Habitat",
+          href: "/portail-cfc/actors/agency",
           badge: "G1",
           groupCode: "Accueil & DUC",
           capability: "dossier:read",
           subItems: [
-            { id: "clients-table", title: "1. Répertoire Emprunteurs", href: "/portail-cfc/clients" },
-            { id: "clients-duc", title: "2. Dossier Numérique DUC", href: "/portail-cfc/clients?tab=duc", chemises: ["C1"] },
-            { id: "clients-epargne", title: "3. Carnet d'Épargne Numérisé", href: "/portail-cfc/clients?tab=epargne", capability: "savings:read" },
+            { id: "agency-main", title: "Tableau de bord du pôle", href: "/portail-cfc/actors/agency" },
+            { id: "agency-momo", title: "Collecte Mobile Money (MoMo)", href: "/portail-cfc/actors/agency/mobile-money" },
+            { id: "agency-simulator", title: "Simulateur d'Apport & Scoring", href: "/portail-cfc/actors/agency/simulator" },
           ],
         },
         {
-          id: "agency",
-          title: "Agence Commerciale",
-          href: "/portail-cfc/actors/agency",
-          badge: "Guichet",
-          groupCode: "Production des Crédits",
+          id: "dossiers-a-orienter",
+          title: "Dossiers à orienter",
+          href: "/portail-cfc/dossiers",
+          badge: "File",
+          groupCode: "Accueil & DUC",
+          capability: "dossier:read",
+        },
+        {
+          id: "agency-kyc",
+          title: "Validation KYC & Vigilance Renforcée",
+          href: "/portail-cfc/actors/agency/kyc-validation",
+          badge: "KYC",
+          groupCode: "Accueil & DUC",
+          capability: "kyc:read",
+        },
+        {
+          id: "clients",
+          title: "Emprunteurs & Dossier Unique Client (DUC)",
+          href: "/portail-cfc/clients",
+          badge: "DUC",
+          groupCode: "Accueil & DUC",
           capability: "dossier:read",
           subItems: [
-            { id: "agency-main", title: "Enrôlement & Épargne Habitat", href: "/portail-cfc/actors/agency" },
-            {
-              id: "agency-kyc",
-              title: "Validation KYC & Vigilance Renforcée",
-              href: "/portail-cfc/actors/agency/kyc-validation",
-              capability: "kyc:read",
-            },
-            { id: "agency-momo", title: "Collecte Mobile Money (MoMo)", href: "/portail-cfc/actors/agency/mobile-money" },
-            { id: "agency-simulator", title: "Simulateur d'Apport & Scoring", href: "/portail-cfc/actors/agency/simulator" },
+            { id: "clients-table", title: "Répertoire Emprunteurs", href: "/portail-cfc/clients" },
+            { id: "clients-duc", title: "Dossier Numérique DUC", href: "/portail-cfc/clients?tab=duc", chemises: ["C1"] },
+            { id: "clients-epargne", title: "Carnet d'Épargne Numérisé", href: "/portail-cfc/clients?tab=epargne", capability: "savings:read" },
           ],
         },
       ],
     },
   ],
 
+  // ---------------------------------------------------------------------------
+  // G2 — Conseiller Clientèle : orienter les dossiers, suivre le portefeuille.
+  // ---------------------------------------------------------------------------
   GESTIONNAIRE: [
     {
-      title: "Portefeuille Emprunteurs",
+      title: "Portefeuille Emprunteurs (G2)",
       items: [
+        {
+          id: "dossiers-a-orienter",
+          title: "Dossiers à orienter",
+          href: "/portail-cfc/dossiers",
+          badge: "File",
+          groupCode: "Portefeuille & DUC",
+          capability: "dossier:read",
+        },
+        {
+          id: "agency-kyc",
+          title: "Validation KYC & Vigilance Renforcée",
+          href: "/portail-cfc/actors/agency/kyc-validation",
+          badge: "KYC",
+          groupCode: "Portefeuille & DUC",
+          capability: "kyc:read",
+        },
         {
           id: "clients",
           title: "Emprunteurs & Dossier Unique Client (DUC)",
           href: "/portail-cfc/clients",
-          badge: "Portefeuille",
-          groupCode: "Gestion de Comptes",
+          badge: "DUC",
+          groupCode: "Portefeuille & DUC",
           capability: "dossier:read",
           subItems: [
-            { id: "clients-table", title: "1. Répertoire & État Dossiers", href: "/portail-cfc/clients" },
-            { id: "clients-kanban", title: "2. Kanban par Client", href: "/portail-cfc/clients?tab=kanban" },
-            { id: "clients-duc", title: "3. Pièces Justificatives DUC", href: "/portail-cfc/clients?tab=duc", chemises: ["C1", "C2"] },
-            { id: "clients-epargne", title: "4. Carnet d'Épargne & Apport", href: "/portail-cfc/clients?tab=epargne", capability: "savings:read" },
+            { id: "clients-table", title: "Répertoire & État Dossiers", href: "/portail-cfc/clients" },
+            { id: "clients-kanban", title: "Kanban par Client", href: "/portail-cfc/clients?tab=kanban" },
+            { id: "clients-duc", title: "Pièces Justificatives DUC", href: "/portail-cfc/clients?tab=duc", chemises: ["C1", "C2"] },
+            { id: "clients-epargne", title: "Carnet d'Épargne & Apport", href: "/portail-cfc/clients?tab=epargne", capability: "savings:read" },
           ],
         },
         {
@@ -173,10 +221,6 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           badge: "Kanban",
           groupCode: "Délais & Progression",
           capability: "dossier:read",
-          subItems: [
-            { id: "kanban-board", title: "Tableau Kanban Multi-Clients", href: "/portail-cfc/kanban" },
-            { id: "kanban-list", title: "Vue Liste Chronologique", href: "/portail-cfc/kanban" },
-          ],
         },
         {
           id: "agency-promoters",
@@ -185,14 +229,14 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           badge: "Partenaires",
           groupCode: "Programmes Immobiliers",
           capability: "dossier:read",
-          subItems: [
-            { id: "promoters-main", title: "Conventions SIC & MAETUR", href: "/portail-cfc/actors/agency/promoters" },
-          ],
         },
       ],
     },
   ],
 
+  // ---------------------------------------------------------------------------
+  // G3 — Risques & Ingénierie : contre-expertise, solvabilité, chantier.
+  // ---------------------------------------------------------------------------
   RISQUES_BET: [
     {
       title: "Pôle Risques & BET (G3)",
@@ -205,7 +249,7 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           groupCode: "Expertise Technique",
           capability: "dossier:read",
           subItems: [
-            { id: "risk-main", title: "Contre-Expertise Devis & Plans", href: "/portail-cfc/actors/risk-engineering" },
+            { id: "risk-main", title: "Tableau de bord du pôle", href: "/portail-cfc/actors/risk-engineering" },
             { id: "risk-reports", title: "Rapports de Visite Chantier", href: "/portail-cfc/actors/risk-engineering/site-reports" },
             { id: "risk-solvency", title: "Centrale des Risques & Solvabilité", href: "/portail-cfc/actors/risk-engineering/solvency" },
             { id: "risk-directory", title: "Annuaire BET & Experts Agréés", href: "/portail-cfc/actors/risk-engineering/directory" },
@@ -220,14 +264,14 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           groupCode: "Pièces d'Instruction",
           capability: "document:read",
           chemises: ["C2"],
-          subItems: [
-            { id: "duc-instruction", title: "DQE, Permis & Rapports BET", href: "/portail-cfc/clients?tab=duc", chemises: ["C2"] },
-          ],
         },
       ],
     },
   ],
 
+  // ---------------------------------------------------------------------------
+  // G8 — Notariat & Affaires Juridiques : conventions, hypothèque, cadastre.
+  // ---------------------------------------------------------------------------
   NOTAIRE: [
     {
       title: "Pôle Notariat & Cadastre (G8)",
@@ -240,8 +284,8 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           groupCode: "Affaires Juridiques & Foncier",
           capability: "notary:read",
           subItems: [
-            { id: "notary-main", title: "Conventions & Hypothèque 1er Rang", href: "/portail-cfc/actors/notary-cadastre" },
-            { id: "notary-cadastre-docs", title: "Liaison Cadastre & MINDCAF", href: "/portail-cfc/actors/notary-cadastre/cadastre-docs" },
+            { id: "notary-main", title: "Tableau de bord du pôle", href: "/portail-cfc/actors/notary-cadastre" },
+            { id: "notary-cadastre-docs", title: "Liaison Cadastre & Certificats MINDCAF", href: "/portail-cfc/actors/notary-cadastre/cadastre-docs" },
             { id: "notary-directory", title: "Études Notariales & Suivi Minutes", href: "/portail-cfc/actors/notary-cadastre/directory" },
             { id: "notary-insurances", title: "Assurances Décès, Incendie & TRC", href: "/portail-cfc/actors/notary-cadastre/insurances" },
             { id: "notary-oppositions", title: "Contrôle Pré-notations Foncier", href: "/portail-cfc/actors/notary-cadastre/oppositions" },
@@ -255,14 +299,14 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           groupCode: "Garanties & Hypothèques",
           capability: "document:read",
           chemises: ["C3"],
-          subItems: [
-            { id: "duc-garanties", title: "Titres Fonciers & Actes Notariés", href: "/portail-cfc/clients?tab=duc", chemises: ["C3"] },
-          ],
         },
       ],
     },
   ],
 
+  // ---------------------------------------------------------------------------
+  // G6 — Direction Générale & Arbitrage : comités, offres, déblocages.
+  // ---------------------------------------------------------------------------
   COMITE: [
     {
       title: "Comités Décisionnels (G6)",
@@ -275,7 +319,7 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           groupCode: "Arbitrage & Délibérations",
           capability: "committee:read",
           subItems: [
-            { id: "committees-main", title: "Arbitrages & Délibérations Octroi", href: "/portail-cfc/actors/credit-committees" },
+            { id: "committees-main", title: "Tableau de bord du pôle", href: "/portail-cfc/actors/credit-committees" },
             { id: "committees-cgr", title: "Comité Gestion des Risques (CGR)", href: "/portail-cfc/actors/credit-committees/cgr" },
             { id: "committees-crc", title: "Comité Règlement Créances (CRC)", href: "/portail-cfc/actors/credit-committees/crc" },
             { id: "committees-offers", title: "Génération Accords & Offres de Prêt", href: "/portail-cfc/actors/credit-committees/loan-offers", capability: "loan_offer:read" },
@@ -289,14 +333,14 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           badge: "Arbitrage",
           groupCode: "Instruction Collégiale",
           capability: "dossier:read",
-          subItems: [
-            { id: "kanban-deliberation", title: "Dossiers Prêts pour Comité", href: "/portail-cfc/kanban" },
-          ],
         },
       ],
     },
   ],
 
+  // ---------------------------------------------------------------------------
+  // Cellule Diaspora & Non-Résidents.
+  // ---------------------------------------------------------------------------
   DIASPORA: [
     {
       title: "Guichet Diaspora & Étranger",
@@ -308,10 +352,22 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           badge: "Diaspora",
           groupCode: "Cellule Non-Résidents",
           capability: "dossier:read",
-          subItems: [
-            { id: "diaspora-main", title: "Accueil & Souscriptions Non-Résidents", href: "/portail-cfc/actors/agency/diaspora" },
-            { id: "diaspora-simulator", title: "Simulateur Devises & Rapatriement", href: "/portail-cfc/actors/agency/simulator" },
-          ],
+        },
+        {
+          id: "dossiers-a-orienter",
+          title: "Dossiers à orienter",
+          href: "/portail-cfc/dossiers",
+          badge: "File",
+          groupCode: "Cellule Non-Résidents",
+          capability: "dossier:read",
+        },
+        {
+          id: "agency-kyc",
+          title: "Validation KYC & Vigilance Renforcée",
+          href: "/portail-cfc/actors/agency/kyc-validation",
+          badge: "KYC",
+          groupCode: "Cellule Non-Résidents",
+          capability: "kyc:read",
         },
         {
           id: "clients-diaspora",
@@ -325,10 +381,20 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
             { id: "diaspora-duc", title: "Procurations & Garanties DUC", href: "/portail-cfc/clients?tab=duc", chemises: ["C1"] },
           ],
         },
+        {
+          id: "diaspora-simulator",
+          title: "Simulateur Devises et Rapatriement",
+          href: "/portail-cfc/actors/agency/simulator",
+          groupCode: "Cellule Non-Résidents",
+          capability: "dossier:read",
+        },
       ],
     },
   ],
 
+  // ---------------------------------------------------------------------------
+  // Direction Générale & DSI : supervision transverse et paramétrage.
+  // ---------------------------------------------------------------------------
   ADMIN: [
     {
       title: "Supervision Stratégique",
@@ -347,17 +413,25 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           ],
         },
         {
+          id: "dossiers-a-orienter",
+          title: "Dossiers à orienter",
+          href: "/portail-cfc/dossiers",
+          badge: "File",
+          groupCode: "Supervision Stratégique",
+          capability: "dossier:read",
+        },
+        {
           id: "clients",
           title: "Emprunteurs & Dossier Unique Client (DUC)",
           href: "/portail-cfc/clients",
-          badge: "Hub",
+          badge: "DUC",
           groupCode: "Portefeuille, Kanban & DUC",
           capability: "dossier:read",
           subItems: [
-            { id: "clients-table", title: "1. Répertoire Emprunteurs", href: "/portail-cfc/clients" },
-            { id: "clients-kanban", title: "2. Kanban par Client", href: "/portail-cfc/clients?tab=kanban" },
-            { id: "clients-duc", title: "3. Dossier Numérique DUC", href: "/portail-cfc/clients?tab=duc" },
-            { id: "clients-epargne", title: "4. Carnet d'Épargne Numérisé", href: "/portail-cfc/clients?tab=epargne" },
+            { id: "clients-table", title: "Répertoire Emprunteurs", href: "/portail-cfc/clients" },
+            { id: "clients-kanban", title: "Kanban par Client", href: "/portail-cfc/clients?tab=kanban" },
+            { id: "clients-duc", title: "Dossier Numérique DUC", href: "/portail-cfc/clients?tab=duc" },
+            { id: "clients-epargne", title: "Carnet d'Épargne Numérisé", href: "/portail-cfc/clients?tab=epargne" },
           ],
         },
         {
@@ -367,10 +441,6 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           badge: "Global",
           groupCode: "Instruction & Délais",
           capability: "dossier:read",
-          subItems: [
-            { id: "kanban-board", title: "Tableau Kanban Global", href: "/portail-cfc/kanban" },
-            { id: "kanban-list", title: "Vue Liste Chronologique", href: "/portail-cfc/kanban" },
-          ],
         },
       ],
     },

@@ -5,9 +5,8 @@ import { DossierPhaseCard, DossierTimeline } from "@/components/portail-client/d
 import { DossierRequirements } from "@/components/portail-client/dossier-requirements";
 import { CitizenDashboard } from "@/components/portail-client/dashboard/dashboard";
 import { buildDashboardModel } from "@/components/portail-client/dashboard/dashboard-model";
-import DucFileManager from "@/components/portail-client/duc-file-manager";
 import DocumentDropzone from "@/components/portail-client/document-dropzone";
-import { NotificationBell } from "@/components/notifications/notification-bell";
+import { OnboardingWaiting } from "@/components/portail-client/onboarding-waiting";
 import { SupportChat } from "@/components/support/support-chat";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -113,6 +112,17 @@ export default async function CitizenPortalPage({
     finance: space.finance,
   });
 
+  /**
+   * Le dossier attend-il un conseiller ?
+   *
+   * En pause ou en examen, l'espace citoyen n'a **rien** à montrer : ni
+   * graphiques, ni dépôt de pièces. Un tableau de bord vide serait un mensonge.
+   * L'écran d'attente dit ce qui se passe et **qui** l'examine — et la
+   * conversation reste ouverte, pour joindre le conseiller.
+   */
+  const isAwaitingAdvisor =
+    space.onboardingState === "suspension" || space.onboardingState === "en_examen";
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
@@ -134,17 +144,26 @@ export default async function CitizenPortalPage({
             échangez avec votre conseiller.
           </p>
         </div>
-        <NotificationBell />
       </header>
 
-      <CitizenDashboard model={dashboard} />
+      {isAwaitingAdvisor ? (
+        <OnboardingWaiting
+          advisor={space.advisor}
+          ducCode={space.ducCode}
+          isUnderReview={space.onboardingState === "en_examen"}
+        />
+      ) : (
+        <>
+          <CitizenDashboard model={dashboard} />
 
-      <DossierPhaseCard
-        currentPhase={space.currentPhase}
-        completionPercent={space.completionPercent}
-        status={space.status}
-        serviceLabel={space.serviceLabel}
-      />
+          <DossierPhaseCard
+            currentPhase={space.currentPhase}
+            completionPercent={space.completionPercent}
+            status={space.status}
+            serviceLabel={space.serviceLabel}
+          />
+        </>
+      )}
 
       <Tabs defaultValue={anchor ? "messages" : "suivi"} className="w-full">
         <TabsList className="flex w-full flex-wrap gap-1 border border-line-strong bg-muted/40 p-1">
@@ -180,8 +199,12 @@ export default async function CitizenPortalPage({
         </TabsContent>
 
         <TabsContent value="pieces" className="mt-4 flex flex-col gap-4 focus-visible:outline-none">
-          <DucFileManager ducId={space.ducCode} />
-          <DocumentDropzone ducId={space.ducCode} />
+          <DocumentDropzone
+            dossierId={space.dossierId}
+            ducId={space.ducCode}
+            checklist={space.checklist}
+            steps={space.steps}
+          />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4 focus-visible:outline-none">

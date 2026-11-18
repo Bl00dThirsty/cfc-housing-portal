@@ -66,7 +66,7 @@ export function ActorKpiStrip({ items }: ActorKpiStripProps) {
             {/* Footer: Comparison subtitle */}
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>
-                from <strong className="font-medium text-foreground">{item.previous}</strong>
+                depuis <strong className="font-medium text-foreground">{item.previous}</strong>
               </span>
               <span>•</span>
               <span>{item.period}</span>

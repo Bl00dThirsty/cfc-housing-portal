@@ -22,7 +22,6 @@ create table if not exists ref.pole (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 -- ---------------------------------------------------------------------------
 -- Rôles métier et habilitations
 -- ---------------------------------------------------------------------------
@@ -43,7 +42,6 @@ create table if not exists ref.role (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 -- Matrice des habilitations : déclarable, auditable, versionnable. Elle est
 -- l'unique source consultée par `private.has_capability`, donc par les
 -- politiques RLS.
@@ -58,9 +56,7 @@ create table if not exists ref.role_capability (
   deleted_by    uuid references auth.users (id) on delete set null,
   primary key (role_code, capability)
 );
-
 create index if not exists role_capability_capability_idx on ref.role_capability (capability);
-
 -- Le rôle possède-t-il cette capacité ?
 create or replace function private.has_capability(p_role text, p_capability text) returns boolean
 language sql stable security definer set search_path = '' as $$
@@ -72,7 +68,6 @@ language sql stable security definer set search_path = '' as $$
       and rc.deleted_at is null
   );
 $$;
-
 -- Périmètre maximal du rôle.
 create or replace function private.role_scope(p_role text) returns text
 language sql stable security definer set search_path = '' as $$
@@ -80,7 +75,6 @@ language sql stable security definer set search_path = '' as $$
   from ref.role r
   where r.code = p_role;
 $$;
-
 -- Périmètre maximal du pôle, déduit du rôle qui l'occupe.
 create or replace function private.pole_scope(p_pole text) returns text
 language sql stable security definer set search_path = '' as $$
@@ -90,7 +84,6 @@ language sql stable security definer set search_path = '' as $$
     and r.deleted_at is null
   limit 1;
 $$;
-
 -- Pôle organisationnel de l'acteur. Le contexte de session prime ; à défaut,
 -- le pôle est déduit du rôle de l'acteur (registre de référence), puis de
 -- sa fiche agent. `app_metadata` n'est qu'un cache : il peut être périmé
@@ -113,7 +106,6 @@ language sql stable security definer set search_path = '' as $$
            )
          );
 $$;
-
 -- ---------------------------------------------------------------------------
 -- Chemises DUC
 -- ---------------------------------------------------------------------------
@@ -131,7 +123,6 @@ create table if not exists ref.chemise (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 -- Rôles autorisés à lire une chemise (le contrôle effectif est en base via
 -- `ref.chemise_readable_by`).
 create table if not exists ref.chemise_readable_by (
@@ -145,7 +136,6 @@ create table if not exists ref.chemise_readable_by (
   deleted_by    uuid references auth.users (id) on delete set null,
   primary key (chemise_code, role_code)
 );
-
 -- ---------------------------------------------------------------------------
 -- Natures de documents
 -- ---------------------------------------------------------------------------
@@ -165,7 +155,6 @@ create table if not exists ref.document_nature (
   deleted_at               timestamptz,
   deleted_by               uuid references auth.users (id) on delete set null
 );
-
 -- ---------------------------------------------------------------------------
 -- Types de documents (le catalogue déclarable)
 -- ---------------------------------------------------------------------------
@@ -194,10 +183,8 @@ create table if not exists ref.document_type (
   deleted_at            timestamptz,
   deleted_by            uuid references auth.users (id) on delete set null
 );
-
 create index if not exists document_type_nature_idx on ref.document_type (nature_code);
 create index if not exists document_type_validity_idx on ref.document_type (valid_from, valid_to);
-
 -- Ce qui peut se substituer à quoi (un passeport pour une CNI à l'étranger).
 create table if not exists ref.document_type_equivalent (
   from_code    text not null references ref.document_type (code) on delete cascade,
@@ -210,7 +197,6 @@ create table if not exists ref.document_type_equivalent (
   deleted_by   uuid references auth.users (id) on delete set null,
   primary key (from_code, to_code)
 );
-
 -- ---------------------------------------------------------------------------
 -- Audit et privilèges
 -- ---------------------------------------------------------------------------
@@ -223,7 +209,6 @@ select private.attach_audit_trigger('ref.chemise_readable_by');
 select private.attach_audit_trigger('ref.document_nature');
 select private.attach_audit_trigger('ref.document_type');
 select private.attach_audit_trigger('ref.document_type_equivalent');
-
 grant select, insert, update, delete on
   ref.pole, ref.role, ref.role_capability, ref.chemise, ref.chemise_readable_by,
   ref.document_nature, ref.document_type, ref.document_type_equivalent
@@ -232,7 +217,6 @@ grant all on
   ref.pole, ref.role, ref.role_capability, ref.chemise, ref.chemise_readable_by,
   ref.document_nature, ref.document_type, ref.document_type_equivalent
   to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on ref.pole from authenticated;
 revoke update (created_by, updated_by, deleted_by) on ref.role from authenticated;
 revoke update (created_by, updated_by, deleted_by) on ref.role_capability from authenticated;

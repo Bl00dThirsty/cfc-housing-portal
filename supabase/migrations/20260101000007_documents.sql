@@ -30,21 +30,16 @@ create table if not exists public.dossier_documents (
   deleted_by        uuid references auth.users (id) on delete set null,
   unique (storage_path)
 );
-
 create index if not exists dossier_documents_dossier_idx
   on public.dossier_documents (dossier_id, status);
 create index if not exists dossier_documents_type_idx on public.dossier_documents (doc_type_code);
 create index if not exists dossier_documents_chemise_idx on public.dossier_documents (chemise_code);
 create index if not exists dossier_documents_supersedes_idx on public.dossier_documents (supersedes_id);
 create index if not exists dossier_documents_checksum_idx on public.dossier_documents (checksum_sha256);
-
 select private.attach_audit_trigger('public.dossier_documents');
-
 grant select, insert, update, delete on public.dossier_documents to authenticated;
 grant all on public.dossier_documents to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on public.dossier_documents from authenticated;
-
 -- ---------------------------------------------------------------------------
 -- Moteur de satisfaction documentaire
 --
@@ -74,5 +69,4 @@ language sql stable security definer set search_path = '' as $$
     )
   order by d.label;
 $$;
-
 grant execute on function ref.missing_documents(text, uuid, text) to authenticated, service_role;

@@ -25,7 +25,6 @@ import { cn, getInitials } from "@/lib/utils";
 import {
   CLIENT_TABLE_CELL_CLASS,
   CLIENT_TABLE_ROW_CLASS,
-  clientColumnClass,
 } from "./table-columns";
 import type { ClientItem } from "@/domain/entities/client";
 
@@ -39,17 +38,26 @@ const STATUS_TONE: Record<ClientItem["status"], "green" | "neutral" | "red" | "t
 
 type ClientRowProps = {
   client: ClientItem;
+  /** La cellule d'une colonne : la ligne ne lit plus le dossier, elle le reçoit. */
+  cell: (key: string) => React.ReactNode;
   selected: boolean;
   active: boolean;
   onToggle: (id: string) => void;
-  onOpen: (client: ClientItem) => void;
-  onOpenKanban: (client: ClientItem) => void;
-  onOpenDuc: (client: ClientItem) => void;
-  onOpenEpargne: (client: ClientItem) => void;
+  onOpen: () => void;
+  onOpenKanban: () => void;
+  onOpenDuc: () => void;
+  onOpenEpargne: () => void;
 };
 
+/**
+ * La ligne d'un emprunteur.
+ *
+ * Elle reçoit ses cellules du moteur : le tri, le filtre et le groupement
+ * restent au tableau, la ligne ne fait que les habiller.
+ */
 export function ClientRow({
   client,
+  cell,
   selected,
   active,
   onToggle,
@@ -67,11 +75,11 @@ export function ClientRow({
         "cursor-pointer",
         active && "bg-muted/60",
       )}
-      onClick={() => onOpen(client)}
+      onClick={onOpen}
     >
       <TableCell
         role="cell"
-        className={cn(CLIENT_TABLE_CELL_CLASS, "gap-2", clientColumnClass("name"))}
+        className={cn(CLIENT_TABLE_CELL_CLASS, "gap-2", "justify-start")}
       >
         <Checkbox
           checked={selected}
@@ -89,74 +97,53 @@ export function ClientRow({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            onOpen(client);
+            onOpen();
           }}
           className="flex min-w-0 flex-col items-start truncate text-left"
         >
+          {/* Le nom porte sa propre typographie : sans ce `<span>`, il
+              hériterait du 14 px du tableau, à côté de cellules en 12 px. */}
           <span className="truncate text-xs font-medium text-foreground">
-            {client.name}
+            {cell("name")}
           </span>
-          <span className="truncate font-mono text-[10px] text-soft">
-            {client.ducId}
-          </span>
+          <span className="truncate font-mono text-[10px] text-soft">{client.ducId}</span>
         </button>
       </TableCell>
 
       <TableCell
         role="cell"
-        className={cn(CLIENT_TABLE_CELL_CLASS, "text-xs text-muted-foreground", clientColumnClass("agency"))}
+        className={cn(CLIENT_TABLE_CELL_CLASS, "text-xs text-muted-foreground", "justify-start")}
       >
-        {client.agency}
+        {cell("agency")}
       </TableCell>
 
-      <TableCell
-        role="cell"
-        className={cn(CLIENT_TABLE_CELL_CLASS, clientColumnClass("phase"))}
-      >
-        <Tag tone="blue" size="sm">
-          {client.phase}
+      <TableCell role="cell" className={cn(CLIENT_TABLE_CELL_CLASS, "justify-start")}>
+        <Tag tone="blue" size="sm" className="text-xs">
+          {cell("phase")}
+        </Tag>
+      </TableCell>
+
+      <TableCell role="cell" className={cn(CLIENT_TABLE_CELL_CLASS, "justify-start")}>
+        <Tag tone={STATUS_TONE[client.status]} size="sm" className="text-xs">
+          {cell("status")}
         </Tag>
       </TableCell>
 
       <TableCell
         role="cell"
-        className={cn(CLIENT_TABLE_CELL_CLASS, clientColumnClass("status"))}
+        className={cn(CLIENT_TABLE_CELL_CLASS, "text-xs font-medium text-foreground", "justify-end tabular-nums")}
       >
-        <Tag tone={STATUS_TONE[client.status]} size="sm">
-          {client.status}
-        </Tag>
+        {cell("loanAmount")}
       </TableCell>
 
       <TableCell
         role="cell"
-        className={cn(
-          CLIENT_TABLE_CELL_CLASS,
-          "text-xs font-medium text-foreground",
-          clientColumnClass("loanAmount"),
-        )}
+        className={cn(CLIENT_TABLE_CELL_CLASS, "text-xs text-muted-foreground", "justify-end tabular-nums")}
       >
-        {client.loanAmount}
+        {cell("savingsCurrent")}
       </TableCell>
 
-      <TableCell
-        role="cell"
-        className={cn(
-          CLIENT_TABLE_CELL_CLASS,
-          "text-xs text-muted-foreground",
-          clientColumnClass("savingsCurrent"),
-        )}
-      >
-        {client.savingsCurrent}
-      </TableCell>
-
-      <TableCell
-        role="cell"
-        className={cn(
-          CLIENT_TABLE_CELL_CLASS,
-          "gap-2",
-          clientColumnClass("completionPercent"),
-        )}
-      >
+      <TableCell role="cell" className={cn(CLIENT_TABLE_CELL_CLASS, "gap-2", "justify-center")}>
         <div
           role="meter"
           aria-valuemin={0}
@@ -171,14 +158,11 @@ export function ClientRow({
           />
         </div>
         <span className="text-[10px] tabular-nums text-muted-foreground">
-          {client.completionPercent}%
+          {cell("completionPercent")}
         </span>
       </TableCell>
 
-      <TableCell
-        role="cell"
-        className={cn(CLIENT_TABLE_CELL_CLASS, "justify-center", clientColumnClass("action"))}
-      >
+      <TableCell role="cell" className={cn(CLIENT_TABLE_CELL_CLASS, "justify-center")}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -192,20 +176,20 @@ export function ClientRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onClick={() => onOpen(client)}>
+            <DropdownMenuItem onClick={onOpen}>
               <FileText className="size-3.5" />
               Ouvrir la fiche
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onOpenKanban(client)}>
+            <DropdownMenuItem onClick={onOpenKanban}>
               <KanbanIcon className="size-3.5" />
               Tableau Kanban
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onOpenDuc(client)}>
+            <DropdownMenuItem onClick={onOpenDuc}>
               <FolderOpen className="size-3.5" />
               Dossier Unique (DUC)
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onOpenEpargne(client)}>
+            <DropdownMenuItem onClick={onOpenEpargne}>
               <Landmark className="size-3.5" />
               Carnet d&apos;épargne
             </DropdownMenuItem>

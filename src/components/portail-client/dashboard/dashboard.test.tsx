@@ -54,7 +54,7 @@ function item(overrides: Partial<ChecklistItem>): ChecklistItem {
 function event(overrides: Partial<DossierEvent>): DossierEvent {
   return {
     id: "e1",
-    event_type: "document.uploaded",
+    event_type: "DOCUMENT_UPLOADED",
     actor_role: "CITIZEN",
     payload: {},
     legal_basis: null,

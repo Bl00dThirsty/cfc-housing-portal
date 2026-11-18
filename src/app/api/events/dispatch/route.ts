@@ -1,8 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { NextResponse } from "next/server";
 
 import { getAdminClient } from "@/server/supabase/admin";
+import { referenceView } from "@/server/queries/reference";
 import {
   handleBusinessEventEnvelope,
 } from "@/server/notifications/notify";
@@ -32,41 +31,62 @@ import type { DomainEventEnvelope } from "@/server/email/events";
 
 export const dynamic = "force-dynamic";
 
-/** Comparaison à temps constant de deux jetons. */
-function tokensMatch(expected: string, provided: string): boolean {
-  const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(provided, "utf8");
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
-/** Relit la configuration du relais. */
+/**
+ * Lit la configuration du relais.
+ *
+ * La lecture passe par la **vue publique** : le schéma `ref` n'est pas exposé
+ * à l'API de la plateforme. Le jeton, lui, ne sort pas de la base — il est
+ * **comparé dedans** (migration 035).
+ */
 async function readSettings(): Promise<{
   isEnabled: boolean;
-  token: string | null;
+  dispatchUrl: string | null;
 }> {
   try {
     const client = getAdminClient();
     const { data } = await client
-      .schema("ref")
-      .from("email_settings")
-      .select("is_enabled, dispatch_token")
+      .from(referenceView("email_settings"))
+      .select("id, dispatch_url, is_enabled")
       .eq("id", 1)
       .maybeSingle();
 
     return {
       isEnabled: Boolean(data?.is_enabled),
-      token: (data?.dispatch_token as string | null) ?? null,
+      dispatchUrl: (data?.dispatch_url as string | null) ?? null,
     };
   } catch {
-    return { isEnabled: false, token: null };
+    return { isEnabled: false, dispatchUrl: null };
+  }
+}
+
+/**
+ * Le jeton présenté est-il celui du relais ?
+ *
+ * La comparaison se fait **dans la base** : le jeton n'est jamais lu par
+ * l'application, donc jamais exposé par elle.
+ */
+async function isValidToken(token: string): Promise<boolean> {
+  try {
+    const client = getAdminClient();
+    const { data, error } = await client.rpc("cfc_dispatch_token_valid", {
+      p_token: token,
+    });
+
+    if (error) {
+      console.error("[dispatch] jeton illisible :", error.message);
+      return false;
+    }
+
+    return data === true;
+  } catch {
+    return false;
   }
 }
 
 export async function POST(request: Request) {
   const settings = await readSettings();
 
-  if (!settings.isEnabled || !settings.token) {
+  if (!settings.isEnabled) {
     return NextResponse.json(
       { ok: false, error: "Le relais d'événements est désactivé." },
       { status: 403 },
@@ -76,7 +96,7 @@ export async function POST(request: Request) {
   const authorization = request.headers.get("authorization") ?? "";
   const provided = authorization.replace(/^Bearer\s+/i, "").trim();
 
-  if (!tokensMatch(settings.token, provided)) {
+  if (!(await isValidToken(provided))) {
     return NextResponse.json(
       { ok: false, error: "Jeton de relais invalide." },
       { status: 401 },

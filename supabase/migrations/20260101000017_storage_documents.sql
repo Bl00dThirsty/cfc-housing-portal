@@ -38,7 +38,6 @@
 create index if not exists dossier_documents_live_type_idx
   on public.dossier_documents (dossier_id, doc_type_code)
   where deleted_at is null;
-
 -- ---------------------------------------------------------------------------
 -- Policies de coffre — dépôt, mise à jour, lecture
 -- ---------------------------------------------------------------------------
@@ -70,7 +69,6 @@ create policy dossier_docs_staff_read on storage.objects for select to authentic
         )
     )
   );
-
 -- Lecture par l'emprunteur : les pièces de son seul dossier.
 drop policy if exists dossier_docs_citizen_read on storage.objects;
 create policy dossier_docs_citizen_read on storage.objects for select to authenticated
@@ -84,7 +82,6 @@ create policy dossier_docs_citizen_read on storage.objects for select to authent
         and d.citizen_id = (select auth.uid())
     )
   );
-
 -- Dépôt par les agents : la pièce doit exister et appartenir à un dossier
 -- sur lequel l'acteur agit.
 drop policy if exists dossier_docs_upload on storage.objects;
@@ -109,7 +106,6 @@ create policy dossier_docs_upload on storage.objects for insert to authenticated
         )
     )
   );
-
 -- Dépôt par l'emprunteur : dans **son** dossier, sur **ses** pièces, et
 -- seulement dans la chemise d'identification (C1) — la seule qu'il puisse
 -- composer seul.
@@ -127,7 +123,6 @@ create policy dossier_docs_citizen_upload on storage.objects for insert to authe
         and d.citizen_id = (select auth.uid())
     )
   );
-
 -- Finalisation du dépôt : le service de stockage écrit l'objet définitif par
 -- un `INSERT ... ON CONFLICT DO UPDATE`. Sans policy de mise à jour, cette
 -- seconde écriture est refusée et le dépôt échoue alors même que l'envoi a
@@ -159,7 +154,6 @@ create policy dossier_docs_update on storage.objects for update to authenticated
     bucket_id = 'dossier-docs'
     and owner_id = (select auth.uid()::text)
   );
-
 -- ---------------------------------------------------------------------------
 -- Dépôt de l'emprunteur dans `dossier_documents`
 -- ---------------------------------------------------------------------------
@@ -182,7 +176,6 @@ create policy dossier_documents_citizen_insert on public.dossier_documents
         and d.citizen_id = (select auth.uid())
     )
   );
-
 -- ---------------------------------------------------------------------------
 -- Chaînage des versions
 -- ---------------------------------------------------------------------------
@@ -261,10 +254,8 @@ begin
   return query select p_version, p_supersedes_id;
 end;
 $$;
-
 revoke all on function public.apply_document_version(uuid, integer, uuid) from public, anon;
 grant execute on function public.apply_document_version(uuid, integer, uuid) to authenticated, service_role;
-
 -- ---------------------------------------------------------------------------
 -- Journal des événements — enveloppe exposée
 -- ---------------------------------------------------------------------------
@@ -309,6 +300,5 @@ begin
   return v_id;
 end;
 $$;
-
 revoke all on function public.append_dossier_event(uuid, text, jsonb, text) from public, anon;
 grant execute on function public.append_dossier_event(uuid, text, jsonb, text) to authenticated, service_role;

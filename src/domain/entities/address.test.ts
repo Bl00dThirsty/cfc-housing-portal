@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAMEROON_PLACES,
+  CAMEROON_REGIONS,
   addressKindLabel,
   catalogueSuggestions,
   classifyAddress,
@@ -145,5 +146,31 @@ describe("addressKindLabel", () => {
     expect(addressKindLabel("house")).toBe("Adresse précise");
     expect(addressKindLabel("neighbourhood")).toBe("Quartier");
     expect(addressKindLabel("city")).toBe("Ville");
+  });
+});
+
+describe("les régions du Cameroun", () => {
+  it("dérive les régions du catalogue des lieux", () => {
+    const fromPlaces = [...new Set(CAMEROON_PLACES.map((place) => place.region))].sort((a, b) =>
+      a.localeCompare(b, "fr"),
+    );
+
+    expect(CAMEROON_REGIONS.map((region) => region.name)).toEqual(fromPlaces);
+  });
+
+  it("connaît les dix régions, chacune avec son chef-lieu", () => {
+    expect(CAMEROON_REGIONS).toHaveLength(10);
+
+    for (const region of CAMEROON_REGIONS) {
+      expect(region.chefLieu).toBeTruthy();
+    }
+  });
+
+  it("ne donne un chef-lieu que s'il est un lieu connu du catalogue", () => {
+    const known = new Set(CAMEROON_PLACES.map((place) => place.city));
+
+    for (const region of CAMEROON_REGIONS) {
+      expect(known.has(region.chefLieu)).toBe(true);
+    }
   });
 });

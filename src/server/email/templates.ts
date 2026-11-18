@@ -13,6 +13,7 @@ import "server-only";
 
 import { getAdminClient } from "@/server/supabase/admin";
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { referenceView } from "@/server/queries/reference";
 import { defaultTemplateFor, EMAIL_TEMPLATE_CODES } from "./defaults";
 import { isVersionEffective, type VersionedTemplate } from "./versioning";
 import type { EmailTemplateContent, EmailTemplateRow } from "./types";
@@ -66,8 +67,7 @@ async function readRows(
   try {
     const client = options.service ? getAdminClient() : await createServerSupabaseClient();
     const { data, error } = await client
-      .schema("ref")
-      .from("email_template")
+      .from(referenceView("email_template"))
       .select("*")
       .eq("code", code)
       .is("deleted_at", null);
@@ -189,8 +189,7 @@ export async function listCatalogue(
   try {
     const client = options.service ? getAdminClient() : await createServerSupabaseClient();
     const { data, error } = await client
-      .schema("ref")
-      .from("email_template")
+      .from(referenceView("email_template"))
       .select("*")
       .is("deleted_at", null);
 

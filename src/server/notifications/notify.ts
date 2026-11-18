@@ -23,7 +23,7 @@
 import "server-only";
 
 import { getSiteUrl } from "@/server/env";
-import { eventLabel } from "@/domain/entities/processes";
+import { eventLabel, factKey } from "@/domain/entities/processes";
 import { getAdminClient } from "@/server/supabase/admin";
 import {
   DOMAIN_EVENT_TEMPLATES,
@@ -38,6 +38,7 @@ export type NotificationType =
   | "kyc.decision"
   | "document.requested"
   | "document.validated"
+  | "document.rejected"
   | "document.uploaded"
   | "committee.decision"
   | "loan.offer"
@@ -58,8 +59,20 @@ export interface NotifyInput {
   dossierId?: string | null;
   /** Lien proposé à l'utilisateur (« Ouvrir mon dossier »). */
   actionUrl?: string | null;
+  /**
+   * Clé de fait : elle rend la notification **idempotente**.
+   *
+   * Un même fait signalé par deux chemins — l'action serveur et le relais de
+   * la base — ne produit qu'une seule notification.
+   */
+  dedupeKey?: string | null;
   /** Événement métier à traduire en courriel, si la notification en mérite un. */
   email?: { eventType: string; payload?: Record<string, unknown> } | null;
+}
+
+export interface NotificationDispatchResult {
+  notified: boolean;
+  emailed: boolean;
 }
 
 /**
@@ -101,9 +114,33 @@ export const DOMAIN_EVENT_NOTIFICATIONS: Record<string, NotificationSignal> = {
     type: "document.requested",
     body: "Déposez la pièce depuis votre espace emprunteur pour faire avancer votre dossier.",
   },
+  APPLICATION_SUBMITTED: {
+    type: "dossier.updated",
+    body: "Votre dossier est transmis : un conseiller l'instruit désormais.",
+  },
+  APPLICATION_SUSPENDED: {
+    type: "dossier.updated",
+    body: "Votre dossier attend l'orientation de votre conseiller.",
+  },
+  DOCUMENTS_READY: {
+    type: "dossier.updated",
+    body: "Votre dossier est prêt : vous pouvez déposer les pièces justificatives.",
+  },
+  DUC_ACTIVATED: {
+    type: "dossier.updated",
+    body: "Votre dossier est activé : vous pouvez commencer votre demande de prêt.",
+  },
+  DUC_REFUSED: {
+    type: "dossier.updated",
+    body: "Votre dossier n'est pas encore activé : le motif est indiqué dans votre dossier.",
+  },
   DOCUMENT_VALIDATED: {
     type: "document.validated",
     body: "Votre dossier progresse : cette pièce est définitivement retenue.",
+  },
+  DOCUMENT_REJECTED: {
+    type: "document.rejected",
+    body: "Une pièce n'a pas été retenue : le motif est indiqué dans votre dossier.",
   },
   DOCUMENT_UPLOADED: {
     type: "document.uploaded",
@@ -142,44 +179,61 @@ export const DOMAIN_EVENT_NOTIFICATIONS: Record<string, NotificationSignal> = {
  * l'action métier qui l'a déclenchée. Le journal `public.dossier_events`
  * reste, lui, la preuve de l'événement.
  */
-export async function notify(input: NotifyInput): Promise<boolean> {
+export async function notify(input: NotifyInput): Promise<NotificationDispatchResult> {
   try {
     const admin = getAdminClient();
 
-    const { error } = await admin.from("notifications").insert({
+    const row = {
       recipient_user_id: input.recipientUserId,
       type: input.type,
       title: input.title,
       body: input.body ?? null,
       dossier_id: input.dossierId ?? null,
       action_url: input.actionUrl ?? null,
-    });
+      dedupe_key: input.dedupeKey ?? null,
+    };
+
+    // L'écriture est **idempotente** : la clé de fait est unique, et un fait
+    // déjà signalé ne produit pas de doublon.
+    const { error } = input.dedupeKey
+      ? await admin
+          .from("notifications")
+          .upsert(row, { onConflict: "dedupe_key", ignoreDuplicates: true })
+      : await admin.from("notifications").insert(row);
 
     if (error) {
       console.error("[notifications] écriture refusée :", error.message);
-      return false;
+      return { notified: false, emailed: false };
     }
 
+    let emailed = false;
     if (input.email) {
       // Le courriel est un canal **complémentaire** : son échec ne doit pas
       // faire perdre la notification in-app, qui est déjà écrite.
       try {
-        await notifyDomainEvent({
+        const result = await notifyDomainEvent({
           eventType: input.email.eventType,
           dossierId: input.dossierId ?? null,
           citizenId: input.recipientUserId,
           recipientEmail: input.recipientEmail ?? null,
           payload: input.email.payload ?? {},
         });
+        emailed = result?.status === "sent";
+        if (!emailed) {
+          console.error(
+            "[notifications] courriel non envoyé :",
+            result?.error ?? `aucun modèle pour ${input.email.eventType}`,
+          );
+        }
       } catch (error) {
         console.error("[notifications] envoi du courriel impossible :", error);
       }
     }
 
-    return true;
+    return { notified: true, emailed };
   } catch (error) {
     console.error("[notifications] échec :", error);
-    return false;
+    return { notified: false, emailed: false };
   }
 }
 
@@ -235,17 +289,29 @@ async function resolveDossierCitizen(dossierId: string): Promise<string | null> 
  * Ne lève jamais : l'action métier ne doit pas échouer parce qu'une
  * notification n'a pas pu être écrite.
  */
-export async function notifyBusinessEvent(input: BusinessEventInput): Promise<boolean> {
+async function dispatchBusinessEvent(
+  input: BusinessEventInput,
+): Promise<NotificationDispatchResult> {
   try {
     const signal = DOMAIN_EVENT_NOTIFICATIONS[input.eventType];
-    if (!signal) return false;
+    if (!signal) return { notified: false, emailed: false };
 
     const dossierId = input.dossierId ?? null;
     const recipientUserId =
       input.recipientUserId ?? (dossierId ? await resolveDossierCitizen(dossierId) : null);
-    if (!recipientUserId) return false;
+    if (!recipientUserId) return { notified: false, emailed: false };
 
     const hasEmail = Boolean(DOMAIN_EVENT_TEMPLATES[input.eventType]);
+
+    // La clé de fait est **dérivée** du fait et de son destinataire : les deux
+    // chemins de signalisation — l'action serveur et le relais de la base —
+    // tombent sur la même clé, et le fait n'est donc notifié qu'une fois.
+    const dedupeKey = factKey({
+      eventType: input.eventType,
+      dossierId,
+      recipientUserId,
+      payload: input.payload ?? {},
+    });
 
     return await notify({
       recipientUserId,
@@ -254,6 +320,7 @@ export async function notifyBusinessEvent(input: BusinessEventInput): Promise<bo
       title: eventLabel(input.eventType),
       body: input.body ?? signal.body ?? null,
       dossierId,
+      dedupeKey,
       // Lien **relatif** : la cloche le rend par un `Link` Next.js.
       actionUrl: input.actionUrl ?? (dossierId ? "/portail-client" : null),
       email: hasEmail
@@ -262,8 +329,13 @@ export async function notifyBusinessEvent(input: BusinessEventInput): Promise<bo
     });
   } catch (error) {
     console.error("[notifications] dispatch impossible :", error);
-    return false;
+    return { notified: false, emailed: false };
   }
+}
+
+/** Fait métier à signaler ; conserve l'interface booléenne historique. */
+export async function notifyBusinessEvent(input: BusinessEventInput): Promise<boolean> {
+  return (await dispatchBusinessEvent(input)).notified;
 }
 
 /**
@@ -289,7 +361,7 @@ export async function handleBusinessEventEnvelope(
     if (!email) return { notified: false, emailed: false };
 
     const { prenom, nom } = splitName(fullName);
-    await sendTemplatedEmail({
+    const result = await sendTemplatedEmail({
       templateCode: DOMAIN_EVENT_TEMPLATES.PROFILE_CREATED,
       to: email,
       recipientUserId: citizenId,
@@ -303,7 +375,7 @@ export async function handleBusinessEventEnvelope(
       idempotencyKey: `PROFILE_CREATED:${citizenId ?? email}`,
     });
 
-    return { notified: false, emailed: true };
+    return { notified: false, emailed: result.status === "sent" };
   }
 
   const eventType =
@@ -322,7 +394,7 @@ export async function handleBusinessEventEnvelope(
       ? (row.payload as Record<string, unknown>)
       : {};
 
-  const notified = await notifyBusinessEvent({ eventType, dossierId, payload });
-
-  return { notified, emailed: notified };
+  const eventPayload =
+    typeof row.id === "string" ? { ...payload, event_id: row.id } : payload;
+  return dispatchBusinessEvent({ eventType, dossierId, payload: eventPayload });
 }

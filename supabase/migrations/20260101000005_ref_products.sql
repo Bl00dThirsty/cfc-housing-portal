@@ -22,7 +22,6 @@ create table if not exists ref.service (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 -- ---------------------------------------------------------------------------
 -- Produits et barèmes
 -- ---------------------------------------------------------------------------
@@ -44,9 +43,7 @@ create table if not exists ref.product (
   deleted_at          timestamptz,
   deleted_by          uuid references auth.users (id) on delete set null
 );
-
 create index if not exists product_service_idx on ref.product (service_code);
-
 create table if not exists ref.product_rate (
   id                uuid primary key default gen_random_uuid(),
   product_code      text not null references ref.product (code) on delete cascade,
@@ -64,12 +61,10 @@ create table if not exists ref.product_rate (
   deleted_at        timestamptz,
   deleted_by        uuid references auth.users (id) on delete set null
 );
-
 create index if not exists product_rate_product_idx on ref.product_rate (product_code);
 create unique index if not exists product_rate_active_key
   on ref.product_rate (product_code, rate_code, duration_years, valid_from)
   where deleted_at is null;
-
 -- ---------------------------------------------------------------------------
 -- Exigences documentaires par service et par étape
 --
@@ -100,10 +95,8 @@ create table if not exists ref.service_document_requirement (
   deleted_by        uuid references auth.users (id) on delete set null,
   unique (service_code, stage, doc_type_code, effective_from)
 );
-
 create index if not exists service_document_requirement_service_idx
   on ref.service_document_requirement (service_code, stage);
-
 -- ---------------------------------------------------------------------------
 -- Politique de capacité d'endettement (versionnée)
 --
@@ -130,7 +123,6 @@ create table if not exists ref.debt_capacity_policy (
   deleted_by        uuid references auth.users (id) on delete set null,
   unique (code, effective_from)
 );
-
 -- ---------------------------------------------------------------------------
 -- Seuils d'approbation
 -- ---------------------------------------------------------------------------
@@ -153,7 +145,6 @@ create table if not exists ref.approval_threshold (
   deleted_by        uuid references auth.users (id) on delete set null,
   unique (code, effective_from)
 );
-
 -- ---------------------------------------------------------------------------
 -- Politique de conservation (durée de garde des pièces)
 -- ---------------------------------------------------------------------------
@@ -177,7 +168,6 @@ create table if not exists ref.retention_policy (
   deleted_by        uuid references auth.users (id) on delete set null,
   unique (code, effective_from)
 );
-
 -- ---------------------------------------------------------------------------
 -- Audit et privilèges
 -- ---------------------------------------------------------------------------
@@ -189,7 +179,6 @@ select private.attach_audit_trigger('ref.service_document_requirement');
 select private.attach_audit_trigger('ref.debt_capacity_policy');
 select private.attach_audit_trigger('ref.approval_threshold');
 select private.attach_audit_trigger('ref.retention_policy');
-
 grant select, insert, update, delete on
   ref.service, ref.product, ref.product_rate, ref.service_document_requirement,
   ref.debt_capacity_policy, ref.approval_threshold, ref.retention_policy
@@ -198,7 +187,6 @@ grant all on
   ref.service, ref.product, ref.product_rate, ref.service_document_requirement,
   ref.debt_capacity_policy, ref.approval_threshold, ref.retention_policy
   to service_role;
-
 revoke update (created_by, updated_by, deleted_by) on ref.service from authenticated;
 revoke update (created_by, updated_by, deleted_by) on ref.product from authenticated;
 revoke update (created_by, updated_by, deleted_by) on ref.product_rate from authenticated;

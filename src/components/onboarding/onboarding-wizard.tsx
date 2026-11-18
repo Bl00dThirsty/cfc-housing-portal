@@ -1,77 +1,120 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   ONBOARDING_STEPS,
-  validateStep,
+  resumeStepId,
   type OnboardingDraft,
   type OnboardingStepId,
 } from "@/domain/entities/onboarding";
 import type { ServiceSummary } from "@/domain/entities/services";
 
-import { StepAccount } from "./steps/step-account";
-import { StepDocuments } from "./steps/step-documents";
-import { StepProfile } from "./steps/step-profile";
-import { StepService } from "./steps/step-service";
+import { KycWizard } from "@/components/kyc/kyc-wizard";
+import { ServiceDocuments } from "@/components/onboarding/service-documents";
+import { ServicePicker } from "@/components/onboarding/service-picker";
+
+/**
+ * Le parcours du dossier — trois étapes, un seul dossier.
+ *
+ * Le compte n'est plus une étape : il est ouvert par `/inscription`, la seule
+ * porte qui en crée un. L'assistant suppose donc le demandeur **connecté**.
+ *
+ * Deux règles tiennent l'ensemble :
+ *
+ * - **la validation a un seul propriétaire** : chaque étape vérifie ses
+ *   champs avant d'écrire, et le parcours ne revalide pas derrière elle ;
+ * - **on reprend où l'on s'est arrêté** : un visiteur qui revient retrouve
+ *   l'étape où son dossier s'est interrompu, pas la première.
+ */
 
 type OnboardingWizardProps = {
   services: ServiceSummary[];
   initialDraft: OnboardingDraft;
   signedIn: boolean;
+  /** Les pièces déjà fournies au KYC : elles ne sont jamais demandées deux fois. */
+  providedCodes: readonly string[];
+  /** Les pièces déjà envoyées par le demandeur. */
+  sentCodes: readonly string[];
 };
 
 export function OnboardingWizard({
   services,
   initialDraft,
   signedIn,
+  providedCodes,
+  sentCodes,
 }: OnboardingWizardProps) {
   const router = useRouter();
-  const [step, setStep] = React.useState<OnboardingStepId>("account");
+  const [step, setStep] = React.useState<OnboardingStepId>(() =>
+    resumeStepId(initialDraft),
+  );
   const [draft, setDraft] = React.useState<OnboardingDraft>(initialDraft);
-  const [errors, setErrors] = React.useState<string[]>([]);
   const [saving, setSaving] = React.useState(false);
-  const [dossierCode, setDossierCode] = React.useState<string | null>(null);
 
   const patch = React.useCallback((values: Partial<OnboardingDraft>) => {
     setDraft((current) => ({ ...current, ...values }));
-    setErrors([]);
   }, []);
 
   const stepIndex = ONBOARDING_STEPS.findIndex((item) => item.id === step);
 
-  const goNext = React.useCallback(async () => {
-    const validation = validateStep(step, draft);
-    if (!validation.valid) {
-      setErrors(validation.errors);
-      return;
-    }
-    setErrors([]);
+  /** Le service choisi — il porte les pièces exigées. */
+  const service = React.useMemo(
+    () => services.find((item) => item.code === draft.serviceCode) ?? null,
+    [draft.serviceCode, services],
+  );
 
+  /** L'étape suivante : le parcours n'avance qu'après une écriture réussie. */
+  const goNext = React.useCallback(() => {
     const next = ONBOARDING_STEPS[stepIndex + 1];
-    if (next) {
-      setStep(next.id);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [draft, step, stepIndex]);
+    if (!next) return;
+    setStep(next.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [stepIndex]);
 
   const goBack = React.useCallback(() => {
     const previous = ONBOARDING_STEPS[stepIndex - 1];
     if (!previous) return;
-    setErrors([]);
     setStep(previous.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [stepIndex]);
 
   const finish = React.useCallback(() => {
     router.push("/portail-client");
   }, [router]);
 
+  /** L'étape de reprise, pour le dire à l'utilisateur. */
+  const resumed =
+    draft.fullName.trim().length > 0 ||
+    draft.serviceCode !== null ||
+    Boolean(draft.profile.identity.birthDate) ||
+    Boolean(draft.profile.residence.city);
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+      {!signedIn && (
+        <div className="mb-6 rounded-lg border border-line-strong bg-card p-5 shadow-xs">
+          <h2 className="text-base font-semibold text-foreground">
+            Ouvrez d&apos;abord votre compte
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Votre dossier est rattaché à votre compte : sans lui, nous ne pouvons
+            pas l&apos;ouvrir ni le reprendre.
+          </p>
+          <Button asChild variant="cfc" size="sm" className="mt-3 gap-1.5 text-xs">
+            <Link href="/inscription">
+              Créer mon compte
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          </Button>
+        </div>
+      )}
+
       <header className="mb-8 flex flex-col gap-1.5">
         <span className="eyebrow-style font-normal text-cfc-gold">
           Guichet Unique · Dossier Unique Client
@@ -80,9 +123,14 @@ export function OnboardingWizard({
           Constituer votre dossier de prêt
         </h1>
         <p className="text-sm text-muted-foreground">
-          Quatre étapes, et votre dossier est ouvert au CFC. Vous pouvez revenir
+          Trois étapes, et votre dossier est complet au CFC. Vous pouvez revenir
           dessus à tout moment depuis votre portail.
         </p>
+        {resumed && (
+          <p className="caption-style text-soft">
+            Vous reprenez votre dossier là où vous l&apos;aviez laissé.
+          </p>
+        )}
       </header>
 
       <ol className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-0">
@@ -134,60 +182,49 @@ export function OnboardingWizard({
         })}
       </ol>
 
-      {errors.length > 0 && (
-        <div
-          role="alert"
-          className="mb-6 flex flex-col gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 p-3 animate-in fade-in-0 slide-in-from-top-1 duration-300 ease-power3-out"
-        >
-          {errors.map((error) => (
-            <p key={error} className="flex items-start gap-2 text-xs text-destructive">
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-              {error}
-            </p>
-          ))}
-        </div>
-      )}
-
       <section className="rounded-lg border border-line-strong bg-card p-5 shadow-xs">
-        {step === "account" && (
-          <StepAccount
-            draft={draft}
-            onChange={patch}
-            signedIn={signedIn}
+        {step === "kyc" && (
+          <KycWizard
+            profile={draft.profile}
+            onProfileChange={(profile) => patch({ profile })}
+            fullName={draft.fullName}
+            phone={draft.phone}
+            onPhoneChange={(phone) => patch({ phone })}
+            affiliation={draft.affiliation}
+            onAffiliationChange={(affiliation) => patch({ affiliation })}
+            dossierId={draft.dossierId}
+            providedCodes={providedCodes}
             onNext={goNext}
-            saving={saving}
-            setSaving={setSaving}
           />
         )}
         {step === "service" && (
-          <StepService
-            draft={draft}
-            onChange={patch}
+          <ServicePicker
             services={services}
             onNext={goNext}
             saving={saving}
             setSaving={setSaving}
-            onDossierCreated={setDossierCode}
           />
         )}
-        {step === "profile" && (
-          <StepProfile
-            draft={draft}
-            onChange={patch}
-            onNext={goNext}
-            saving={saving}
-            setSaving={setSaving}
-          />
-        )}
-        {step === "documents" && (
-          <StepDocuments
-            draft={draft}
-            services={services}
-            dossierCode={dossierCode}
-            onBack={goBack}
-            onFinish={finish}
-          />
-        )}
+        {step === "documents" &&
+          (service ? (
+            <ServiceDocuments
+              service={service}
+              dossierId={draft.dossierId}
+              providedCodes={providedCodes}
+              sentCodes={sentCodes}
+              onFinish={finish}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-base font-semibold text-foreground">
+                Aucun service choisi
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Revenez à l&apos;étape précédente pour choisir le service dont
+                vous souhaitez déposer les pièces.
+              </p>
+            </div>
+          ))}
       </section>
 
       <footer className="mt-6 flex items-center justify-between gap-3">
@@ -201,6 +238,9 @@ export function OnboardingWizard({
           <ArrowLeft className="size-3.5" aria-hidden />
           Précédent
         </Button>
+        <span className="caption-style text-soft">
+          Étape {stepIndex + 1} sur {ONBOARDING_STEPS.length}
+        </span>
       </footer>
     </div>
   );

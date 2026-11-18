@@ -1,23 +1,22 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/server/supabase/server";
+import { notifyBusinessEvent } from "@/server/notifications/notify";
 import {
   EMPTY_DRAFT,
-  normalisePhone,
+  fromStoredProfile,
   type AffiliationStatus,
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
-import type { SelectedAddress } from "@/domain/entities/address";
+import {
+  advisorForSequence,
+  PRIOR_CLIENT_CASES,
+  type PriorClientCase,
+} from "@/domain/entities/kyc-profile";
 
 export type OnboardingResult =
   | { ok: true; message?: string; dossierCode?: string }
   | { ok: false; error: string };
-
-function ducCode(): string {
-  const year = new Date().getFullYear();
-  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, "X");
-  return `CFC-${year}-DUC-${suffix}`;
-}
 
 async function currentCitizen() {
   const supabase = await createServerSupabaseClient();
@@ -38,6 +37,29 @@ async function currentCitizen() {
   return { supabase, userId: user.id };
 }
 
+/**
+ * Le dossier courant du demandeur.
+ *
+ * Le code DUC et l'identifiant du dossier sont ce qui permet d'addresser une
+ * notification : le journal vise un dossier, pas une personne.
+ */
+async function currentDossier(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  citizenId: string,
+) {
+  const { data } = await supabase
+    .from("dossiers")
+    .select("id, duc_code")
+    .eq("citizen_id", citizenId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data ?? null) as { id: string; duc_code: string } | null;
+}
+
 type ProfileRow = {
   full_name: string | null;
   email: string | null;
@@ -45,12 +67,19 @@ type ProfileRow = {
   birth_date: string | null;
   cni_raw: string | null;
   address: string | null;
-  profession: string | null;
-  employer: string | null;
   affiliation_status: string | null;
 };
 
+/** Les déclarations du citoyen, telles que le parcours les a enregistrées. */
+type KycProfileRow = {
+  identity: Record<string, unknown> | null;
+  residence: Record<string, unknown> | null;
+  employment: Record<string, unknown> | null;
+  compliance: Record<string, unknown> | null;
+};
+
 type DossierRow = {
+  id: string;
   duc_code: string;
   service_code: string | null;
   name: string | null;
@@ -71,101 +100,88 @@ export async function loadOnboardingDraft(): Promise<OnboardingDraft> {
 
   const { supabase, userId } = citizen;
 
-  const [{ data: profileData }, { data: dossierData }] = await Promise.all([
+  const [
+    { data: profileData, error: profileError },
+    { data: dossierData, error: dossierError },
+    { data: kycData, error: kycError },
+  ] = await Promise.all([
+    // Le profil **citoyen** porte l'identité ; la profession et l'employeur
+    // appartiennent au dossier. Les demander ici ferait échouer la lecture
+    // entière.
     supabase
       .from("citizen_profiles")
       .select(
-        "full_name, email, phone, birth_date, cni_raw, address, profession, employer, affiliation_status",
+        "full_name, email, phone, birth_date, cni_raw, address, affiliation_status",
       )
       .eq("id", userId)
       .maybeSingle(),
     supabase
       .from("dossiers")
       .select(
-        "duc_code, service_code, name, cni_raw, birth_date, phone, email, address, profession, employer, monthly_income, is_diaspora",
+        "id, duc_code, service_code, name, cni_raw, birth_date, phone, email, address, profession, employer, monthly_income, is_diaspora",
       )
       .eq("citizen_id", userId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Les déclarations du citoyen : le revenu déclaré, les personnes à charge,
+    // les crédits en cours.
+    supabase
+      .from("kyc_profiles")
+      .select("identity, residence, employment, compliance")
+      .eq("citizen_id", userId)
+      .maybeSingle(),
   ]);
+
+  if (profileError || dossierError || kycError) {
+    console.error(
+      "[onboarding] lecture du parcours impossible :",
+      profileError?.message ?? dossierError?.message ?? kycError?.message,
+    );
+  }
 
   const profile = profileData as ProfileRow | null;
   const dossier = dossierData as DossierRow | null;
+  const kyc = (kycData ?? null) as KycProfileRow | null;
 
-  const fullName = dossier?.name ?? profile?.full_name ?? "";
-  const email = dossier?.email ?? profile?.email ?? "";
-  const phone = dossier?.phone ?? profile?.phone ?? "";
-  const birthDate = dossier?.birth_date ?? profile?.birth_date ?? "";
-  const cniNumber = dossier?.cni_raw ?? profile?.cni_raw ?? "";
-  const addressLabel = dossier?.address ?? profile?.address ?? null;
-  const profession = dossier?.profession ?? profile?.profession ?? "";
-  const employer = dossier?.employer ?? profile?.employer ?? "";
+  if (!profile && !dossier && !kyc) return EMPTY_DRAFT;
 
-  if (!profile && !dossier) return EMPTY_DRAFT;
+  // Les déclarations sont **stockées** en snake_case : la traduction vit
+  // dans le domaine, une fois.
+  const { identity, residence, employment, compliance } = fromStoredProfile(kyc);
+  // L'identité que l'inscription a portée est **pré-remplie** : le demandeur
+  // la vérifie, il ne la ressaisit pas. Le dossier en est la copie de travail :
+  // il porte les mêmes faits, et il comble ce que le profil citizen n'a pas.
+  if (!identity.birthDate) {
+    identity.birthDate = profile?.birth_date ?? dossier?.birth_date ?? null;
+  }
+  if (!identity.idDocumentNumber) {
+    identity.idDocumentNumber = profile?.cni_raw ?? dossier?.cni_raw ?? null;
+  }
+  if (!identity.nationality && !dossier?.is_diaspora) {
+    identity.nationality = "Cameroun";
+  }
 
   return {
-    ...EMPTY_DRAFT,
-    email,
-    phone,
+    serviceCode: dossier?.service_code ?? null,
+    dossierId: dossier?.id ?? null,
+    fullName: profile?.full_name ?? dossier?.name ?? "",
+    phone: profile?.phone ?? dossier?.phone ?? "",
     affiliation:
       (profile?.affiliation_status as AffiliationStatus | null) ??
       (dossier?.is_diaspora ? "non_resident" : null),
-    serviceCode: dossier?.service_code ?? null,
-    fullName,
-    birthDate,
-    cniNumber,
-    address: addressLabel
-      ? ({
-          placeId: `stored-${addressLabel}`,
-          label: addressLabel,
-          shortLabel: addressLabel,
-          kind: "other",
-          lat: null,
-          lon: null,
-          osmType: "stored",
-          osmId: "",
-          postcode: null,
-          countryCode: "cm",
-          source: "manual",
-        } satisfies SelectedAddress)
-      : null,
-    profession,
-    employer,
-    monthlyIncome: dossier?.monthly_income ? String(dossier.monthly_income) : "",
+    profile: { identity, residence, employment, compliance },
   };
 }
 
-export async function saveAccountAction(input: {
-  phone: string;
-  affiliation: AffiliationStatus;
-}): Promise<OnboardingResult> {
-  const citizen = await currentCitizen();
-  if (!citizen) {
-    return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
-  }
-
-  const { supabase, userId } = citizen;
-
-  const { error } = await supabase.from("citizen_profiles").upsert(
-    {
-      id: userId,
-      phone: normalisePhone(input.phone),
-      affiliation_status: input.affiliation,
-      email: citizen.userId ? undefined : undefined,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
-
-  if (error) return { ok: false, error: error.message };
-
-  return { ok: true, message: "Votre situation a été enregistrée." };
-}
-
-export async function saveServiceAction(serviceCode: string): Promise<OnboardingResult> {
-  const citizen = await currentCitizen();
+/**
+ * Enregistre la situation du demandeur.
+ *
+ * Le compte, lui, est ouvert par `/inscription` : cette action ne crée plus
+ * de compte, elle ne complète que le dossier d'un demandeur déjà connecté.
+ */
+export async function saveServiceAction(serviceCode: string): Promise<OnboardingResult> {  const citizen = await currentCitizen();
   if (!citizen) {
     return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
   }
@@ -184,7 +200,36 @@ export async function saveServiceAction(serviceCode: string): Promise<Onboarding
     return { ok: true, dossierCode: existing.duc_code };
   }
 
-  const code = ducCode();
+  // Le dossier ouvert par l'inscription attend son service : on le complète,
+  // on n'en ouvre pas un second. Un dossier par parcours.
+  const { data: opened } = await supabase
+    .from("dossiers")
+    .select("id, duc_code, service_code")
+    .eq("citizen_id", userId)
+    .is("service_code", null)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (opened) {
+    const { error } = await supabase
+      .from("dossiers")
+      .update({ service_code: serviceCode, updated_at: new Date().toISOString() })
+      .eq("id", opened.id);
+
+    if (error) return { ok: false, error: error.message };
+
+    return { ok: true, dossierCode: opened.duc_code };
+  }
+
+  // Aucun dossier ouvert : on en ouvre un. Le code vient de la séquence, pour
+  // que deux inscriptions simultanées n'aient pas le même.
+  const { data: code, error: codeError } = await supabase.rpc("next_duc_code");
+  if (codeError || typeof code !== "string" || code.length === 0) {
+    return { ok: false, error: "Votre dossier n'a pas pu être ouvert. Réessayez." };
+  }
+
   const { data, error } = await supabase
     .from("dossiers")
     .insert({
@@ -202,68 +247,205 @@ export async function saveServiceAction(serviceCode: string): Promise<Onboarding
   return { ok: true, dossierCode: data?.duc_code ?? code };
 }
 
-export async function saveProfileAction(input: {
-  fullName: string;
-  birthDate: string;
-  cniNumber: string;
-  address: SelectedAddress | null;
-  profession: string;
-  employer: string;
-  monthlyIncome: string;
-  dependants: number;
-  existingLoans: string;
-}): Promise<OnboardingResult> {
+/**
+ * Le profil du demandeur est enregistré par `saveKycDraftAction`
+ * (`src/server/actions/kyc-profile.ts`) : il n'y a qu'une action qui écrit
+ * les déclarations, et elle écrit aussi la copie de travail du dossier.
+ */
+
+/**
+ * L'index de rotation du conseiller.
+ *
+ * Il est **dérivé de l'identifiant** du demandeur : un même demandeur
+ * retrouve toujours le même conseiller, et deux inscriptions simultanées ne
+ * se partagent pas le même. Un compteur lu puis incrémenté ferait les deux.
+ */
+function advisorIndexFor(citizenId: string): number {
+  let hash = 0;
+  for (let index = 0; index < citizenId.length; index += 1) {
+    hash = (hash * 31 + citizenId.charCodeAt(index)) % 1_000_003;
+  }
+  return hash;
+}
+
+/**
+ * Enregistre la situation du demandeur face au service choisi.
+ *
+ * Trois issues, et elles ne se corrigent pas de la même façon :
+ *
+ * - le demandeur a déjà bénéficié de ce service **au CFC** : il passe au
+ *   dépôt des pièces ;
+ * - il ne l'a jamais eu, ou chez un autre établissement : il doit d'abord
+ *   être client du CFC pendant six mois. Son cas est transmis à un
+ *   conseiller, et l'onboarding est **mis en pause**.
+ */
+export async function setPriorClientCaseAction(input: {
+  priorClientCase: PriorClientCase;
+}): Promise<OnboardingResult & { advisor?: string }> {
   const citizen = await currentCitizen();
   if (!citizen) {
     return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
   }
 
-  const { supabase, userId } = citizen;
+  const priorCase = PRIOR_CLIENT_CASES.find((item) => item.value === input.priorClientCase);
+  if (!priorCase) {
+    return { ok: false, error: "Situation inconnue." };
+  }
 
-  const addressLabel = input.address?.label ?? null;
+  const { supabase } = citizen;
 
-  const { data: dossier } = await supabase
+  // Le conseiller est calculé par le domaine — il est l'unique propriétaire de
+  // la rotation — et la transition est appliquée par la base.
+  const advisor = advisorForSequence(advisorIndexFor(citizen.userId));
+
+  const { error } = await supabase.rpc("set_prior_client_case", {
+    p_case: input.priorClientCase,
+    p_advisor: advisor.name,
+  });
+
+  if (error) {
+    if (/no_dossier/.test(error.message)) {
+      return { ok: false, error: "Votre dossier n'est pas encore ouvert." };
+    }
+    if (/unknown_prior_client_case/.test(error.message)) {
+      return { ok: false, error: "Situation inconnue." };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  if (priorCase.eligible) {
+    // Déjà servi au CFC : le dépôt des pièces est une nouvelle étape du
+    // parcours, elle est journalisée par la fonction de base et notifiée ici.
+    const dossier = await currentDossier(supabase, citizen.userId);
+
+    if (dossier) {
+      await notifyBusinessEvent({
+        eventType: "DOCUMENTS_READY",
+        dossierId: dossier.id,
+        recipientUserId: citizen.userId,
+        payload: { prior_client_case: input.priorClientCase },
+      });
+    }
+
+    return { ok: true, message: "Votre dossier passe au dépôt des pièces." };
+  }
+
+  // Pas encore client du CFC : un conseiller est affecté, et l'onboarding est
+  // en pause jusqu'à son activation du DUC. **La pause est un fait** : elle
+  // est notifiée, en-app et par courriel.
+  const dossier = await currentDossier(supabase, citizen.userId);
+
+  if (dossier) {
+    await notifyBusinessEvent({
+      eventType: "APPLICATION_SUSPENDED",
+      dossierId: dossier.id,
+      recipientUserId: citizen.userId,
+      payload: { prior_client_case: input.priorClientCase, conseiller: advisor.name },
+    });
+  }
+
+  return {
+    ok: true,
+    advisor: advisor.name,
+    message: `Votre dossier est transmis à ${advisor.name}.`,
+  };
+}
+
+/**
+ * Transmet le dossier au conseiller.
+ *
+ * La transmission est **atomique** et **journalisée** : le dossier passe en
+ * examen, le conseiller est affecté, et l'événement est écrit dans la
+ * chronologie du dossier. Le demandeur peut ne pas avoir toutes les pièces :
+ * « passer pour l'instant » ne bloque pas, il se dit.
+ */
+export async function submitServiceApplicationAction(): Promise<
+  OnboardingResult & { advisor?: string }
+> {
+  const citizen = await currentCitizen();
+  if (!citizen) {
+    return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
+  }
+
+  const { supabase } = citizen;
+  const advisor = advisorForSequence(advisorIndexFor(citizen.userId));
+
+  const { data, error } = await supabase.rpc("submit_service_application", {
+    p_advisor: advisor.name,
+  });
+
+  if (error) {
+    if (/no_dossier/.test(error.message)) {
+      return { ok: false, error: "Votre dossier n'est pas encore ouvert." };
+    }
+    if (/onboarding_suspended/.test(error.message)) {
+      return {
+        ok: false,
+        error:
+          "Votre dossier est en pause : un conseiller doit vous orienter avant qu'il puisse être examiné.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  // La transmission est un **fait** : elle est notifiée, en-app et par
+  // courriel. Le demandeur sait ainsi que son dossier est désormais instruit.
+  const dossier = await currentDossier(supabase, citizen.userId);
+
+  if (dossier) {
+    await notifyBusinessEvent({
+      eventType: "APPLICATION_SUBMITTED",
+      dossierId: dossier.id,
+      recipientUserId: citizen.userId,
+      payload: { conseiller: advisor.name, service_code: dossier.duc_code },
+    });
+  }
+
+  return {
+    ok: true,
+    advisor: typeof data === "string" ? data : advisor.name,
+    message: "Votre dossier est transmis.",
+  };
+}
+
+/**
+ * Le dossier attend-il l'examen d'un conseiller ?
+ *
+ * C'est la question que pose l'espace citoyen avant d'afficher quoi que ce
+ * soit : un dossier en pause n'a pas de fonctionnalités à montrer, seulement
+ * un message et un nom.
+ */
+export async function loadOnboardingState(): Promise<{
+  onboardingState: string | null;
+  advisor: string | null;
+  dossierCode: string | null;
+}> {
+  const citizen = await currentCitizen();
+  if (!citizen) {
+    return { onboardingState: null, advisor: null, dossierCode: null };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  const { data } = await supabase
     .from("dossiers")
-    .select("id")
-    .eq("citizen_id", userId)
+    .select("duc_code, onboarding_state, advisor")
+    .eq("citizen_id", citizen.userId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  const patch = {
-    name: input.fullName.trim(),
-    birth_date: input.birthDate || null,
-    cni_raw: input.cniNumber.trim() || null,
-    address: addressLabel,
-    city: input.address?.shortLabel ?? null,
-    region: input.address?.label?.split(",").slice(-2, -1)[0]?.trim() ?? null,
-    profession: input.profession.trim() || null,
-    employer: input.employer.trim() || null,
-    monthly_income: input.monthlyIncome ? Number(input.monthlyIncome.replace(/\D/g, "")) : null,
-    updated_at: new Date().toISOString(),
+  const dossier = (data ?? null) as {
+    duc_code: string | null;
+    onboarding_state: string | null;
+    advisor: string | null;
+  } | null;
+
+  return {
+    onboardingState: dossier?.onboarding_state ?? null,
+    advisor: dossier?.advisor ?? null,
+    dossierCode: dossier?.duc_code ?? null,
   };
-
-  if (dossier) {
-    const { error } = await supabase.from("dossiers").update(patch).eq("id", dossier.id);
-    if (error) return { ok: false, error: error.message };
-  }
-
-  const { error: profileError } = await supabase.from("citizen_profiles").upsert(
-    {
-      id: userId,
-      full_name: input.fullName.trim(),
-      birth_date: input.birthDate || null,
-      cni_raw: input.cniNumber.trim() || null,
-      address: addressLabel,
-      profession: input.profession.trim() || null,
-      employer: input.employer.trim() || null,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" },
-  );
-
-  if (profileError) return { ok: false, error: profileError.message };
-
-  return { ok: true, message: "Votre dossier a été mis à jour." };
 }
+

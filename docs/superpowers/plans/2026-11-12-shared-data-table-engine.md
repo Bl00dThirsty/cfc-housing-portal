@@ -6,13 +6,16 @@
 
 **Architecture :** les règles de manipulation des lignes sont des **fonctions pures** (`src/lib/data-table.ts`), testables sans React. L'état vit dans **un seul** store zustand indexé par `tableId` (`src/stores/data-table-store.ts`). Le composant `DataTable` (`src/components/data-table/`) ne fait que rendre ; il ne connaît aucune règle métier.
 
-**Pile technique :** Next.js 16 · React 19 · TypeScript strict · Tailwind v4 · zustand 5 · Radix UI · Vitest + @testing-library/react
+**Pile technique :** Next.js 15.5 · React 19 · TypeScript strict · Tailwind v4 · zustand 5 · Radix UI · Vitest + @testing-library/react
 
 ## Contraintes globales
 
 - `src/domain/**` ne peut importer ni `react`, ni `next`, ni `@supabase/*`, ni `@/components/**`, ni `@/server/**`. Les règles pures du moteur vivent donc dans `src/lib/`, pas dans `src/domain/`.
 - `src/components/**` ne peut importer ni `@supabase/*` ni `@/server/**` — sauf `@/server/actions/**`.
-- **Tout le texte visible par l'utilisateur est en français.**
+- **Tout le texte visible par l'utilisateur est en français** — y compris les dates : une `Date` s'affiche par `formatCfcDate`, jamais par `String(date)`, qui produirait un texte anglais en heure locale.
+- **Le tableau `columns` doit avoir une identité stable** — une constante de module ou un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les mémoïsations du moteur à chaque rendu.
+- **Une colonne dont les valeurs sont des codes internes doit fournir `groupLabel`** — sans lui, l'en-tête de groupe affiche la valeur brute (« kyc_savings · 1 »), qui n'est pas du français. Même règle pour **`facetLabel`** : une colonne **booléenne** verrait ses options de facette affichées « true » / « false », le moteur ignorant le français.
+- **Tester le tri multi-colonnes** : dans `user-event` v14, `user.click(el, { shiftKey: true })` **ne transmet pas** le modificateur à l'événement React. Il faut **maintenir** la touche : `await user.keyboard("{Shift>}")`, puis le clic, puis `await user.keyboard("{/Shift}")`. C'est ce qui permet d'ajouter une colonne de tri secondaire.
 - Charte CFC : brun (`--cfc-brown`) et or (`--cfc-gold`), pas la violet du kit de référence.
 - Un seul exemplaire par concept : un second store de tri, une seconde barre d'outils ou un second filtre est **supprimé**, jamais ajouté en parallèle.
 - Les commandes de validation, depuis `C:/Users/DTA_WorkStation/Documents/cfc-housing-portal` :
@@ -148,7 +151,7 @@ describe("moteur de table — règles pures", () => {
 
   it("conserve l'ordre d'origine à valeur égale", () => {
     const sorted = applySorts(ROWS, [{ key: "phase", dir: "asc" }], (row) => row.phase);
-    expect(sorted.map((row) => row.name)).toEqual(["ÉBAH", "FOTSO", "NGUEMA", "ABENA"]);
+    expect(sorted.map((row) => row.name)).toEqual(["NGUEMA", "ABENA", "ÉBAH", "FOTSO"]);
   });
 
   it("bascule la direction au clic et retire la colonne au shift+clic", () => {
@@ -222,7 +225,7 @@ Créer `src/lib/data-table.ts` :
  * Sémantique retenue :
  * - recherche : insensible à la casse, sur les valeurs textuelles de la ligne ;
  * - filtres : **ET** entre facettes, **OU** à l'intérieur d'une facette ;
- * - tri : multi-colonnes prioritaire, stable, valeurs nulles en fin ;
+ * - tri : multi-colonnes prioritaire, stable, valeurs vides toujours en fin ;
  * - groupement : **un seul niveau**.
  */
 
@@ -240,13 +243,28 @@ export type DataTableState = {
   groupBy: string | null;
 };
 
-/** L'état par défaut : rien de saisi, rien de trié, rien de filtré. */
+/**
+ * L'état par défaut : rien de saisi, rien de trié, rien de filtré.
+ *
+ * Il est **gelé**, avec les tableaux qu'il contient : c'est un singleton,
+ * partagé par tous les tableaux. Une modification en place y échoue
+ * bruyamment, au lieu de corrompre en silence l'état de tous les tableaux du
+ * portail.
+ *
+ * Le gel se fait ici, par instruction : la constante garde le type
+ * `DataTableState`, dont les tableaux restent mutables — c'est ce qui permet
+ * d'écrire un test qui vérifie que la mutation **échoue**.
+ */
 export const DEFAULT_DATA_TABLE_STATE: DataTableState = {
   search: "",
   sorts: [],
   filters: [],
   groupBy: null,
 };
+
+Object.freeze(DEFAULT_DATA_TABLE_STATE.sorts);
+Object.freeze(DEFAULT_DATA_TABLE_STATE.filters);
+Object.freeze(DEFAULT_DATA_TABLE_STATE);
 
 /** Une valeur proposée dans une facette. */
 export type FacetOption = { label: string; value: string; count?: number };
@@ -262,6 +280,11 @@ export function cellText(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (isDate(value)) {
+    const time = value.getTime();
+    // Une date invalide n'a pas de forme textuelle.
+    return Number.isFinite(time) ? value.toISOString() : "";
+  }
   return "";
 }
 
@@ -275,7 +298,7 @@ export function applySearch<T>(
   if (!needle) return [...rows];
 
   return rows.filter((row) =>
-    valuesOf(row).some((value) => value.toLowerCase().includes(needle)),
+    valuesOf(row).some((value) => cellText(value).toLowerCase().includes(needle)),
   );
 }
 
@@ -312,7 +335,16 @@ export function applySorts<T>(
 
   decorated.sort((a, b) => {
     for (const rule of sorts) {
-      const comparison = compareValues(valueOf(a.row, rule.key), valueOf(b.row, rule.key));
+      const left = valueOf(a.row, rule.key);
+      const right = valueOf(b.row, rule.key);
+
+      // Les valeurs vides restent en fin de liste, quelle que soit la
+      // direction : elles ne sont jamais inversées avec le reste.
+      const leftEmpty = isEmptyValue(left);
+      const rightEmpty = isEmptyValue(right);
+      if (leftEmpty !== rightEmpty) return leftEmpty ? 1 : -1;
+
+      const comparison = compareValues(left, right);
       if (comparison !== 0) return rule.dir === "asc" ? comparison : -comparison;
     }
     // À valeur égale, l'ordre d'origine est conservé : le tri est stable.
@@ -322,19 +354,49 @@ export function applySorts<T>(
   return decorated.map((entry) => entry.row);
 }
 
-/** Compare deux valeurs de cellule : nombres d'abord, sinon locale française. */
+/** Compare deux valeurs de cellule : dates par horodatage, nombres, sinon locale française. */
 function compareValues(a: unknown, b: unknown): number {
   if (a === b) return 0;
 
-  const aEmpty = a === null || a === undefined || a === "";
-  const bEmpty = b === null || b === undefined || b === "";
-  if (aEmpty && bEmpty) return 0;
-  if (aEmpty) return 1;
-  if (bEmpty) return -1;
-
   if (typeof a === "number" && typeof b === "number") return a - b;
 
+  const aTime = dateTimestamp(a);
+  const bTime = dateTimestamp(b);
+  if (aTime !== null && bTime !== null) return aTime - bTime;
+
   return cellText(a).localeCompare(cellText(b), "fr");
+}
+
+/** Une date ISO : `2026-01-15` ou `2026-01-15T10:00:00.000Z`. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}/;
+
+/** Vrai si la valeur est une date. */
+function isDate(value: unknown): value is Date {
+  return Object.prototype.toString.call(value) === "[object Date]";
+}
+
+/**
+ * L'horodatage d'une date ou d'une chaîne ISO ; `null` si la valeur n'en
+ * est pas une.
+ */
+function dateTimestamp(value: unknown): number | null {
+  if (isDate(value)) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+  if (typeof value === "string" && ISO_DATE.test(value)) {
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? time : null;
+  }
+  return null;
+}
+
+/** Une valeur « vide » : rien à afficher, donc rien à comparer. */
+function isEmptyValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value === "string") return value === "";
+  if (isDate(value)) return !Number.isFinite(value.getTime());
+  return false;
 }
 
 /** Groupement simple : une clé, un groupe par valeur distincte, par ordre de libellé. */
@@ -349,7 +411,10 @@ export function applyGrouping<T>(
 
   for (const row of rows) {
     const key = cellText(valueOf(row, groupBy));
-    groups.set(key, [...(groups.get(key) ?? []), row]);
+    const group = groups.get(key);
+    // Le groupe est complété en place : pas de recopie à chaque ligne.
+    if (group) group.push(row);
+    else groups.set(key, [row]);
   }
 
   return [...groups.entries()]
@@ -360,9 +425,10 @@ export function applyGrouping<T>(
 /**
  * Bascule du tri.
  *
- * - clic simple sur une colonne déjà triée : la direction s'inverse ;
- * - clic simple sur une autre colonne : elle devient le tri principal ;
- * - `shift` + clic sur une colonne déjà triée : elle est **retirée** ;
+ * - clic simple sur une colonne déjà triée : la direction s'inverse et
+ *   **l'ensemble des tris est remplacé** — le tri secondaire est abandonné ;
+ * - clic simple sur une autre colonne : elle devient le seul tri, le principal ;
+ * - `shift` + clic sur une colonne déjà triée : elle est **retirée** du tri ;
  * - `shift` + clic sur une colonne nouvelle : elle s'ajoute en secondaire.
  */
 export function toggleSort(
@@ -420,16 +486,31 @@ export function buildFacets<T>(
 ): FacetDef[] {
   return columns
     .filter((column) => column.filterable && column.accessor)
-    .map((column) => ({
-      id: column.key,
-      title: column.label,
-      options: distinctValues(columns, rows, column.key).map((value) => ({
-        label: value,
-        value,
-      })),
-    }));
+    .map((column) => {
+      const values = distinctValues(columns, rows, column.key);
+
+      // L'effectif de chaque option : l'agent voit « Prêt pour BET · 12 ».
+      // Il est calculé sur le jeu de lignes **complet**, comme la liste des
+      // valeurs : une option ne disparaît pas sous les yeux de l'agent parce
+      // qu'il vient de cocher une autre facette.
+      const counts = new Map<string, number>();
+      for (const row of rows) {
+        const value = cellText(column.accessor?.(row));
+        if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+      }
+
+      return {
+        id: column.key,
+        title: column.label,
+        options: values.map((value) => ({
+          label: value,
+          value,
+          count: counts.get(value) ?? 0,
+        })),
+      };
+    });
 }
-```
+`````````
 
 - [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
 
@@ -646,19 +727,33 @@ groupement ont un seul propriétaire, au lieu d'un par écran."
 
 ---
 
-## Tâche 3 — Le contrat de colonne et le hook d'orchestration
+## Tâche 3 — Le contrat de colonne, le helper de date et le hook d'orchestration
 
 **Fichiers :**
 - Créer : `src/components/data-table/types.ts`
 - Créer : `src/components/data-table/use-data-table.ts`
 - Créer : `src/components/data-table/use-data-table.test.tsx`
+- Créer : `src/domain/entities/dates.ts`
+- Créer : `src/domain/entities/dates.test.ts`
 
 **Interfaces :**
 - Consomme : `src/lib/data-table.ts`, `src/stores/data-table-store.ts`.
 - Produit :
-  - `type DataColumn<T>` — `{ key; label; accessor?; render?; sortable?; filterable?; groupable?; align?; headerClassName?; cellClassName?; groupLabel? }`
+  - `type DataColumn<T>` — `{ key; label; accessor?; render?; sortable?; filterable?; groupable?; align?; headerClassName?; cellClassName?; groupLabel?; facetLabel? }`
   - `useDataTable<T>(input: { tableId: string; columns: DataColumn<T>[]; rows: T[] }): UseDataTableResult<T>`
   - `type UseDataTableResult<T> = { state: DataTableState; groups: DataGroup<T>[]; facets: FacetDef[]; totalCount: number; filteredCount: number; setSearch; toggleSort; setFilter; setGroupBy; reset; valueOf }`
+  - `parseCfcDate(value: string): Date | null` — une date française `JJ/MM/AAAA` devient une `Date` ; `null` si la date est illisible.
+  - `formatCfcDate(value: Date): string` — l'inverse : `JJ/MM/AAAA`.
+
+> **Pourquoi un helper de date dans le domaine.** Le moteur sait trier une
+> `Date` et une chaîne ISO ; il ne devine pas un format. Or les données de
+> la plateforme sont écrites en français (`15/01/2026`) : une telle chaîne se
+> trierait **alphabétiquement**, donc dans le désordre chronologique. Le
+> domaine possède donc **un seul** lieu où une date est lue, et une colonne de
+> date fait `accessor: (row) => parseCfcDate(row.date)`.
+>
+> La `Date` produite est à **minuit UTC** : deux dates de jours différents
+> ne peuvent pas se chevaucher, quelle que soit l'heure locale du poste.
 
 - [ ] **Étape 1 : écrire le test qui échoue**
 
@@ -669,6 +764,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { useDataTable, type DataColumn } from "@/components/data-table/use-data-table";
+import { useDataTableStore } from "@/stores/data-table-store";
 
 type Row = { id: string; name: string; phase: string };
 
@@ -685,7 +781,6 @@ const ROWS: Row[] = [
 
 beforeEach(() => {
   // Le store est global : chaque test repart de zéro.
-  const { useDataTableStore } = require("@/stores/data-table-store");
   useDataTableStore.setState({ byTable: {} });
 });
 
@@ -732,11 +827,62 @@ describe("useDataTable", () => {
 
     expect(result.current.facets.map((facet) => facet.id)).toEqual(["name", "phase"]);
   });
+
+  it("applique le libellé de groupe de la colonne", () => {
+    const columns: DataColumn<Row>[] = [
+      {
+        key: "phase",
+        label: "Phase",
+        accessor: (row) => row.phase,
+        groupable: true,
+        groupLabel: (value) => `Phase ${value}`,
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "t2", columns, rows: ROWS }),
+    );
+
+    act(() => result.current.setGroupBy("phase"));
+
+    expect(result.current.groups.map((group) => group.label)).toEqual([
+      "Phase committees",
+      "Phase kyc_savings",
+    ]);
+  });
+
+  it("applique le libellé de facette de la colonne", () => {
+    const columns: DataColumn<Row>[] = [
+      {
+        key: "phase",
+        label: "Phase",
+        accessor: (row) => row.phase,
+        filterable: true,
+        facetLabel: (value) => value.toUpperCase(),
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useDataTable({ tableId: "t3", columns, rows: ROWS }),
+    );
+
+    const facet = result.current.facets[0];
+    expect(facet.options.map((option) => option.label)).toEqual([
+      "COMMITTEES",
+      "KYC_SAVINGS",
+    ]);
+    // La **valeur** reste celle qui sert au filtre : seul le libellé change.
+    expect(facet.options.map((option) => option.value)).toEqual([
+      "committees",
+      "kyc_savings",
+    ]);
+  });
 });
 ```
 
-> Si `require` n'est pas disponible en ESM, remplacer l'import dans `beforeEach` par un import statique en haut du fichier :
-> `import { useDataTableStore } from "@/stores/data-table-store";` puis `useDataTableStore.setState({ byTable: {} });`
+> L'import du store est **statique** (`import { useDataTableStore } from
+> "@/stores/data-table-store"`) : un `require(...)` dans un module ESM
+> échouerait à l'exécution sous Vitest.
 
 - [ ] **Étape 2 : lancer le test et vérifier qu'il échoue**
 
@@ -765,8 +911,14 @@ export interface DataColumn<T> {
   key: string;
   /** Libellé affiché dans l'en-tête. */
   label: string;
-  /** Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable. */
-  accessor?: (row: T) => string | number | boolean | null | undefined;
+  /**
+   * Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable.
+   *
+   * Une **date** est une `Date` : c'est le moteur qui sait la trier
+   * chronologiquement. Une date française en texte brut se trierait
+   * alphabétiquement — donc dans le désordre.
+   */
+  accessor?: (row: T) => string | number | boolean | Date | null | undefined;
   /** Rendu de la cellule ; par défaut la valeur de l'`accessor`. */
   render?: (row: T) => React.ReactNode;
   /** Exclusion explicite du tri (colonne d'icônes). */
@@ -780,7 +932,109 @@ export interface DataColumn<T> {
   cellClassName?: string;
   /** Libellé du groupe quand la colonne sert de clé de groupement. */
   groupLabel?: (value: string) => string;
+  /**
+   * Libellé de l'option de facette.
+   *
+   * Une colonne de date produit une valeur ISO ; l'affichage peut vouloir la
+   * date française. Le libellé du groupe et celui de la facette sont donc
+   * deux points de couture distincts.
+   */
+  facetLabel?: (value: string) => string;
 }
+```
+
+Créer `src/domain/entities/dates.ts` :
+
+```ts
+/**
+ * Les dates de la plateforme.
+ *
+ * Les données CFC sont écrites en français : `15/01/2026`. Une telle chaîne
+ * se trie **alphabétiquement**, donc dans le désordre chronologique — c'est
+ * le piège. Ce module est le **seul** lieu où une date **française** est lue.
+ *
+ * La `Date` produite est à **minuit UTC** : deux dates de jours différents ne
+ * peuvent pas se chevaucher, quelle que soit l'heure locale du poste.
+ */
+
+const FRENCH_DATE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+
+/**
+ * Lit une date française `JJ/MM/AAAA`.
+ *
+ * Renvoie `null` si la date est absente ou illisible : une date illisible
+ * n'est pas une date, et se masquerait sinon dans un tri.
+ */
+export function parseCfcDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+
+  const match = FRENCH_DATE.exec(value.trim());
+  if (!match) return null;
+
+  const [, day, month, year] = match;
+  const parsed = new Date(
+    Date.UTC(Number(year), Number(month) - 1, Number(day)),
+  );
+
+  // Une date inexistante (`31/02/2026`) est rejetée : `Date.UTC` déborde.
+  if (
+    parsed.getUTCFullYear() !== Number(year) ||
+    parsed.getUTCMonth() !== Number(month) - 1 ||
+    parsed.getUTCDate() !== Number(day)
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+/** Écrit une date au format français `JJ/MM/AAAA`. */
+export function formatCfcDate(value: Date): string {
+  // Une date invalide ne doit pas laisser fuir « NaN/NaN/NaN » à l'écran.
+  if (!Number.isFinite(value.getTime())) return "";
+
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${value.getUTCFullYear()}`;
+}
+```
+
+Créer `src/domain/entities/dates.test.ts` :
+
+```ts
+import { describe, expect, it } from "vitest";
+
+import { formatCfcDate, parseCfcDate } from "@/domain/entities/dates";
+
+describe("dates de la plateforme", () => {
+  it("lit une date française", () => {
+    const parsed = parseCfcDate("15/01/2026");
+    expect(parsed?.toISOString()).toBe("2026-01-15T00:00:00.000Z");
+  });
+
+  it("refuse une date inexistante", () => {
+    expect(parseCfcDate("31/02/2026")).toBeNull();
+  });
+
+  it("refuse une date illisible", () => {
+    expect(parseCfcDate("hier")).toBeNull();
+    expect(parseCfcDate("")).toBeNull();
+    expect(parseCfcDate(null)).toBeNull();
+  });
+
+  it("écrit une date française", () => {
+    expect(formatCfcDate(new Date("2026-01-15T00:00:00.000Z"))).toBe("15/01/2026");
+  });
+
+  it("fait l'aller-retour", () => {
+    const parsed = parseCfcDate("03/09/2026");
+    expect(parsed && formatCfcDate(parsed)).toBe("03/09/2026");
+  });
+
+  it("n'écrit pas une date invalide", () => {
+    expect(formatCfcDate(new Date(""))).toBe("");
+  });
+});
 ```
 
 Créer `src/components/data-table/use-data-table.ts` :
@@ -790,6 +1044,7 @@ Créer `src/components/data-table/use-data-table.ts` :
 
 import * as React from "react";
 
+import { formatCfcDate } from "@/domain/entities/dates";
 import {
   applyFilters,
   applyGrouping,
@@ -840,6 +1095,11 @@ export interface UseDataTableResult<T> {
 export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult<T> {
   const { tableId, columns, rows } = input;
 
+  // ⚠️ `tableState` doit renvoyer une **référence stable** pour un tableau
+  // donné : zustand 5 compare les snapshots avec `Object.is` et ne mémoïse pas
+  // le sélecteur. Un sélecteur qui alloue un objet à chaque appel déclencherait
+  // l'avertissement « getSnapshot should be cached » de React et une tempête
+  // de rendu sur les 44 tableaux.
   const state = useDataTableStore((store) => tableState(store, tableId));
   const setSearch = useDataTableStore((store) => store.setSearch);
   const toggleSortAction = useDataTableStore((store) => store.toggleSort);
@@ -859,7 +1119,19 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
   const searchValues = React.useCallback(
     (row: T): string[] =>
       columns
-        .map((column) => (column.accessor ? cellText(column.accessor(row)) : ""))
+        .flatMap((column) => {
+          if (!column.accessor) return [];
+          const value = column.accessor(row);
+
+          // Une date est cherchable sous **les deux formes** : l'ISO, que le
+          // moteur compare, et la forme française, que l'agent voit. La saisie
+          // n'est jamais normalisée : c'est la comparaison qui s'élargit.
+          if (value instanceof Date) {
+            return [cellText(value), formatCfcDate(value)];
+          }
+
+          return [cellText(value)];
+        })
         .filter(Boolean),
     [columns],
   );
@@ -882,12 +1154,51 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
     }));
   }, [columns, rows, searchValues, state.filters, state.groupBy, state.search, state.sorts, valueOf]);
 
-  const facets = React.useMemo(() => buildFacets(columns, rows), [columns, rows]);
+  const facets = React.useMemo(() => {
+    const built = buildFacets(columns, rows);
+
+    // Une colonne de date produit une valeur ISO ; l'option de facette
+    // peut vouloir la date française. C'est le même point de couture que
+    // pour le libellé de groupe.
+    return built.map((facet) => {
+      const column = columns.find((candidate) => candidate.key === facet.id);
+      if (!column?.facetLabel) return facet;
+
+      return {
+        ...facet,
+        options: facet.options.map((option) => ({
+          ...option,
+          label: column.facetLabel?.(option.value) ?? option.label,
+        })),
+      };
+    });
+  }, [columns, rows]);
 
   const filteredCount = React.useMemo(
     () => groups.reduce((total, group) => total + group.rows.length, 0),
     [groups],
   );
+
+  // Les actions ont une **identité stable** : un consommateur qui les place
+  // dans les dépendances d'un `useEffect` ne doit pas rejouer son effet à
+  // chaque rendu.
+  const setSearchFor = React.useCallback(
+    (search: string) => setSearch(tableId, search),
+    [setSearch, tableId],
+  );
+  const toggleSortFor = React.useCallback(
+    (key: string, additive: boolean) => toggleSortAction(tableId, key, additive),
+    [toggleSortAction, tableId],
+  );
+  const setFilterFor = React.useCallback(
+    (facetId: string, values: string[]) => setFilterAction(tableId, facetId, values),
+    [setFilterAction, tableId],
+  );
+  const setGroupByFor = React.useCallback(
+    (key: string | null) => setGroupByAction(tableId, key),
+    [setGroupByAction, tableId],
+  );
+  const resetFor = React.useCallback(() => resetAction(tableId), [resetAction, tableId]);
 
   return {
     state,
@@ -895,30 +1206,33 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
     facets,
     totalCount: rows.length,
     filteredCount,
-    setSearch: (search) => setSearch(tableId, search),
-    toggleSort: (key, additive) => toggleSortAction(tableId, key, additive),
-    setFilter: (facetId, values) => setFilterAction(tableId, facetId, values),
-    setGroupBy: (key) => setGroupByAction(tableId, key),
-    reset: () => resetAction(tableId),
+    setSearch: setSearchFor,
+    toggleSort: toggleSortFor,
+    setFilter: setFilterFor,
+    setGroupBy: setGroupByFor,
+    reset: resetFor,
     valueOf,
   };
 }
-
 export type { DataColumn };
-```
+``````
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```
-npx vitest run src/components/data-table/use-data-table.test.tsx
+npx vitest run src/components/data-table/use-data-table.test.tsx src/domain/entities/dates.test.ts
 ```
-Attendu : **4 tests passés**.
+Attendu : **12 tests passés** (6 pour le hook, 6 pour les dates).
 
 - [ ] **Étape 5 : committer**
 
 ```bash
-git add src/components/data-table/types.ts src/components/data-table/use-data-table.ts src/components/data-table/use-data-table.test.tsx
-git commit -m "feat(data-table): le contrat de colonne et le hook d'orchestration"
+git add src/components/data-table src/domain/entities/dates.ts src/domain/entities/dates.test.ts
+git commit -m "feat(data-table): le contrat de colonne, le helper de date et le hook
+
+Le contrat de colonne porte la valeur (tri, filtre, groupe) et le noeud
+affiché. Les dates sont lues en un seul lieu — le domaine — parce qu'une
+date française se trierait alphabétiquement sans cela."
 ```
 
 ---
@@ -930,11 +1244,14 @@ git commit -m "feat(data-table): le contrat de colonne et le hook d'orchestratio
 - Créer : `src/components/data-table/data-table.test.tsx`
 
 **Interfaces :**
-- Consomme : `useDataTable`, `DataColumn` (tâche 3) ; `ui/table` ; `ui/badge`.
+- Consomme : `useDataTable`, `DataColumn` (tâche 3) ; `ui/table` ; `formatCfcDate` (`@/domain/entities/dates`).
 - Produit :
   - `DataTable<T>(props: DataTableProps<T>)`
-  - `type DataTableProps<T> = { tableId: string; columns: DataColumn<T>[]; rows: T[]; getRowId: (row: T) => string; renderRow?: (context: { row: T; cell: (key: string) => React.ReactNode }) => React.ReactNode; emptyLabel?: string; className?: string }`
-  - `type DataTableSortButtonProps` — interne.
+  - `type DataTableProps<T> = { tableId: string; columns: DataColumn<T>[]; rows: T[]; getRowId: (row: T) => string; renderRow?: (context: { row: T; cell: (key: string) => React.ReactNode }) => React.ReactNode; emptyLabel?: string; className?: string; tableClassName?: string; rowClassName?: string; headClassName?: string; cellClassName?: string }`
+  - Les quatre classes de mise en page (`tableClassName`, `rowClassName`, `headClassName`, `cellClassName`) portent la disposition d'un tableau qui s'aligne par **sous-grille** CSS : le moteur ne connaît pas la mise en page, il la porte.
+  - `export type { DataColumn }` — ré-exporté, pour que les consommateurs n'aient qu'un seul point d'entrée.
+
+> La section « Interfaces » ci-dessus ne reprend **pas** `ui/badge` : le composant ne l'utilise pas, et l'importer serait une erreur de lint (import inutilisé).
 
 - [ ] **Étape 1 : écrire le test qui échoue**
 
@@ -956,6 +1273,9 @@ const COLUMNS: DataColumn<Row>[] = [
 ];
 
 const ROWS: Row[] = [
+  // L'ordre de la source n'est **pas** l'ordre alphabétique : un test de tri
+  // doit pouvoir échouer si le tri ne se fait pas.
+  { id: "3", name: "NGUEMA", phase: "committees" },
   { id: "1", name: "ÉBAH", phase: "kyc_savings" },
   { id: "2", name: "FOTSO", phase: "committees" },
 ];
@@ -986,10 +1306,30 @@ describe("DataTable", () => {
     const user = userEvent.setup();
     renderTable();
 
+    // Avant le clic, les lignes sont dans l'ordre de la source — **pas**
+    // dans l'ordre alphabétique : l'assertion d'après prouve que le tri a
+    // eu lieu.
+    const before = screen.getAllByRole("row")[1];
+    expect(within(before).getByText("NGUEMA")).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /Emprunteur/ }));
 
-    const body = screen.getAllByRole("row")[1];
-    expect(within(body).getByText("ÉBAH")).toBeInTheDocument();
+    const after = screen.getAllByRole("row")[1];
+    expect(within(after).getByText("ÉBAH")).toBeInTheDocument();
+  });
+
+  it("annonce la direction du tri à l'assistance technique", async () => {
+    const user = userEvent.setup();
+    renderTable();
+
+    const header = screen.getByRole("columnheader", { name: /Emprunteur/ });
+    expect(header).toHaveAttribute("aria-sort", "none");
+
+    await user.click(screen.getByRole("button", { name: /Emprunteur/ }));
+    expect(screen.getByRole("columnheader", { name: /Emprunteur/ })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
   });
 
   it("affiche le message quand aucune ligne ne correspond", () => {
@@ -1035,6 +1375,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatCfcDate } from "@/domain/entities/dates";
 import { cn } from "@/lib/utils";
 
 import type { DataColumn } from "./types";
@@ -1043,6 +1384,13 @@ import { useDataTable } from "./use-data-table";
 export interface DataTableProps<T> {
   /** Identifiant du tableau : il isole son état dans le store. */
   tableId: string;
+  /**
+   * Les colonnes.
+   *
+   * Le tableau **doit** avoir une identité stable : une constante de module
+   * ou un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les
+   * mémoïsations du moteur à chaque rendu.
+   */
   columns: DataColumn<T>[];
   rows: T[];
   /** Identifiant stable d'une ligne — il est la clé React. */
@@ -1053,6 +1401,11 @@ export interface DataTableProps<T> {
    * Par défaut, une cellule par colonne. Un tableau qui a besoin d'une ligne
    * particulière — une case à cocher, une barre d'actions — fournit la sienne,
    * et reçoit la cellule de chaque colonne par `cell(key)`.
+   *
+   * ⚠️ La ligne fournie **possède sa mise en page** : les classes de colonne
+   * (`align`, `cellClassName`) ne sont pas reprises automatiquement, et le
+   * nombre de cellules rendues doit correspondre à `columns.length` — sinon
+   * l'en-tête de groupe se désaligne.
    */
   renderRow?: (context: { row: T; cell: (key: string) => React.ReactNode }) => React.ReactNode;
   /** Message affiché quand aucune ligne ne correspond. */
@@ -1102,6 +1455,12 @@ export function DataTable<T>({
       if (column.render) return column.render(row);
       const value = column.accessor?.(row);
       if (value === null || value === undefined) return null;
+      // Une date s'affiche **en français** : `String(date)` produirait
+      // « Thu Jan 15 2026 01:00:00 GMT+0100 (West Africa Time) » — en
+      // anglais, en heure locale, et parfois au jour précédent.
+      if (value instanceof Date) return formatCfcDate(value);
+      // Un booléen aussi : `String(true)` donnerait « true ».
+      if (typeof value === "boolean") return value ? "Oui" : "Non";
       return String(value);
     },
     [],
@@ -1109,8 +1468,9 @@ export function DataTable<T>({
 
   return (
     <div className={cn("flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs", className)}>
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table className={tableClassName}>
+      {/* `Table` porte déjà son propre conteneur de défilement : un second
+          `overflow-auto` produirait deux barres de défilement. */}
+      <Table className={tableClassName} containerClassName="min-h-0 flex-1">
           <TableHeader>
             <TableRow className={rowClassName}>
               {columns.map((column) => {
@@ -1122,6 +1482,17 @@ export function DataTable<T>({
                   <TableHead
                     key={column.key}
                     scope="col"
+                    // L'assistance technique doit entendre l'état du tri :
+                    // sans `aria-sort`, la colonne triée est muette.
+                    aria-sort={
+                      !sortable
+                        ? undefined
+                        : rule?.dir === "asc"
+                          ? "ascending"
+                          : rule?.dir === "desc"
+                            ? "descending"
+                            : "none"
+                    }
                     className={cn(
                       headClassName,
                       column.headerClassName,
@@ -1133,7 +1504,14 @@ export function DataTable<T>({
                       <button
                         type="button"
                         onClick={(event) => toggleSort(column.key, event.shiftKey)}
-                        aria-label={`Trier par ${column.label}`}
+                        // Le rang de priorité est annoncé : sans lui, un
+                        // lecteur d'écran entend « 2 » sans savoir ce que ce
+                        // chiffre désigne.
+                        aria-label={
+                          state.sorts.length > 1 && rule
+                            ? `Trier par ${column.label} (priorité ${rank})`
+                            : `Trier par ${column.label}`
+                        }
                         className="inline-flex items-center gap-1 text-left hover:text-foreground"
                       >
                         {column.label}
@@ -1216,7 +1594,6 @@ export function DataTable<T>({
             )}
           </TableBody>
         </Table>
-      </div>
     </div>
   );
 }
@@ -1242,6 +1619,22 @@ git commit -m "feat(data-table): le composant de tableau, en-têtes triables et 
 ---
 
 ## Tâche 5 — La barre d'outils canonique
+
+> **Points à trancher dans cette tâche :**
+>
+> 1. La recherche porte sur la forme **ISO** des dates, parce que le moteur
+>    normalise une `Date` en ISO. Un agent qui tape « 15/01/2026 » ne trouve
+>    donc pas une colonne de date. La correction est d'élargir la recherche à
+>    la forme française — ou de l'assumer et de le dire. Ne laisse pas ce
+>    point passer sans décision explicite.
+> 2. Les **options de facette** d'une colonne **booléenne** s'affichent
+>    « true » / « false » : le moteur ignore le français, et le libellé par
+>    défaut vient de `cellText`. La solution est la couture `facetLabel` — la
+>    colonne la fournit. Vérifie qu'un écran de facette booléenne le fait.
+> 3. Le `colSpan` de l'en-tête de groupe suppose que la ligne rendue ait le
+>    même nombre de cellules que `columns`. La couture `renderRow` est
+>    documentée comme propriétaire de la mise en page : un écran qui fournit
+>    sa ligne doit en fournir le bon nombre.
 
 **Fichiers :**
 - Modifier : `src/components/ui/data-table-toolbar.tsx` (réécriture)
@@ -1320,7 +1713,7 @@ Attendu : échec — la barre actuelle ne connaît ni `tableId` ni le regroupeme
 
 Remplacer entièrement `src/components/ui/data-table-toolbar.tsx` :
 
-```tsx
+```ts
 "use client";
 
 import * as React from "react";
@@ -1342,14 +1735,33 @@ import { cn } from "@/lib/utils";
 import { DataTableFacetedFilter } from "./data-table-faceted-filter";
 
 /**
+ * Le compte, accordé en nombre : « 1 ligne », « 2 lignes ».
+ *
+ * L'unité est donnée au pluriel par l'écran ; le singulier s'en déduit.
+ */
+function unitFor(count: number, unitName: string): string {
+  if (count > 1 || !unitName.endsWith("s")) return unitName;
+  return unitName.slice(0, -1);
+}
+
+/**
  * Barre d'outils du tableau — **canonique**.
  *
- * Elle porte la recherche, les facettes, le regroupement et les pastilles de
- * tri. Elle lit l'état dans le store : la table et sa barre d'outils sont
- * donc toujours d'accord, sans prop drilling ni duplication d'état.
+ * Elle porte la recherche, les facettes, le regroupement, les pastilles de
+ * tri et l'export. Elle lit l'état dans le store : la table et sa barre
+ * d'outils sont donc toujours d'accord, sans prop drilling ni duplication
+ * d'état.
  */
 export interface DataTableToolbarProps<T> {
+  /** Identifiant du tableau : il isole son état dans le store. */
   tableId: string;
+  /**
+   * Les colonnes.
+   *
+   * Le tableau **doit** avoir une identité stable : une constante de module ou
+   * un `useMemo`. Écrit en ligne dans le JSX, il invalide toutes les
+   * mémoïsations du moteur à chaque rendu.
+   */
   columns: DataColumn<T>[];
   rows: T[];
   /** Nom de l'unité, pour le compte : « 12 emprunteurs ». */
@@ -1380,6 +1792,9 @@ export function DataTableToolbar<T>({
     reset,
   } = useDataTable({ tableId, columns, rows });
 
+  // Le champ est un **champ contrôlé ordinaire** : il affiche l'état du
+  // store, et lui écrit. La saisie n'est jamais normalisée — c'est la
+  // comparaison du moteur qui s'élargit aux deux formes d'une date.
   const groupableColumns = columns.filter(
     (column) => column.groupable && column.accessor,
   );
@@ -1389,10 +1804,6 @@ export function DataTableToolbar<T>({
     Boolean(state.search.trim()) ||
     state.sorts.length > 0 ||
     state.groupBy !== null;
-
-  const handleReset = () => {
-    reset();
-  };
 
   return (
     <div
@@ -1481,7 +1892,7 @@ export function DataTableToolbar<T>({
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleReset}
+            onClick={reset}
             className="h-8 gap-1.5 px-2.5 text-[12px] text-subtle hover:text-foreground"
           >
             <span>Réinitialiser</span>
@@ -1492,7 +1903,7 @@ export function DataTableToolbar<T>({
 
       <div className="flex shrink-0 items-center gap-2.5 self-end sm:self-center">
         <span className="caption-style whitespace-nowrap font-mono text-subtle">
-          {filteredCount} {unitName}
+          {filteredCount} {unitFor(filteredCount, unitName)}
           {filteredCount !== totalCount ? (
             <span className="text-subtle/60"> / {totalCount}</span>
           ) : null}
@@ -1516,7 +1927,7 @@ export function DataTableToolbar<T>({
 }
 
 export default DataTableToolbar;
-```
+``````
 
 Dans `src/components/ui/data-table-faceted-filter.tsx`, remplacer l'export local `FilterOption` par un type dérivé du module pur — le module `lib` ne connaît pas React :
 
@@ -1555,16 +1966,33 @@ C'est la migration qui **démontre** le moteur et qui supprime les quatre doublo
 - Modifier : `src/components/clients/table/clients-table.tsx`
 - Modifier : `src/components/clients/table/table-columns.ts`
 - Modifier : `src/components/clients/table/client-row.tsx`
+- Modifier : `src/components/clients/detail/client-detail-sheet.tsx`
+- Modifier : `src/components/clients/command-menu/clients-command-menu.tsx`
+- Modifier : `src/app/portail-cfc/clients/_components/client-workspace-hub.tsx`
 - Supprimer : `src/stores/clients-store.ts`
 - Supprimer : `src/lib/clients-filters.ts`
 - Supprimer : `src/components/clients/toolbar/clients-toolbar.tsx`
 - Supprimer : `src/components/_common/filter-menu.tsx`
-- Modifier : `src/app/portail-cfc/clients/page.tsx`
-- Modifier : `src/lib/clients-filters.test.ts` → supprimé (les règles sont désormais testées dans `src/lib/data-table.test.ts`)
+- Supprimer : `src/lib/clients-filters.test.ts` (les règles sont désormais testées dans `src/lib/data-table.test.ts`)
 
 **Interfaces :**
 - Consomme : `DataTable`, `useDataTable`, `DataTableToolbar` (tâches 3–5).
 - Produit : le répertoire des emprunteurs piloté par le moteur ; **plus aucun** store, filtre ni barre d'outils propre aux clients.
+
+> ⚠️ **Le store `clients-store` porte trois responsabilités distinctes**, et
+> seules deux tombent avec la migration :
+>
+> | Responsabilité | Propriétaire après la tâche |
+> |---|---|
+> | Tri, filtres, recherche du tableau | **le moteur** (`useDataTable`) |
+> | Ouverture de la fiche de détail (`detailId`, `detailOpen`) | **le hub** (`client-workspace-hub.tsx`), qui est le parent commun du tableau, de la fiche et du menu |
+> | Ouverture du menu de commandes (`commandOpen`) | **le hub**, idem |
+>
+> `client-workspace-hub.tsx` rend les trois (`ClientsTable`,
+> `ClientDetailSheet`, `ClientsCommandMenu`) : c'est donc là que l'état
+> d'interface remonte, en **props**. Il ne faut pas créer un store de
+> remplacement : ce serait un second propriétaire d'état, exactement ce que
+> la migration supprime.
 
 - [ ] **Étape 1 : écrire le test qui échoue**
 
@@ -2016,28 +2444,72 @@ export function ClientRow({
 }
 ```
 
-- [ ] **Étape 4 : supprimer les doublons**
+- [ ] **Étape 4 : faire remonter l'état d'interface dans le hub**
+
+`client-workspace-hub.tsx` est le **parent commun** du tableau, de la fiche de
+détail et du menu de commandes : c'est là que l'état d'interface doit vivre.
+
+1. Dans `client-workspace-hub.tsx`, remplace l'usage du store par un état
+   local :
+
+   ```tsx
+   const [detailClientId, setDetailClientId] = React.useState<string | null>(null);
+   const [commandOpen, setCommandOpen] = React.useState(false);
+   ```
+
+   Le hub passe alors `client={...}`, `open` et `onOpenChange` à la fiche de
+   détail, et `open` / `onOpenChange` au menu de commandes.
+
+2. Dans `client-detail-sheet.tsx`, remplace la lecture du store par des props :
+
+   ```tsx
+   type ClientDetailSheetProps = {
+     client: ClientItem | null;
+     open: boolean;
+     onOpenChange: (open: boolean) => void;
+   };
+   ```
+
+3. Dans `clients-command-menu.tsx`, de même : `open` et `onOpenChange` en
+   props, à la place de `commandOpen` / `setCommandOpen` / `openDetail`.
+
+4. Le hub rend la barre **canonique** à la place de l'ancienne :
+
+   ```tsx
+   <DataTableToolbar tableId="portail-cfc-clients" columns={CLIENT_COLUMNS} rows={clientsData} />
+   ```
+
+   ⚠️ Les colonnes déclarées ici et celles du tableau doivent être **les
+   mêmes** : les déclare une seule fois, dans un module partagé par les deux
+   (`table-columns.ts` fait déjà ce travail — utilise-le).
+
+- [ ] **Étape 5 : supprimer les doublons**
 
 ```bash
 git rm src/stores/clients-store.ts src/lib/clients-filters.ts src/lib/clients-filters.test.ts
 git rm src/components/clients/toolbar/clients-toolbar.tsx src/components/_common/filter-menu.tsx
 ```
 
-Puis, dans `src/app/portail-cfc/clients/page.tsx`, retirer l'import et l'usage de `ClientsToolbar`.
-
 Vérifier qu'aucun fichier ne référence encore les modules supprimés :
+
+```
+rg "clients-store|clients-filters|_common/filter-menu|clients/toolbar" src
+```
+
+Attendu : **aucune** occurrence. Puis :
 
 ```
 npx tsc --noEmit
 ```
 Attendu : exit 0.
 
-- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+- [ ] **Étape 6 : lancer les tests et vérifier qu'ils passent**
 
 ```
 npx vitest run src/components/clients/table/clients-table.test.tsx src/lib/data-table.test.ts
 ```
-Attendu : **4** tests passés (1 pour les clients, 3 pour le moteur — adapter le compte au fichier de test réellement écrit).
+Attendu : les tests du répertoire passent (1 pour les clients, plus ceux du
+moteur — adapter le compte au fichier réellement écrit).
 
 - [ ] **Étape 6 : committer**
 
@@ -2254,14 +2726,21 @@ const COLUMNS: DataColumn<SavingsRow>[] = [
   {
     key: "date",
     label: "Date",
-    accessor: (row) => row.date,
+    accessor: (row) => parseCfcDate(row.date),
+    filterable: true,
     groupable: true,
-    groupLabel: (value) => `Mois de ${value}`,
+    groupLabel: (value) => `Mois de ${formatCfcDate(new Date(value))}`,
+    facetLabel: (value) => formatCfcDate(new Date(value)),
+    render: (row) => row.date,
   },
   { key: "label", label: "Opération", accessor: (row) => row.label },
   { key: "amount", label: "Montant", accessor: (row) => row.amount, align: "right" },
 ];
 ```
+
+> La date est **lue par le domaine** (`parseCfcDate`) et **affichée** par la
+> colonne (`render`). Sans le helper, `accessor: (row) => row.date` trierait
+> `15/01/2026` alphabétiquement — donc dans le désordre chronologique.
 
 Si les sous-totaux ne peuvent pas être exprimés ainsi, la page **reste hors
 moteur** et le dit dans un commentaire d'en-tête — même règle que le kanban.
@@ -2373,8 +2852,105 @@ Le build et le serveur de développement ne tournent **jamais** en même temps :
 
 ---
 
-## Ordre recommended
+## Corrections après revue — tâches 1 et 2
 
+Les blocs de code des tâches 1 et 2 ci-dessus décrivent ce qui avait été **planifié**. La revue de ces deux tâches a trouvé des défauts réels, corrigés depuis. **Ce qui suit est la vérité** : c'est la version qui a été committée, et c'est celle qu'il faut copier.
+
+### Tâche 1 — l'état par défaut est gelé
+
+`src/lib/data-table.ts` — l'état par défaut est un **singleton partagé** par tous les tableaux intacts. Il est gelé, pour qu'une mutation résiduelle échoue bruyamment au lieu de corrompre les 44 tableaux en silence :
+
+```ts
+export const DEFAULT_DATA_TABLE_STATE: DataTableState = {
+  search: "",
+  sorts: [],
+  filters: [],
+  groupBy: null,
+};
+
+Object.freeze(DEFAULT_DATA_TABLE_STATE.sorts);
+Object.freeze(DEFAULT_DATA_TABLE_STATE.filters);
+Object.freeze(DEFAULT_DATA_TABLE_STATE);
+```
+
+Le gel se fait **par instruction**, pas par cast : `Object.freeze([])` est de type `readonly never[]`, non assignable à `SortRule[]` (TS2352). Les types publics restent mutables — c'est ce qui permet d'écrire un test qui vérifie que la mutation **échoue**.
+
+Deux autres corrections de la tâche 1 : les **dates** sont normalisées par `cellText` et comparées par horodatage (une colonne de date ne se trie plus silencieusement dans le désordre) ; les **valeurs vides restent en fin quelle que soit la direction**, la comparaison du vide étant sortie de l'inversion de signe.
+
+### Tâche 2 — chaque tableau possède son propre état
+
+`src/stores/data-table-store.ts` — l'état par défaut étant partagé, chaque entrée du store doit être **propriétaire de ses tableaux** :
+
+```ts
+/**
+ * Un état neuf : chaque tableau possède **ses** tableaux.
+ *
+ * L'état par défaut est un singleton partagé : sans cette copie, une
+ * modification en place sur un tableau corromprait tous les autres — sans
+ * exception ni rendu, donc sans aucun signal.
+ */
+function freshState(): DataTableState {
+  return { search: "", sorts: [], filters: [], groupBy: null };
+}
+
+/** L'état de base d'un tableau, avec des tableaux qui lui appartiennent. */
+function ownState(state: TablesStore, tableId: string): DataTableState {
+  const current = state.byTable[tableId];
+  if (!current) return freshState();
+  return {
+    ...current,
+    sorts: [...current.sorts],
+    filters: current.filters.map((filter) => ({ ...filter, values: [...filter.values] })),
+  };
+}
+```
+
+Les cinq actions utilisent `ownState(state, tableId)` ; `reset` écrit `freshState()` ; `setFilter` recopie les valeurs fournies (`values: [...values]`), pour que l'état ne puisse pas changer sans `set()` — donc sans re-render.
+
+`tableState()` **ne.alloue rien** : elle renvoie l'entrée stockée, ou la constante gelée. La référence doit rester **stable**, zustand 5 comparant les snapshots avec `Object.is`.
+
+La ligne « Consomme » de la tâche 2 annonce `SortRule` : le code ne l'importe pas, et ne doit pas l'importer — le type transite par `DataTableState["sorts"]`, et un import de type inutilisé serait une erreur de lint.
+
+### Tâche 3 — le contrat de colonne accepte la date, et elle s'affiche en français
+
+La revue de la tâche 3 a trouvé que le contrat de colonne **ne pouvait pas exprimer la colonne de date** que le plan lui-même exigeait : `accessor` était typé `string | number | boolean | null | undefined`, alors que `parseCfcDate` renvoie une `Date` — vérifié par `tsc` : `TS2322`. Les tâches 4 à 11 étaient bloquées sur ce point.
+
+`src/components/data-table/types.ts` :
+
+```ts
+  /**
+   * Valeur de la cellule. Sans elle, la colonne n'est ni triable ni filtrable.
+   *
+   * Une **date** est une `Date` : c'est le moteur qui sait la trier
+   * chronologiquement. Une date française en texte brut se trierait
+   * alphabétiquement — donc dans le désordre.
+   */
+  accessor?: (row: T) => string | number | boolean | Date | null | undefined;
+```
+
+Deux garde-fous côté consommateur, discoveries par la même revue :
+
+1. **Le rendu par défaut d'une date ne doit pas être `String(value)`** — cela produirait « Thu Jan 15 2026 01:00:00 GMT+0100 (West Africa Time) » : en anglais, en heure locale, et parfois au jour précédent. Une `Date` s'affiche par `formatCfcDate` (tâche 4).
+2. **`formatCfcDate` refuse une date invalide** — sans garde, une date illisible s'afficherait « NaN/NaN/NaN » :
+
+```ts
+export function formatCfcDate(value: Date): string {
+  // Une date invalide ne doit pas laisser fuir « NaN/NaN/NaN » à l'écran.
+  if (!Number.isFinite(value.getTime())) return "";
+
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${value.getUTCFullYear()}`;
+}
+```
+
+Le hook renvoie aussi des **actions à identité stable** (`React.useCallback`) : un consommateur qui les place dans les dépendances d'un `useEffect` ne rejoue pas son effet à chaque rendu.
+
+> Une réserve de la revue **réfutée** : la peur d'un `Date.UTC(50, …)` transformant « 0050 » en 1950. Le garde d'aller-retour de `parseCfcDate` la rejette déjà (`"01/01/0050"` → `null`) : aucune date muette n'est fausse.
+
+---
+
+## Ordre recommended
 | Tâche | Contenu | Dépend de |
 |---|---|---|
 | 1 | Règles pures | — |

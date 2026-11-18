@@ -225,6 +225,7 @@ export async function advanceKycAction(input: {
       recipientUserId: input.citizenId,
       recipientEmail: data.email ?? null,
       body: note,
+      payload: { motif: note },
     });
   }
 

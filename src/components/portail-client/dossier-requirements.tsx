@@ -35,6 +35,11 @@ const STATUS_META: Record<
   in_review: { label: "En revue", tone: "amber", icon: Clock },
   rejected: { label: "Rejeté", tone: "red", icon: TriangleAlert },
   missing: { label: "À fournir", tone: "neutral", icon: CircleDashed },
+  // La pièce a été fournie au KYC : elle n'est plus attendue, et l'agent ne
+  // doit pas la redemander.
+  deja_fournie: { label: "Déjà fournie", tone: "green", icon: Check },
+  // La pièce a été déclarée par le demandeur : elle attend sa vérification.
+  envoyee: { label: "Envoyée", tone: "blue", icon: Clock },
 };
 
 export function DossierRequirements({

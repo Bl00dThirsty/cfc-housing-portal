@@ -1,30 +1,74 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Calculator, HelpCircle, LogIn } from "lucide-react";
+import { Calculator, HelpCircle, LayoutDashboard, LogIn, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getBrowserClient } from "@/lib/supabase/client";
 
 /**
  * En-tête du site public.
  *
- * Il n'affiche que ce qui est **ouvert à tous** : le simulateur d'épargne.
+ * Il n'affiche que ce qui est **ouvert à tous** : le simulateur d'épargne, la
+ * FAQ, et les deux portes du citoyen — **Créer un compte** (l'appel à
+ * l'action) et **Se connecter** (le lien discret).
  *
  * Le reste du parcours est ailleurs, et c'est volontaire :
  *
- * - l'**onboarding** vient **après l'inscription**, quand le premier dossier
- *   s'ouvre ;
+ * - l'**inscription** (`/inscription`) est la seule porte qui ouvre un compte
+ *   et le premier dossier : c'est la destination de l'appel à l'action ;
+ * - l'**assistant de dossier** (`/onboarding`) reprend le parcours d'un
+ *   demandeur déjà connecté ;
  * - l'**espace citoyen** et le **suivi du prêt** viennent **après
  *   l'authentification** — ils ne montrent que les données du visiteur ;
- * - l'**espace agent** a sa propre porte, signalée discrètement : un agent
- *   n'est pas un visiteur du site public.
+ * - la **porte de l'agent** n'est pas ici : elle est dans le pied de page,
+ *   à côté des autres portes du site. Un agent n'est pas un visiteur du site
+ *   public, et répéter la même porte sur la même page n'aide personne.
  */
 export default function Navbar() {
   const pathname = usePathname();
   const isAdminActive = pathname.startsWith("/portail-cfc");
+  /**
+   * Sur la page d'inscription, l'appel à l'action ne mène nulle part : on y
+   * est déjà. Seul le lien « Se connecter » reste utile.
+   */
+  const isRegistrationPath = pathname.startsWith("/inscription");
+
+  /**
+   * Le visiteur est-il connecté ?
+   *
+   * L'en-tête public ne propose une porte que si elle sert encore : un
+   * visiteur déjà connecté n'a rien à faire de « Se connecter » ni de « Créer
+   * un compte ». On demande la session au navigateur — une seule requête,
+   * sans rendre dynamique toute l'application.
+   */
+  const [signedIn, setSignedIn] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    try {
+      void getBrowserClient()
+        .auth.getSession()
+        .then(({ data }) => {
+          if (!cancelled) setSignedIn(Boolean(data.session));
+        })
+        .catch(() => {
+          // Une session illisible ne se signale pas : l'en-tête reste public.
+        });
+    } catch {
+      // Sans configuration — un poste de démonstration, un test — l'en-tête
+      // reste public : il n'a pas à planter pour cela.
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
@@ -84,7 +128,7 @@ export default function Navbar() {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {isAdminActive ? (
             <Link
               href="/login"
@@ -92,22 +136,38 @@ export default function Navbar() {
             >
               <span>← Portail Citoyen</span>
             </Link>
+          ) : signedIn ? (
+            // Le visiteur est déjà connecté : on ne lui propose pas une porte
+            // qui ne mène nulle part. « Mon espace » mène à son portail —
+            // un agent y sera renvoyé vers sa console.
+            <Link
+              href="/portail-client"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3.5 py-2 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-200"
+            >
+              <LayoutDashboard className="size-3.5" aria-hidden />
+              <span>Mon espace</span>
+            </Link>
           ) : (
             <>
-              {/* La porte de l'agent : discrète, mais présente. */}
+              {/* La porte de connexion : discrète, mais toujours là. */}
               <Link
-                href="/portail-cfc/login"
-                className="hidden text-[11px] font-medium text-slate-500 underline-offset-2 transition-colors hover:text-slate-900 hover:underline sm:inline"
+                href="/login"
+                aria-label="Se connecter"
+                className="flex items-center gap-1.5 rounded-lg p-2 text-[11px] font-medium text-slate-600 transition-colors hover:text-slate-900 sm:p-1 sm:pl-2"
               >
-                Espace Agent CFC
+                <LogIn className="size-3.5 sm:hidden" aria-hidden />
+                <span className="hidden sm:inline">Se connecter</span>
               </Link>
 
-              <Button asChild variant="cfc" size="sm" className="gap-1.5 text-xs">
-                <Link href="/login">
-                  <LogIn className="size-3.5" aria-hidden />
-                  Se connecter
-                </Link>
-              </Button>
+              {/* L'appel à l'action : entrer par la création du compte. */}
+              {!isRegistrationPath && (
+                <Button asChild variant="cfc" size="sm" className="gap-1.5 text-xs">
+                  <Link href="/inscription">
+                    <UserPlus className="size-3.5" aria-hidden />
+                    Créer un compte
+                  </Link>
+                </Button>
+              )}
             </>
           )}
         </div>

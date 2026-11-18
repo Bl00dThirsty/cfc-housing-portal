@@ -7,10 +7,37 @@ import { calculateHousingPlan } from "../src/domain/calculations/index.ts";
 
 const SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+function isLocalSupabaseUrl(value) {
+  try {
+    const url = new URL(value);
+    return (
+      ["http:", "https:"].includes(url.protocol) &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+}
+
+if (!isLocalSupabaseUrl(SUPABASE_URL)) {
+  console.error(
+    "Refusing to seed a non-local Supabase URL. Use a loopback URL such as http://127.0.0.1:54321.",
+  );
+  process.exit(1);
+}
+
 const SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
-  process.env.SUPABASE_SECRET_KEY ??
-  "";
+  process.env.SUPABASE_SECRET_KEY;
+if (!SERVICE_ROLE_KEY) {
+  console.error(
+    "Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY before seeding development users.",
+  );
+  console.error(
+    "La cle de service est celle de la base locale : elle est dans .env.local, exportez-la avant de lancer le script.",
+  );
+  process.exit(1);
+}
 
 const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD ?? "CfcDev2026!";
 
@@ -53,6 +80,11 @@ const CITIZENS = [
     // Neuf versements : le droit acquis (douze mois) n'est pas encore
     // acquis, et le dossier est encore à la phase d'épargne.
     savingsMonthsPaid: 9,
+    // Le demandeur n'a jamais eu de prêt au CFC : son dossier attend
+    // l'orientation d'un conseiller.
+    onboardingState: "suspension",
+    priorClientCase: "premiere_fois",
+    ducStatus: "non_active",
     timeline: [
       { type: "KYC_SUBMITTED", role: "CITIZEN", payload: { note: "Dossier transmis au guichet." } },
       { type: "DOCUMENT_REQUESTED", role: "GUICHET", payload: { document: "CNI biométrique" } },
@@ -77,10 +109,41 @@ const CITIZENS = [
     // Épargne constituée : le dossier a franchi l'épargne et entre à
     // l'expertise technique.
     savingsMonthsPaid: 48,
+    // Client du CFC depuis plus de six mois : son DUC est activé et le
+    // dossier est en instruction.
+    onboardingState: "en_examen",
+    priorClientCase: "deja_au_cfc",
+    ducStatus: "active",
     timeline: [
       { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Identité vérifiée." } },
       { type: "DOCUMENT_REQUESTED", role: "DIASPORA", payload: { document: "Titre foncier" } },
       { type: "DOSSIER_UPDATED", role: "RISQUES_BET", payload: { note: "Transmission à l'expertise technique." } },
+    ],
+  },
+  {
+    email: "emprunteur.pieces@cfc.cm",
+    name: "NGUEMA Pierre",
+    affiliation: "cfc_existing",
+    diaspora: false,
+    ducCode: "CFC-DEV-0003",
+    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
+    phase: "kyc_savings",
+    plan: {
+      projectCost: 12000000,
+      apportPercentage: 20,
+      durationMonths: 36,
+      monthlyIncome: 950000,
+      loanDurationYears: 15,
+      annualInterestRate: 0.055,
+    },
+    // Déjà client du CFC pour ce service : il dépose ses pièces.
+    savingsMonthsPaid: 14,
+    onboardingState: "documents",
+    priorClientCase: "deja_au_cfc",
+    ducStatus: "non_active",
+    timeline: [
+      { type: "KYC_SUBMITTED", role: "CITIZEN", payload: { note: "Dossier transmis au guichet." } },
+      { type: "DOCUMENT_UPLOADED", role: "CITIZEN", payload: { document: "CNI biométrique" } },
     ],
   },
 ];
@@ -149,11 +212,10 @@ async function assertOk(result, label) {
  * (`append_dossier_event`) contrôle l'habilitation de `auth.uid()`, qui n'est
  * pas l'emprunteur dans un script de provisionnement.
  */
-async function seedDossier(citizen, citizenId, agencyId, staffByRole) {
-  const advisorId =
-    staffByRole.get(citizen.diaspora ? "DIASPORA" : "GUICHET") ??
-    staffByRole.get("ADMIN") ??
-    null;
+async function seedDossier(citizen, citizenId, agencyId, staffByRole, staffNameByRole) {
+  const advisorRole = citizen.diaspora ? "DIASPORA" : "GUICHET";
+  const advisorId = staffByRole.get(advisorRole) ?? staffByRole.get("ADMIN") ?? null;
+  const advisorName = staffNameByRole.get(advisorRole) ?? staffNameByRole.get("ADMIN") ?? null;
 
   const { data: existing } = await admin
     .from("dossiers")
@@ -179,6 +241,14 @@ async function seedDossier(citizen, citizenId, agencyId, staffByRole) {
     service_code: citizen.serviceCode,
     current_phase: citizen.phase,
     status: "open",
+    // La situation du parcours : elle dit si le dossier attend une décision.
+    onboarding_state: citizen.onboardingState,
+    prior_client_case: citizen.priorClientCase,
+    duc_status: citizen.ducStatus,
+    duc_activated_at: citizen.ducStatus === "active" ? new Date().toISOString() : null,
+    // Le conseiller : c'est son **nom** que le demandeur voit dans son
+    // espace, et c'est lui qui instruit le dossier.
+    advisor: advisorName,
     loan_amount: plan.loanAmount,
     rate: plan.annualInterestRate * 100,
     duration_years: plan.loanDurationYears,
@@ -251,6 +321,8 @@ async function main() {  const { data: roles, error: rolesError } = await admin
   const created = [];
   /** Rôle → identifiant de l'agent : les dossiers de démonstration sont partagés. */
   const staffByRole = new Map();
+  /** Rôle → nom de l'agent : c'est ce nom que l'emprunteur voit dans son espace. */
+  const staffNameByRole = new Map();
 
   for (const member of STAFF) {
     const role = roleByCode.get(member.role);
@@ -328,6 +400,7 @@ async function main() {  const { data: roles, error: rolesError } = await admin
     });
 
     staffByRole.set(role.code, userId);
+    staffNameByRole.set(role.code, member.name);
   }
 
   for (const citizen of CITIZENS) {
@@ -350,7 +423,7 @@ async function main() {  const { data: roles, error: rolesError } = await admin
       { onConflict: "id" },
     );
 
-    await seedDossier(citizen, userId, defaultAgencyId, staffByRole);
+    await seedDossier(citizen, userId, defaultAgencyId, staffByRole, staffNameByRole);
 
     created.push({
       type: "emprunteur",

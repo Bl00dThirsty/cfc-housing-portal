@@ -1,29 +1,37 @@
-# Plans d'implémentation — Cohérence de l'interface CFC
+# Plans d'implémentation — CFC
 
-Ces plans implémentent la spécification
-[`../specs/2026-11-12-portal-ui-conformance-design.md`](../specs/2026-11-12-portal-ui-conformance-design.md).
+Deux spécifications sont en cours d'implémentation :
 
-La spécification couvre **quatre sous-systèmes indépendants**. Plutôt qu'un
-plan unique de trente tâches, il y a **un plan par sous-système** : chacun
-produit un logiciel qui fonctionne et se teste seul, et ils peuvent être
-confiés à des agents distincts.
+- [`../specs/2026-11-12-portal-ui-conformance-design.md`](../specs/2026-11-12-portal-ui-conformance-design.md)
+  — cohérence de l'interface : moteur de table, suivi interactif, toasts,
+  en-tête par rôle.
+- [`../specs/2026-11-12-signup-kyc-onboarding-journey-design.md`](../specs/2026-11-12-signup-kyc-onboarding-journey.md)
+  — parcours d'inscription, de KYC et d'onboarding.
+
+Chacune couvre **plusieurs sous-systèmes indépendants**. Plutôt qu'un plan
+unique de trente tâches, il y a **un plan par sous-système** : chacun produit
+un logiciel qui fonctionne et se teste seul, et ils peuvent être confiés à
+des agents distincts.
 
 | Plan | Sous-système | Tâches | Étapes |
 |---|---|---|---|
 | [`2026-11-12-shared-data-table-engine.md`](2026-11-12-shared-data-table-engine.md) | Moteur de table partagé — tri multi-colonnes, facettes, groupement ; migration des 44 tableaux | 11 | 55 |
-| [`2026-11-12-interactive-tracking-drawer.md`](2026-11-12-interactive-tracking-drawer.md) | Suivi interactif — le panneau d'une étape : qui, quoi, quand | 6 | 28 |
+| [`2026-11-12-signup-kyc-onboarding-journey.md`](2026-11-12-signup-kyc-onboarding-journey.md) | Parcours d'inscription, de KYC et d'onboarding | 10 | ~60 |
+| [`2026-11-12-interactive-tracking-drawer.md`](2026-11-12-interactive-tracking-drawer.md) | Suivi interactif — le panneau d'étape : qui, quoi, quand | 6 | 28 |
 | [`2026-11-12-toast-layer.md`](2026-11-12-toast-layer.md) | Couche de toasts — actions, refus, événements temps réel | 6 | 26 |
 | [`2026-11-12-role-aware-header.md`](2026-11-12-role-aware-header.md) | En-tête paramétré par le rôle — pôle, recherche scopée, actions rapides | 5 | 20 |
 
 ## Ordre d'exécution
 
 ```
-1. Moteur de table partagé      ──►  2. Suivi interactif
-                                        3. Couche de toasts
-                                        4. En-tête paramétré par le rôle
+1. Moteur de table partagé
+2. Parcours d'inscription et d'onboarding
+3. Suivi interactif
+4. Couche de toasts
+5. En-tête paramétré par le rôle
 ```
 
-Les plans 2, 3 et 4 sont **indépendants** du plan 1 et entre eux : ils ne
+Les plans 2 à 5 sont **indépendants** du plan 1 et entre eux : ils ne
 portent pas sur les mêmes fichiers. Seule précaution : tous ajoutent des
 règles de smoke, et le total monte à chaque plan (58 → 60 → 59 → 60).
 

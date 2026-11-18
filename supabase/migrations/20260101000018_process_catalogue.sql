@@ -9,7 +9,6 @@
 --- se fait ici, pas dans le code.
 ---
 set search_path = public, extensions;
-
 -- ---------------------------------------------------------------------------
 -- Catalogue des processus
 -- ---------------------------------------------------------------------------
@@ -28,10 +27,8 @@ create table if not exists ref.process (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 comment on table ref.process is
   'Catalogue des processus CFC (cartographie officielle, chapitre 6).';
-
 -- ---------------------------------------------------------------------------
 -- Étapes de procédure, par phase du circuit de crédit
 -- ---------------------------------------------------------------------------
@@ -54,10 +51,8 @@ create table if not exists ref.process_step (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 create index if not exists process_step_phase_idx on ref.process_step (phase);
 create index if not exists process_step_process_idx on ref.process_step (process_code);
-
 -- ---------------------------------------------------------------------------
 -- Points de rupture documentés et levier d'amélioration associé
 -- ---------------------------------------------------------------------------
@@ -74,7 +69,6 @@ create table if not exists ref.process_rupture (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 -- ---------------------------------------------------------------------------
 -- Échelle de recouvrement (ancienneté de l'impayé)
 -- ---------------------------------------------------------------------------
@@ -93,7 +87,6 @@ create table if not exists ref.arrears_phase (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 create table if not exists ref.arrears_obligation (
   stage         text not null references ref.arrears_phase (stage) on delete cascade,
   ordinal       smallint not null,
@@ -107,7 +100,6 @@ create table if not exists ref.arrears_obligation (
   deleted_by    uuid references auth.users (id) on delete set null,
   primary key (stage, ordinal)
 );
-
 -- ---------------------------------------------------------------------------
 -- Règles de l'épargne-logement
 -- ---------------------------------------------------------------------------
@@ -127,7 +119,6 @@ create table if not exists ref.savings_rule (
   deleted_at    timestamptz,
   deleted_by    uuid references auth.users (id) on delete set null
 );
-
 -- ---------------------------------------------------------------------------
 -- Données de référence
 -- ---------------------------------------------------------------------------
@@ -151,7 +142,6 @@ on conflict (code) do update
       priority = excluded.priority,
       updated_at = now()
 where ref.process.deleted_at is null;
-
 insert into ref.process_step (code, process_code, label, phase, lane, is_external) values
   ('CRD-01', 'CRD', 'Entretien exploratoire et analyse sommaire',          'kyc_savings',     'agence',      false),
   ('CRD-02', 'CRD', 'Analyse sommaire du dossier',                        'kyc_savings',     'agence',      false),
@@ -197,7 +187,6 @@ on conflict (code) do update
       is_external = excluded.is_external,
       updated_at = now()
 where ref.process_step.deleted_at is null;
-
 insert into ref.process_rupture (code, process_code, label, lever) values
   ('CRD-R1', 'CRD', 'Support papier et ressaisies',                                   'Capture à la source, dossier client numérique de référence'),
   ('CRD-R2', 'CRD', 'Dépendance aux bureaux d''études',                               'Dossier technique numérisé et suivi outillé des inspections de chantier'),
@@ -218,7 +207,6 @@ on conflict (code) do update
       lever = excluded.lever,
       updated_at = now()
 where ref.process_rupture.deleted_at is null;
-
 insert into ref.arrears_phase (stage, label, from_month, to_month, sla_days, is_external) values
   ('current',                'Échéance',                            null, 0,   5,  true),
   ('relance_amiable',        'Relances amiables',                   1,    2,   15, false),
@@ -235,7 +223,6 @@ on conflict (stage) do update
       is_external = excluded.is_external,
       updated_at = now()
 where ref.arrears_phase.deleted_at is null;
-
 insert into ref.arrears_obligation (stage, ordinal, label, procedures) values
   ('current', 1, 'Prélèvement automatique sur le compte domiciliataire', array['REC-01','REC-12']),
   ('current', 2, 'Avis à tiers détenteur auprès de l''employeur', array['REC-12']),
@@ -257,7 +244,6 @@ on conflict (stage, ordinal) do update
       procedures = excluded.procedures,
       updated_at = now()
 where ref.arrears_obligation.deleted_at is null;
-
 insert into ref.savings_rule (code, label, value, unit, legal_basis) values
   ('DROIT_ACQUIS_MONTHS', 'Durée de versements requise pour l''acquisition du droit acquis', 12, 'mois',
    'Figure 9 — Rémunération et droits acquis, période ≥ 1 an'),
@@ -270,7 +256,6 @@ on conflict (code) do update
       legal_basis = excluded.legal_basis,
       updated_at = now()
 where ref.savings_rule.deleted_at is null;
-
 -- ---------------------------------------------------------------------------
 -- RLS : référentiel en lecture pour les agents authentifiés
 -- ---------------------------------------------------------------------------
@@ -281,21 +266,15 @@ alter table ref.process_rupture enable row level security;
 alter table ref.arrears_phase enable row level security;
 alter table ref.arrears_obligation enable row level security;
 alter table ref.savings_rule enable row level security;
-
 drop policy if exists process_read on ref.process;
 create policy process_read on ref.process for select to authenticated using (deleted_at is null);
-
 drop policy if exists process_step_read on ref.process_step;
 create policy process_step_read on ref.process_step for select to authenticated using (deleted_at is null);
-
 drop policy if exists process_rupture_read on ref.process_rupture;
 create policy process_rupture_read on ref.process_rupture for select to authenticated using (deleted_at is null);
-
 drop policy if exists arrears_phase_read on ref.arrears_phase;
 create policy arrears_phase_read on ref.arrears_phase for select to authenticated using (deleted_at is null);
-
 drop policy if exists arrears_obligation_read on ref.arrears_obligation;
 create policy arrears_obligation_read on ref.arrears_obligation for select to authenticated using (true);
-
 drop policy if exists savings_rule_read on ref.savings_rule;
 create policy savings_rule_read on ref.savings_rule for select to authenticated using (deleted_at is null);

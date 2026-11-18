@@ -9,7 +9,6 @@
 --- preuve ; la notification n'est qu'un signal d'attention.
 ---
 set search_path = public, extensions;
-
 -- ---------------------------------------------------------------------------
 -- Notifications
 -- ---------------------------------------------------------------------------
@@ -35,18 +34,14 @@ create table if not exists public.notifications (
   deleted_at        timestamptz,
   deleted_by        uuid references auth.users (id) on delete set null
 );
-
 create index if not exists notifications_recipient_idx
   on public.notifications (recipient_user_id, created_at desc)
   where deleted_at is null;
-
 create index if not exists notifications_unread_idx
   on public.notifications (recipient_user_id)
   where read_at is null and deleted_at is null;
-
 comment on table public.notifications is
   'Notifications in-app. Chaque événement important produit une ligne ici et un envoi par courriel.';
-
 -- ---------------------------------------------------------------------------
 -- Fil de support (une conversation par dossier)
 -- ---------------------------------------------------------------------------
@@ -66,13 +61,10 @@ create table if not exists public.support_messages (
   deleted_at      timestamptz,
   deleted_by      uuid references auth.users (id) on delete set null
 );
-
 create index if not exists support_messages_room_idx
   on public.support_messages (room_name, created_at);
-
 comment on table public.support_messages is
   'Fil de support : une conversation persistée par dossier. La diffusion temps réel passe par le broadcast Supabase.';
-
 -- ---------------------------------------------------------------------------
 -- RLS
 -- ---------------------------------------------------------------------------
@@ -81,24 +73,20 @@ alter table public.notifications enable row level security;
 alter table public.notifications force row level security;
 alter table public.support_messages enable row level security;
 alter table public.support_messages force row level security;
-
 -- Une notification n'est lisible que par son destinataire.
 drop policy if exists notifications_read on public.notifications;
 create policy notifications_read on public.notifications for select to authenticated
   using (recipient_user_id = (select auth.uid()));
-
 drop policy if exists notifications_update on public.notifications;
 create policy notifications_update on public.notifications for update to authenticated
   using (recipient_user_id = (select auth.uid()))
   with check (recipient_user_id = (select auth.uid()));
-
 -- Une notification est écrite par le service (rôle de service) via les
 -- actions serveur. La politique ci-dessous n'est qu'un **filet** pour un
 -- accès direct par l'API : un utilisateur ne peut notifier que lui-même.
 drop policy if exists notifications_write on public.notifications;
 create policy notifications_write on public.notifications for insert to authenticated
   with check (recipient_user_id = (select auth.uid()));
-
 -- Le fil : l'emprunteur voit les messages de son dossier, l'agent ceux des
 -- dossiers de son périmètre.
 drop policy if exists support_messages_read on public.support_messages;
@@ -113,11 +101,9 @@ create policy support_messages_read on public.support_messages for select to aut
     )
     or (select private.has_capability((select private.current_role()), 'dossier:read'))
   );
-
 drop policy if exists support_messages_write on public.support_messages;
 create policy support_messages_write on public.support_messages for insert to authenticated
   with check (author_user_id = (select auth.uid()));
-
 -- ---------------------------------------------------------------------------
 -- Droits
 -- ---------------------------------------------------------------------------
@@ -128,7 +114,6 @@ grant delete on public.notifications to authenticated;
 grant select, insert on public.support_messages to authenticated;
 grant update, delete on public.support_messages to authenticated;
 grant all on public.notifications, public.support_messages to service_role;
-
 -- ---------------------------------------------------------------------------
 -- Temps réel
 -- ---------------------------------------------------------------------------

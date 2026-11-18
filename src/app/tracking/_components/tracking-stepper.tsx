@@ -1,9 +1,15 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { Check, Circle, CircleDot, ExternalLink, MessageSquare } from "lucide-react";
 
+import { RupturePoint } from "@/components/tracking/rupture-points";
+import { StepDetailDrawer } from "@/components/tracking/step-detail-drawer";
 import { Progress } from "@/components/ui/progress";
 import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
+import type { DossierEvent } from "@/domain/entities/processes";
 import { PHASE_ORDER, type IndexedStep } from "@/domain/workflows/tracking";
 
 /**
@@ -13,6 +19,9 @@ import { PHASE_ORDER, type IndexedStep } from "@/domain/workflows/tracking";
  * manuel de procédures (`CRD-01`…`CRD-13`, `GAR-01`), sa phase et son état —
  * franchie, en cours, à venir. Les phases sont présentées dans l'ordre
  * officiel du circuit (`PHASE_ORDER`), pas dans l'ordre du tableau.
+ *
+ * Chaque étape est **cliquable** : elle ouvre le journal de cette étape du
+ * parcours — qui a fait quoi, quand.
  *
  * Composant de présentation : il ne lit rien, il ne reçoit que des
  * propriétés simples. Aucun identifiant personnel n'y transite.
@@ -45,6 +54,13 @@ export type TrackingStepperProps = {
   /** Avancement global, en pourcentage d'étapes franchies. */
   progress: number;
   /**
+   * Le journal du dossier.
+   *
+   * Il alimente le panneau d'étape : sans lui, le panneau ne dirait que
+   * l'étape est vide.
+   */
+  events?: DossierEvent[];
+  /**
    * Page de discussion, où l'étape est ciblée.
    *
    * Discuter d'une étape, c'est rattacher la conversation **à cette étape du
@@ -53,7 +69,14 @@ export type TrackingStepperProps = {
   discussionPath?: string;
 };
 
-export function TrackingStepper({ steps, progress, discussionPath }: TrackingStepperProps) {
+export function TrackingStepper({
+  steps,
+  progress,
+  events = [],
+  discussionPath,
+}: TrackingStepperProps) {
+  const [openStep, setOpenStep] = React.useState<IndexedStep | null>(null);
+
   const groups = PHASE_ORDER.map((phase) => {
     const phaseSteps = steps.filter((step) => step.phase === phase);
     return {
@@ -131,21 +154,28 @@ export function TrackingStepper({ steps, progress, discussionPath }: TrackingSte
                   </span>
 
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span className="shrink-0 font-mono text-[11px] font-medium text-soft">
-                        {step.code}
+                    <button
+                      type="button"
+                      onClick={() => setOpenStep(step)}
+                      aria-expanded={openStep?.code === step.code}
+                      className="flex w-fit max-w-full flex-col gap-1 text-left transition-colors hover:text-cfc-brown focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                    >
+                      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span className="shrink-0 font-mono text-[11px] font-medium text-soft">
+                          {step.code}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[13px] leading-snug break-words",
+                            step.status === "pending"
+                              ? "text-muted-foreground"
+                              : "text-foreground",
+                          )}
+                        >
+                          {step.label}
+                        </span>
                       </span>
-                      <span
-                        className={cn(
-                          "text-[13px] leading-snug break-words",
-                          step.status === "pending"
-                            ? "text-muted-foreground"
-                            : "text-foreground",
-                        )}
-                      >
-                        {step.label}
-                      </span>
-                    </div>
+                    </button>
 
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Tag tone={STATUS_TONES[step.status]} size="sm" className="text-[11px]">
@@ -169,6 +199,8 @@ export function TrackingStepper({ steps, progress, discussionPath }: TrackingSte
                         </Link>
                       ) : null}
                     </div>
+
+                    <RupturePoint stepCode={step.code} />
                   </div>
                 </li>
               ))}
@@ -176,6 +208,16 @@ export function TrackingStepper({ steps, progress, discussionPath }: TrackingSte
           </section>
         ))}
       </div>
+
+      <StepDetailDrawer
+        step={openStep}
+        events={events}
+        steps={steps}
+        open={openStep !== null}
+        onOpenChange={(open) => {
+          if (!open) setOpenStep(null);
+        }}
+      />
     </section>
   );
 }
