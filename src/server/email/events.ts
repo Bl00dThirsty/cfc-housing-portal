@@ -131,6 +131,7 @@ export function buildVariables(
 ): EmailVariables {
   const { recipient, payload = {}, date, link } = context;
   const { prenom, nom } = splitName(recipient.fullName);
+  const siteUrl = getSiteUrl();
 
   const variables: EmailVariables = {
     prenom,
@@ -139,7 +140,19 @@ export function buildVariables(
     duc: recipient.ducCode ?? "",
     reference: recipient.ducCode ?? "",
     date: date ?? formatDate(new Date()),
-    lien: link ?? `${getSiteUrl()}/portail-client`,
+    lien: link ?? `${siteUrl}/portail-client`,
+    /**
+     * L'adresse du siege : elle est dans le pied de chaque message. Un
+     * courriel du CFC qui ne dit pas d'ou il vient n'est pas un courriel du
+     * CFC.
+     */
+    siege: siteUrl,
+    /**
+     * Le logo : une **URL absolue**, car un client e-mail ne sait pas
+     * resoudre un chemin relatif. C'est elle qui fait la signature du
+     * message.
+     */
+    logo: `${siteUrl}/images/logo-cfc.png`,
     montant: formatAmount(recipient.loanAmount),
     taux: recipient.rate === null ? "" : `${recipient.rate} %`,
     echeance:

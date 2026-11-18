@@ -24,22 +24,50 @@ export interface EmailTemplateDefinition {
   text: string;
 }
 
+/**
+ * L'identité visuelle du CFC dans un courriel.
+ *
+ * Les couleurs sont celles de la marque — brun `#7b2e15`, or `#e59819` — et
+ * non celles d'un gabarit générique : un message du CFC doit ressembler à
+ * un message du CFC, avant même qu'on lise le logo.
+ *
+ * Le logo est une **variable** (`{{logo}}`) : le gabarit ne connaît pas
+ * l'adresse du portail, c'est l'envoi qui la donne. C'est ce qui permet au
+ * même gabarit de servir la production et la démonstration.
+ */
+const CFC = {
+  brown: "#7b2e15",
+  darkBrown: "#5c220f",
+  gold: "#e59819",
+  page: "#f6f1ea",
+  card: "#ffffff",
+  border: "#e8ded2",
+  text: "#3f2d22",
+  muted: "#7a6a5e",
+  soft: "#faf7f3",
+} as const;
+
 /** Enveloppe HTML minimale, en styles en ligne (les clients e-mail ignorent `<style>`). */
 function wrapHtml(title: string, body: string): string {
   return [
-    '<div style="margin:0;padding:0;background-color:#f4f5f7;font-family:Arial,Helvetica,sans-serif;">',
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:24px 12px;">',
+    `<div style="margin:0;padding:0;background-color:${CFC.page};font-family:Arial,Helvetica,sans-serif;color:${CFC.text};">`,
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${CFC.page};padding:28px 12px;">`,
     '<tr><td align="center">',
-    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">',
-    '<tr><td style="background-color:#14532d;padding:20px 24px;color:#ffffff;font-size:18px;font-weight:bold;">',
-    "Crédit Foncier du Cameroun — CFC Habitat",
+    `<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background-color:${CFC.card};border-radius:10px;overflow:hidden;border:1px solid ${CFC.border};">`,
+    // L'entête porte le logo : c'est la signature de la banque.
+    `<tr><td style="background-color:${CFC.card};padding:22px 28px;border-bottom:3px solid ${CFC.gold};">`,
+    '<img src="{{logo}}" alt="Crédit Foncier du Cameroun" width="190" style="display:block;border:0;height:auto;width:190px;max-width:190px;" />',
+    `<div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:${CFC.brown};padding-top:8px;letter-spacing:0.3px;">CFC Habitat — Épargne, Crédit Foncier et Garanties</div>`,
     "</td></tr>",
-    `<tr><td style="padding:24px;color:#1f2937;font-size:14px;line-height:1.6;">`,
-    `<p style="margin:0 0 16px 0;font-size:16px;font-weight:bold;color:#14532d;">${title}</p>`,
+    `<tr><td style="padding:28px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.65;color:${CFC.text};">`,
+    `<p style="margin:0 0 16px 0;font-size:17px;font-weight:bold;color:${CFC.brown};">${title}</p>`,
     body,
     "</td></tr>",
-    '<tr><td style="padding:16px 24px;background-color:#f9fafb;color:#6b7280;font-size:12px;line-height:1.5;">',
-    "Crédit Foncier du Cameroun — Direction Générale. Ce message est généré automatiquement ; merci de ne pas y répondre.",
+    `<tr><td style="background-color:${CFC.soft};border-top:1px solid ${CFC.border};padding:18px 28px;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.65;color:${CFC.muted};">`,
+    `<strong style="color:${CFC.brown};">Crédit Foncier du Cameroun</strong> — Direction Générale · Yaoundé, Cameroun<br />`,
+    "Ce message est généré automatiquement : merci de ne pas y répondre directement.",
+    "<br />Pour toute question, rapprochez-vous de votre agence CFC ou de votre conseiller au Guichet Unique.",
+    `<br /><a href="{{siege}}" style="color:${CFC.brown};">{{siege}}</a>`,
     "</td></tr>",
     "</table>",
     "</td></tr>",
@@ -51,8 +79,8 @@ function wrapHtml(title: string, body: string): string {
 /** Bloc « bouton » d'appel à l'action. */
 function cta(label: string, href: string): string {
   return [
-    `<p style="margin:24px 0 8px 0;"><a href="${href}" style="display:inline-block;background-color:#14532d;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;font-size:14px;">${label}</a></p>`,
-    `<p style="margin:0;font-size:12px;color:#6b7280;word-break:break-all;">Si le bouton ne fonctionne pas, copiez ce lien :<br />${href}</p>`,
+    `<p style="margin:24px 0 8px 0;"><a href="${href}" style="display:inline-block;background-color:${CFC.gold};color:${CFC.darkBrown};text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;font-size:14px;">${label}</a></p>`,
+    `<p style="margin:0;font-size:12px;color:${CFC.muted};word-break:break-all;">Si le bouton ne fonctionne pas, copiez ce lien :<br />${href}</p>`,
   ].join("");
 }
 
@@ -63,7 +91,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Bienvenue — création de compte",
     eventType: "PROFILE_CREATED",
     audience: "citizen",
-    variables: ["prenom", "nom", "email", "lien", "date"],
+    variables: ["prenom", "nom", "email", "lien", "date", "logo", "siege"],
     subject: "Bienvenue chez CFC Habitat, {{prenom}}",
     html: wrapHtml(
       "Bienvenue chez CFC Habitat",
@@ -90,7 +118,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Lien de connexion magic",
     eventType: "MAGIC_LINK_REQUESTED",
     audience: "citizen",
-    variables: ["lien", "date", "duree"],
+    variables: ["lien", "date", "duree", "logo", "siege"],
     subject: "Votre lien de connexion CFC Habitat",
     html: wrapHtml(
       "Votre lien de connexion",
@@ -116,7 +144,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Réinitialisation du mot de passe",
     eventType: "PASSWORD_RESET_REQUESTED",
     audience: "citizen",
-    variables: ["lien", "date", "duree"],
+    variables: ["lien", "date", "duree", "logo", "siege"],
     subject: "Réinitialisation de votre mot de passe CFC Habitat",
     html: wrapHtml(
       "Réinitialisation de votre mot de passe",
@@ -143,7 +171,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Dépôt du dossier KYC",
     eventType: "KYC_SUBMITTED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien", "logo", "siege"],
     subject: "Votre dossier KYC a bien été reçu — {{reference}}",
     html: wrapHtml(
       "Votre dossier KYC a bien été reçu",
@@ -167,7 +195,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "KYC approuvé",
     eventType: "KYC_APPROVED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien", "logo", "siege"],
     subject: "Votre dossier KYC est approuvé — {{reference}}",
     html: wrapHtml(
       "Votre dossier KYC est approuvé",
@@ -191,7 +219,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "KYC refusé",
     eventType: "KYC_REJECTED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "date", "motif", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "date", "motif", "lien", "logo", "siege"],
     subject: "Votre dossier KYC nécessite des corrections — {{reference}}",
     html: wrapHtml(
       "Votre dossier KYC nécessite des corrections",
@@ -218,7 +246,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Transmission du dossier au conseiller",
     eventType: "APPLICATION_SUBMITTED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien", "logo", "siege"],
     subject: "Votre dossier est transmis au conseiller — {{reference}}",
     html: wrapHtml(
       "Votre dossier est transmis",
@@ -243,7 +271,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Dossier en attente d'orientation",
     eventType: "APPLICATION_SUSPENDED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien", "logo", "siege"],
     subject: "Votre dossier attend l'orientation de votre conseiller — {{reference}}",
     html: wrapHtml(
       "Votre dossier attend votre conseiller",
@@ -267,7 +295,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Dépôt des pièces ouvert",
     eventType: "DOCUMENTS_READY",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien", "logo", "siege"],
     subject: "Votre dossier est prêt pour le dépôt des pièces — {{reference}}",
     html: wrapHtml(
       "Votre dossier est prêt pour le dépôt des pièces",
@@ -291,7 +319,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Dossier activé",
     eventType: "DUC_ACTIVATED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "date", "lien", "logo", "siege"],
     subject: "Votre dossier est activé — vous pouvez demander un prêt — {{reference}}",
     html: wrapHtml(
       "Votre dossier est activé",
@@ -315,7 +343,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Éligibilité refusée",
     eventType: "DUC_REFUSED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "conseiller", "motif", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "conseiller", "motif", "date", "lien", "logo", "siege"],
     subject: "Votre dossier ne peut pas être activé pour l'instant — {{reference}}",
     html: wrapHtml(
       "Votre dossier n'est pas encore activé",
@@ -345,7 +373,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Pièce justificative demandée",
     eventType: "DOCUMENT_REQUESTED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "document", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "document", "reference", "date", "lien", "logo", "siege"],
     subject: "Une pièce justificative vous est demandée — {{document}}",
     html: wrapHtml(
       "Une pièce justificative vous est demandée",
@@ -375,7 +403,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Pièce déposée au dossier",
     eventType: "DOCUMENT_UPLOADED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "document", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "document", "date", "lien", "logo", "siege"],
     subject: "Votre pièce a bien été reçue — {{reference}}",
     html: wrapHtml(
       "Votre pièce a bien été reçue",
@@ -399,7 +427,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Pièce justificative validée",
     eventType: "DOCUMENT_VALIDATED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "document", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "document", "reference", "date", "lien", "logo", "siege"],
     subject: "Votre pièce justificative est validée — {{document}}",
     html: wrapHtml(
       "Votre pièce justificative est validée",
@@ -426,7 +454,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Pièce justificative refusée",
     eventType: "DOCUMENT_REJECTED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "document", "reference", "motif", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "document", "reference", "motif", "date", "lien", "logo", "siege"],
     subject: "Une pièce justificative doit être refaite — {{document}}",
     html: wrapHtml(
       "Une pièce justificative doit être refaite",
@@ -458,7 +486,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Décision de comité de crédit",
     eventType: "COMMITTEE_DECISION",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "decision", "montant", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "decision", "montant", "date", "lien", "logo", "siege"],
     subject: "Décision du comité de crédit — {{decision}}",
     html: wrapHtml(
       "Décision du comité de crédit",
@@ -486,7 +514,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Offre de prêt émise",
     eventType: "LOAN_OFFER_ISSUED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "montant", "taux", "echeance", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "montant", "taux", "echeance", "date", "lien", "logo", "siege"],
     subject: "Votre offre de prêt est disponible — {{montant}}",
     html: wrapHtml(
       "Votre offre de prêt est disponible",
@@ -515,7 +543,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Décaissement effectué",
     eventType: "DISBURSEMENT_RELEASED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "montant", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "montant", "date", "lien", "logo", "siege"],
     subject: "Décaissement effectué — {{montant}}",
     html: wrapHtml(
       "Décaissement effectué",
@@ -539,7 +567,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Décompte d'extinction",
     eventType: "PAYOFF_STATEMENT",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "montant", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "montant", "date", "lien", "logo", "siege"],
     subject: "Votre décompte d'extinction est disponible — {{montant}}",
     html: wrapHtml(
       "Votre décompte d'extinction",
@@ -566,7 +594,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Mainlevée hypothécaire disponible",
     eventType: "MAINLEVEE_READY",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien", "logo", "siege"],
     subject: "Votre mainlevée hypothécaire est disponible — {{reference}}",
     html: wrapHtml(
       "Votre mainlevée hypothécaire est disponible",
@@ -590,7 +618,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Mise à jour du dossier",
     eventType: "DOSSIER_UPDATED",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien", "logo", "siege"],
     subject: "Votre dossier a été mis à jour — {{reference}}",
     html: wrapHtml(
       "Votre dossier a été mis à jour",
@@ -614,7 +642,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Nouveau message du conseiller",
     eventType: "SUPPORT_MESSAGE",
     audience: "citizen",
-    variables: ["prenom", "nom", "duc", "reference", "date", "lien"],
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien", "logo", "siege"],
     subject: "Un nouveau message de votre conseiller — {{reference}}",
     html: wrapHtml(
       "Un nouveau message vous attend",
@@ -640,7 +668,7 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     label: "Prise de contact — épargne habitat",
     eventType: "SAVE_CONTACT",
     audience: "citizen",
-    variables: ["prenom", "nom", "email", "telephone", "date", "lien"],
+    variables: ["prenom", "nom", "email", "telephone", "date", "lien", "logo", "siege"],
     subject: "Nous vous recontactons au sujet de votre épargne habitat",
     html: wrapHtml(
       "Prise de contact — épargne habitat",
@@ -681,6 +709,8 @@ export function defaultTemplateFor(code: string): EmailTemplateContent | null {
     eventType: definition.eventType,
     audience: definition.audience,
     isActive: true,
+    // La definition declare deja `logo` et `siege` : les lister une seconde
+    // fois ici gonflerait la liste des variables du gabarit publie.
     variables: [...definition.variables],
     effectiveFrom: "1970-01-01T00:00:00.000Z",
     effectiveTo: null,
