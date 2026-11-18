@@ -1,4 +1,6 @@
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
+import { AuthProvider } from "@/lib/auth-context";
+import { getServerProfile } from "@/server/auth/profile";
 import { loadOnboardingDraft } from "@/server/actions/onboarding";
 import { getPublicEnv } from "@/server/env";
 import { getKycProfileQuery } from "@/server/queries/kyc-profile";
@@ -14,12 +16,17 @@ import { KYC_DOCUMENT_CODES } from "@/domain/entities/kyc-profile";
  * **brouillon** du demandeur, et les **pièces** qu'il a déjà déposées. Les
  * pièces servent à deux choses : marquer « déjà fournie » celles du KYC, et
  * reprendre celles qu'il a envoyées.
+ *
+ * Le demandeur connecté doit pouvoir **partir** : le menu d'identité — et la
+ * déconnexion qu'il porte — est donc rendu ici, avec le profil résolu côté
+ * serveur.
  */
 export default async function OnboardingPage() {
   const configured = getPublicEnv() !== null;
 
   let signedIn = false;
   let citizenId: string | null = null;
+  let profile = null;
 
   if (configured) {
     const supabase = await createServerSupabaseClient();
@@ -28,6 +35,10 @@ export default async function OnboardingPage() {
     } = await supabase.auth.getUser();
     signedIn = user !== null;
     citizenId = user?.id ?? null;
+
+    if (signedIn) {
+      profile = await getServerProfile().catch(() => null);
+    }
   }
 
   const [services, draft, kycView] = configured && citizenId
@@ -47,12 +58,14 @@ export default async function OnboardingPage() {
   const sentCodes = (kycView?.documents ?? []).map((document) => document.docCode);
 
   return (
-    <OnboardingWizard
-      services={services}
-      initialDraft={draft}
-      signedIn={signedIn}
-      providedCodes={providedCodes}
-      sentCodes={sentCodes}
-    />
+    <AuthProvider initialProfile={profile}>
+      <OnboardingWizard
+        services={services}
+        initialDraft={draft}
+        signedIn={signedIn}
+        providedCodes={providedCodes}
+        sentCodes={sentCodes}
+      />
+    </AuthProvider>
   );
 }

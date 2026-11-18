@@ -3,12 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { UserMenu } from "@/components/layout/user-menu";
 import { cn } from "@/lib/utils";
 import {
   ONBOARDING_STEPS,
+  completedSteps,
   resumeStepId,
   type OnboardingDraft,
   type OnboardingStepId,
@@ -69,6 +71,16 @@ export function OnboardingWizard({
     [draft.serviceCode, services],
   );
 
+  /**
+   * Les étapes **franchies** : elles dépendent des réponses, pas de
+   * l'ordre. Le service commande les pieces — c'est lui qui fait le lien
+   * entre l'étape 2 et l'étape 3.
+   */
+  const done = React.useMemo(() => completedSteps(draft), [draft]);
+
+  /** Le dossier a été transmis : l'étape des pièces est achevée. */
+  const [transmitted, setTransmitted] = React.useState(false);
+
   /** L'étape suivante : le parcours n'avance qu'après une écriture réussie. */
   const goNext = React.useCallback(() => {
     const next = ONBOARDING_STEPS[stepIndex + 1];
@@ -85,6 +97,7 @@ export function OnboardingWizard({
   }, [stepIndex]);
 
   const finish = React.useCallback(() => {
+    setTransmitted(true);
     router.push("/portail-client");
   }, [router]);
 
@@ -116,37 +129,70 @@ export function OnboardingWizard({
       )}
 
       <header className="mb-8 flex flex-col gap-1.5">
-        <span className="eyebrow-style font-normal text-cfc-gold">
-          Guichet Unique · Dossier Unique Client
-        </span>
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Constituer votre dossier de prêt
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Trois étapes, et votre dossier est complet au CFC. Vous pouvez revenir
-          dessus à tout moment depuis votre portail.
-        </p>
-        {resumed && (
-          <p className="caption-style text-soft">
-            Vous reprenez votre dossier là où vous l&apos;aviez laissé.
-          </p>
-        )}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="eyebrow-style font-normal text-cfc-gold">
+              Guichet Unique · Dossier Unique Client
+            </span>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Constituer votre dossier de prêt
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Trois étapes, et votre dossier est complet au CFC. Vous pouvez
+              revenir dessus à tout moment depuis votre portail.
+            </p>
+            {resumed && (
+              <p className="caption-style text-soft">
+                Vous reprenez votre dossier là où vous l&apos;aviez laissé.
+              </p>
+            )}
+          </div>
+
+          {/*
+           * Le demandeur connecté doit pouvoir **partir** : sans le menu
+           * d'identité, l'assistant de dossier est un cul-de-sac — il a
+           * ouvert un compte et ne peut plus le fermer.
+           */}
+          {signedIn && (
+            <div className="shrink-0">
+              <UserMenu profileHref="/portail-client/profil" />
+            </div>
+          )}
+        </div>
       </header>
 
       <ol className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-0">
         {ONBOARDING_STEPS.map((item, index) => {
-          const state =
-            index < stepIndex ? "done" : index === stepIndex ? "current" : "todo";
+          /**
+           * L'état d'une étape vient des **réponses**, pas de l'ordre :
+           * une étape est faite quand elle est valide, et accessible quand
+           * celles qui la précèdent le sont. L'étape des pièces est donc
+           * fermée tant qu'aucun service n'est choisi — ses pièces sont
+           * celles du service.
+           */
+          const isDone =
+            item.id === "documents"
+              ? transmitted
+              : done.includes(item.id);
+          const isReachable =
+            index <= stepIndex &&
+            (index === stepIndex || done.includes(item.id));
+          const state = isDone ? "done" : index === stepIndex ? "current" : "todo";
+          const caption =
+            item.id === "documents" && service
+              ? `Pièces — ${service.label}`
+              : item.caption;
+
           return (
             <li key={item.id} className="flex flex-1 items-center gap-3 sm:flex-col sm:items-stretch sm:gap-2">
               <button
                 type="button"
-                onClick={() => index <= stepIndex && setStep(item.id)}
-                disabled={index > stepIndex}
+                onClick={() => isReachable && setStep(item.id)}
+                disabled={!isReachable}
                 aria-current={state === "current" ? "step" : undefined}
                 className={cn(
                   "flex items-center gap-2 text-left transition-colors duration-200 ease-power3-out",
-                  index <= stepIndex ? "cursor-pointer" : "cursor-not-allowed",
+                  isReachable ? "cursor-pointer" : "cursor-not-allowed",
                 )}
               >
                 <span
@@ -157,7 +203,13 @@ export function OnboardingWizard({
                     state === "todo" && "border-line-strong text-soft",
                   )}
                 >
-                  {state === "done" ? <Check className="size-3" aria-hidden /> : item.index}
+                  {state === "done" ? (
+                    <Check className="size-3" aria-hidden />
+                  ) : !isReachable ? (
+                    <Lock className="size-2.5" aria-hidden />
+                  ) : (
+                    item.index
+                  )}
                 </span>
                 <span className="flex flex-col">
                   <span
@@ -168,7 +220,7 @@ export function OnboardingWizard({
                   >
                     {item.title}
                   </span>
-                  <span className="caption-style text-soft">{item.caption}</span>
+                  <span className="caption-style text-soft">{caption}</span>
                 </span>
               </button>
               {index < ONBOARDING_STEPS.length - 1 && (

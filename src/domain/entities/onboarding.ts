@@ -177,6 +177,29 @@ export function validateStep(
 }
 
 /**
+ * Les étapes **franchies**.
+ *
+ * Une étape est faite quand ses réponses sont valides — pas quand elle est
+ * derrière dans l'ordre. C'est ce qui lie les étapes entre elles : le
+ * service choisi commande les pièces exigées, et une pièce exigée par un
+ * service non choisi n'existe pas.
+ *
+ * L'étape des pièces n'est pas listée : elle ne se termine que par la
+ * **transmission** du dossier, que seul l'écran des pièces connaît.
+ */
+export function completedSteps(draft: OnboardingDraft): OnboardingStepId[] {
+  const done: OnboardingStepId[] = [];
+
+  for (const step of ONBOARDING_STEPS) {
+    if (step.id === "documents") break;
+    if (!validateStep(step.id, draft).valid) break;
+    done.push(step.id);
+  }
+
+  return done;
+}
+
+/**
  * L'étape à reprendre.
  *
  * Un visiteur qui revient ne repart pas de zéro : il reprend là où son

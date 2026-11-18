@@ -35,6 +35,7 @@ import {
   requestMagicLinkAction,
   requestPasswordResetAction,
 } from "@/server/actions/auth-links";
+import { signOutAction } from "@/server/actions/session";
 
 export type { ActorType, AuthProfile } from "@/lib/auth-data";
 
@@ -442,8 +443,9 @@ export function AuthProvider({
   const signOut = React.useCallback(async () => {
     setError(null);
     try {
-      const supabase = getBrowserClient();
-      await supabase.auth.signOut();
+      // La session est rendue **côté serveur** : c'est lui qui tient les
+      // cookies. Le navigateur ne fait que suivre.
+      await signOutAction();
     } catch {
       // La session locale est abandonnée quoi qu'il arrive.
     }
