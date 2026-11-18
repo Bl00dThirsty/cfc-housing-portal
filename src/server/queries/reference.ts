@@ -27,8 +27,11 @@ export const REFERENCE_VIEWS = {
   document_type: "cfc_document_type",
   document_nature: "cfc_document_nature",
   service_document_requirement: "cfc_service_document_requirement",
+  debt_capacity_policy: "cfc_debt_capacity_policy",
   email_template: "cfc_email_template",
   email_settings: "cfc_email_settings",
+  process_step: "cfc_process_steps",
+  process_phase: "cfc_process_phases",
 } as const;
 
 /** Une table du référentiel. */

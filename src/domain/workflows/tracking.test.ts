@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { DossierEvent } from "@/domain/entities/processes";
 import { actorRoleLabel } from "@/domain/entities/processes";
-import { eventsForStep, unassignedEvents } from "@/domain/workflows/tracking";
+import {
+  eventsForStep,
+  indexProcessSteps,
+  unassignedEvents,
+} from "@/domain/workflows/tracking";
 
 /**
  * Le suivi — l'historique d'une étape.
@@ -53,6 +57,36 @@ describe("suivi — l'historique d'une étape", () => {
 
     const orphans = unassignedEvents(events, ["CRD-01"]);
     expect(orphans.map((item) => item.id)).toEqual(["e4"]);
+  });
+});
+
+describe("suivi — catalogue des étapes", () => {
+  it("uses the process steps and labels supplied by the database", () => {
+    const result = indexProcessSteps({
+      currentPhase: "kyc_savings",
+      eventTypes: [],
+      phaseOrder: ["kyc_savings"],
+      phaseLabels: { kyc_savings: "Instruction personnalisée" },
+      processSteps: [
+        {
+          code: "CUSTOM-01",
+          label: "Contrôle défini par le catalogue",
+          process: "CRD",
+          phase: "kyc_savings",
+          lane: "agence",
+          external: false,
+        },
+      ],
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        code: "CUSTOM-01",
+        label: "Contrôle défini par le catalogue",
+        phaseLabel: "Instruction personnalisée",
+        status: "current",
+      }),
+    ]);
   });
 });
 

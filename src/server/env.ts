@@ -72,7 +72,6 @@ export type PublicEnv = z.infer<typeof publicEnvSchema>;
 const MISSING_ENV_MESSAGE = [
   "Configuration Supabase manquante.",
   "Renseignez NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY (cf. .env.example).",
-  "Projet CFC attendu : yyqfqsmsfaccsstwlpog.",
 ].join(" ");
 
 /** Transport de messagerie retenu par le service d'e-mail. */

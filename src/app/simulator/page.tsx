@@ -1,6 +1,12 @@
 import SavingsCalculator from "@/components/simulator/savings-calculator";
+import { getGeneralDebtCapacityPolicy, listServices } from "@/server/queries/services";
 
-export default function SimulatorPage() {
+export default async function SimulatorPage() {
+  const [services, debtCapacityPolicy] = await Promise.all([
+    listServices(),
+    getGeneralDebtCapacityPolicy(),
+  ]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       
@@ -16,7 +22,7 @@ export default function SimulatorPage() {
         </p>
       </div>
 
-      <SavingsCalculator compact={false} />
+      <SavingsCalculator compact={false} services={services} debtCapacityPolicy={debtCapacityPolicy} />
 
     </div>
   );

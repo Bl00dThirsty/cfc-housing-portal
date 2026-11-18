@@ -33,9 +33,21 @@ import { ClientSavingsPassbook } from "./client-savings-passbook";
 import { ClientsCommandMenu } from "@/components/clients/command-menu/clients-command-menu";
 import { ClientDetailSheet } from "@/components/clients/detail/client-detail-sheet";
 import { ClientsTable } from "@/components/clients/table/clients-table";
-import { type ClientItem, clientsData } from "@/domain/entities/client";
+import { type ClientItem } from "@/domain/entities/client";
 
-export function ClientWorkspaceHub() {
+type SavingsCapabilities = { canCredit: boolean; canDebit: boolean; canValidate: boolean; canReverse: boolean };
+
+export function ClientWorkspaceHub({
+  clients,
+  loadError,
+  savingsCapabilities = { canCredit: false, canDebit: false, canValidate: false, canReverse: false },
+  canOpenProfile = false,
+}: {
+  clients: ClientItem[];
+  loadError?: string;
+  savingsCapabilities?: SavingsCapabilities;
+  canOpenProfile?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -47,7 +59,7 @@ export function ClientWorkspaceHub() {
   );
 
   const [selectedClientId, setSelectedClientId] = React.useState<string>(
-    clientParam || clientsData[0].id
+    clientParam || clients[0]?.id || ""
   );
 
   /**
@@ -71,8 +83,7 @@ export function ClientWorkspaceHub() {
     }
   }, [tabParam, clientParam]);
 
-  const activeClient =
-    clientsData.find((c) => c.id === selectedClientId) || clientsData[0];
+  const activeClient = clients.find((client) => client.id === selectedClientId) ?? clients[0];
 
   const handleSelectClient = (client: ClientItem) => {
     setSelectedClientId(client.id);
@@ -85,8 +96,9 @@ export function ClientWorkspaceHub() {
    */
   const handleOpenClient = React.useCallback((client: ClientItem) => {
     setSelectedClientId(client.id);
-    setDetailClientId(client.id);
-  }, []);
+    if (canOpenProfile) setDetailClientId(client.id);
+    else router.push(`/portail-cfc/dossiers/${client.id}`);
+  }, [canOpenProfile, router]);
 
   /** Fermer la fiche : le hub oublie l'emprunteur ouvert. */
   const handleDetailOpenChange = React.useCallback((open: boolean) => {
@@ -94,8 +106,8 @@ export function ClientWorkspaceHub() {
   }, []);
 
   const detailClient = React.useMemo(
-    () => clientsData.find((client) => client.id === detailClientId) ?? null,
-    [detailClientId],
+    () => clients.find((client) => client.id === detailClientId) ?? null,
+    [clients, detailClientId],
   );
 
   const handleOpenKanban = (client: ClientItem) => {
@@ -112,6 +124,24 @@ export function ClientWorkspaceHub() {
     setSelectedClientId(client.id);
     setActiveTab("epargne");
   };
+
+  if (!activeClient) {
+    return (
+      <section className="space-y-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight">Espace Emprunteurs &amp; DUC</h1>
+          <p className="text-sm text-muted-foreground">Dossiers auxquels votre compte est autorisé.</p>
+        </div>
+        <div className="rounded-lg border bg-card p-8 text-center">
+          <Users className="mx-auto mb-3 size-8 text-muted-foreground" />
+          <h2 className="font-semibold">{loadError ? "Portefeuille indisponible" : "Aucun dossier accessible"}</h2>
+          <p className="mx-auto mt-1 max-w-lg text-sm text-muted-foreground">
+            {loadError ?? "Aucun dossier n’est actuellement affecté à votre périmètre. Les nouveaux dossiers apparaîtront ici après leur affectation."}
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -163,7 +193,7 @@ export function ClientWorkspaceHub() {
               <DropdownMenuContent align="end" className="w-64 max-h-80 overflow-y-auto p-1.5 rounded-md">
                 <DropdownMenuLabel className="text-xs font-semibold">Sélectionner un emprunteur</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {clientsData.map((client) => (
+                {clients.map((client) => (
                   <DropdownMenuItem
                     key={client.id}
                     onClick={() => setSelectedClientId(client.id)}
@@ -233,7 +263,7 @@ export function ClientWorkspaceHub() {
         {/* Tab 1: Répertoire Emprunteurs */}
         <TabsContent value="clients" className="space-y-3 focus-visible:outline-none">
           <ClientsTable
-            clients={clientsData}
+            clients={clients}
             selectedClientId={selectedClientId}
             onSelectClient={handleOpenClient}
             onOpenKanban={handleOpenKanban}
@@ -246,7 +276,6 @@ export function ClientWorkspaceHub() {
         <TabsContent value="kanban" className="space-y-4 focus-visible:outline-none">
           <ClientKanban
             client={activeClient}
-            onSelectClient={handleSelectClient}
             onOpenDuc={() => setActiveTab("duc")}
           />
         </TabsContent>
@@ -261,21 +290,23 @@ export function ClientWorkspaceHub() {
 
         {/* Tab 4: Carnet d'Épargne du client sélectionné */}
         <TabsContent value="epargne" className="space-y-4 focus-visible:outline-none">
-          <ClientSavingsPassbook client={activeClient} />
+          <ClientSavingsPassbook client={activeClient} capabilities={savingsCapabilities} />
         </TabsContent>
       </Tabs>
 
-      <ClientDetailSheet
-        client={detailClient}
-        open={detailClientId !== null}
-        onOpenChange={handleDetailOpenChange}
-        onOpenKanban={handleOpenKanban}
-        onOpenDuc={handleOpenDuc}
-        onOpenEpargne={handleOpenEpargne}
-      />
+      {canOpenProfile ? (
+        <ClientDetailSheet
+          client={detailClient}
+          open={detailClientId !== null}
+          onOpenChange={handleDetailOpenChange}
+          onOpenKanban={handleOpenKanban}
+          onOpenDuc={handleOpenDuc}
+          onOpenEpargne={handleOpenEpargne}
+        />
+      ) : null}
 
       <ClientsCommandMenu
-        clients={clientsData}
+        clients={clients}
         open={commandOpen}
         onOpenChange={setCommandOpen}
         onSelect={handleOpenClient}

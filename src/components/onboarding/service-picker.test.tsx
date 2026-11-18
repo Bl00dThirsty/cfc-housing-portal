@@ -23,6 +23,7 @@ const services: ServiceSummary[] = [
       {
         code: "PFC_JEUNE_15",
         label: "Prêt Foncier Classique Jeune — 15 ans",
+        loanCeiling: null,
         minApportPercent: 10,
         maxDurationYears: 15,
         indicativeRate: 5,

@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tag } from "@/components/ui/tag";
 import { cn } from "@/lib/utils";
 import type { DossierEvent } from "@/domain/entities/processes";
-import { PHASE_ORDER, type IndexedStep } from "@/domain/workflows/tracking";
+import type { IndexedStep } from "@/domain/workflows/tracking";
 
 /**
  * Suivi indexé du parcours de l'emprunteur.
@@ -77,14 +77,18 @@ export function TrackingStepper({
 }: TrackingStepperProps) {
   const [openStep, setOpenStep] = React.useState<IndexedStep | null>(null);
 
-  const groups = PHASE_ORDER.map((phase) => {
-    const phaseSteps = steps.filter((step) => step.phase === phase);
-    return {
-      phase,
-      label: phaseSteps[0]?.phaseLabel ?? phase,
-      steps: phaseSteps,
-    };
-  }).filter((group) => group.steps.length > 0);
+  const groups = steps.reduce<{ phase: string; label: string; steps: IndexedStep[] }[]>(
+    (result, step) => {
+      let group = result.find((candidate) => candidate.phase === step.phase);
+      if (!group) {
+        group = { phase: step.phase, label: step.phaseLabel, steps: [] };
+        result.push(group);
+      }
+      group.steps.push(step);
+      return result;
+    },
+    [],
+  );
 
   const doneCount = steps.filter((step) => step.status === "done").length;
 

@@ -37,6 +37,7 @@ export type Capability =
   | "savings:credit"
   | "savings:debit"
   | "savings:validate"
+  | "savings:reverse"
   | "committee:read"
   | "committee:deliberate"
   | "committee:sign"
@@ -136,6 +137,7 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
   "savings:credit",
   "savings:debit",
   "savings:validate",
+  "savings:reverse",
   "committee:read",
   "committee:deliberate",
   "committee:sign",

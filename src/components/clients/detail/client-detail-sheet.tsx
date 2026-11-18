@@ -194,7 +194,9 @@ export function ClientDetailSheet({
                     />
                     <Fact
                       label="Objectif"
-                      value={`${client.savingsPassbook.savingsTarget.toLocaleString("fr-FR")} FCFA`}
+                      value={client.savingsPassbook.savingsTarget === null
+                        ? "Non renseigné"
+                        : `${client.savingsPassbook.savingsTarget.toLocaleString("fr-FR")} FCFA`}
                     />
                     <Fact
                       label="Solde"

@@ -9,7 +9,6 @@ import {
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
 import {
-  advisorForSequence,
   PRIOR_CLIENT_CASES,
   type PriorClientCase,
 } from "@/domain/entities/kyc-profile";
@@ -49,7 +48,7 @@ async function currentDossier(
 ) {
   const { data } = await supabase
     .from("dossiers")
-    .select("id, duc_code")
+    .select("id, duc_code, advisor")
     .eq("citizen_id", citizenId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -57,11 +56,22 @@ async function currentDossier(
     .limit(1)
     .maybeSingle();
 
-  return (data ?? null) as { id: string; duc_code: string } | null;
+  return (data ?? null) as { id: string; duc_code: string; advisor: string | null } | null;
 }
 
-type ProfileRow = {
-  full_name: string | null;
+/**
+ * L'affectation d'un dossier à un conseiller.
+ *
+ * Le conseiller du domaine est un **nom** : c'est ce que le demandeur voit.
+ * La plateforme a besoin d'un **compte** : c'est lui qui porte le dossier,
+ * qui le voit dans son portefeuille, et qui doit être prévenu de son
+ * arrivée.
+ *
+ * La fonction rend l'identifiant du compte — `null` quand le conseiller
+ * n'a pas de compte : l'affectation reste alors nominale, et le journal le
+ * dit.
+ */
+type ProfileRow = {  full_name: string | null;
   email: string | null;
   phone: string | null;
   birth_date: string | null;
@@ -254,21 +264,6 @@ export async function saveServiceAction(serviceCode: string): Promise<Onboarding
  */
 
 /**
- * L'index de rotation du conseiller.
- *
- * Il est **dérivé de l'identifiant** du demandeur : un même demandeur
- * retrouve toujours le même conseiller, et deux inscriptions simultanées ne
- * se partagent pas le même. Un compteur lu puis incrémenté ferait les deux.
- */
-function advisorIndexFor(citizenId: string): number {
-  let hash = 0;
-  for (let index = 0; index < citizenId.length; index += 1) {
-    hash = (hash * 31 + citizenId.charCodeAt(index)) % 1_000_003;
-  }
-  return hash;
-}
-
-/**
  * Enregistre la situation du demandeur face au service choisi.
  *
  * Trois issues, et elles ne se corrigent pas de la même façon :
@@ -296,11 +291,8 @@ export async function setPriorClientCaseAction(input: {
 
   // Le conseiller est calculé par le domaine — il est l'unique propriétaire de
   // la rotation — et la transition est appliquée par la base.
-  const advisor = advisorForSequence(advisorIndexFor(citizen.userId));
-
   const { error } = await supabase.rpc("set_prior_client_case", {
     p_case: input.priorClientCase,
-    p_advisor: advisor.name,
   });
 
   if (error) {
@@ -313,11 +305,11 @@ export async function setPriorClientCaseAction(input: {
     return { ok: false, error: error.message };
   }
 
+  const dossier = await currentDossier(supabase, citizen.userId);
+
   if (priorCase.eligible) {
     // Déjà servi au CFC : le dépôt des pièces est une nouvelle étape du
     // parcours, elle est journalisée par la fonction de base et notifiée ici.
-    const dossier = await currentDossier(supabase, citizen.userId);
-
     if (dossier) {
       await notifyBusinessEvent({
         eventType: "DOCUMENTS_READY",
@@ -330,24 +322,26 @@ export async function setPriorClientCaseAction(input: {
     return { ok: true, message: "Votre dossier passe au dépôt des pièces." };
   }
 
+  const advisor = dossier?.advisor ?? undefined;
+
   // Pas encore client du CFC : un conseiller est affecté, et l'onboarding est
   // en pause jusqu'à son activation du DUC. **La pause est un fait** : elle
   // est notifiée, en-app et par courriel.
-  const dossier = await currentDossier(supabase, citizen.userId);
-
   if (dossier) {
     await notifyBusinessEvent({
       eventType: "APPLICATION_SUSPENDED",
       dossierId: dossier.id,
       recipientUserId: citizen.userId,
-      payload: { prior_client_case: input.priorClientCase, conseiller: advisor.name },
+      payload: { prior_client_case: input.priorClientCase, conseiller: advisor ?? null },
     });
   }
 
   return {
     ok: true,
-    advisor: advisor.name,
-    message: `Votre dossier est transmis à ${advisor.name}.`,
+    advisor,
+    message: advisor
+      ? `Votre dossier est transmis à ${advisor}.`
+      : "Votre dossier est transmis à l’équipe régionale.",
   };
 }
 
@@ -368,11 +362,7 @@ export async function submitServiceApplicationAction(): Promise<
   }
 
   const { supabase } = citizen;
-  const advisor = advisorForSequence(advisorIndexFor(citizen.userId));
-
-  const { data, error } = await supabase.rpc("submit_service_application", {
-    p_advisor: advisor.name,
-  });
+  const { data, error } = await supabase.rpc("submit_service_application");
 
   if (error) {
     if (/no_dossier/.test(error.message)) {
@@ -391,19 +381,20 @@ export async function submitServiceApplicationAction(): Promise<
   // La transmission est un **fait** : elle est notifiée, en-app et par
   // courriel. Le demandeur sait ainsi que son dossier est désormais instruit.
   const dossier = await currentDossier(supabase, citizen.userId);
+  const advisor = typeof data === "string" ? data : dossier?.advisor ?? undefined;
 
   if (dossier) {
     await notifyBusinessEvent({
       eventType: "APPLICATION_SUBMITTED",
       dossierId: dossier.id,
       recipientUserId: citizen.userId,
-      payload: { conseiller: advisor.name, service_code: dossier.duc_code },
+      payload: { conseiller: advisor ?? null, service_code: dossier.duc_code },
     });
   }
 
   return {
     ok: true,
-    advisor: typeof data === "string" ? data : advisor.name,
+    advisor,
     message: "Votre dossier est transmis.",
   };
 }

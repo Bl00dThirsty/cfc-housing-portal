@@ -8,11 +8,14 @@ import {
   Building2,
   Briefcase,
   Calendar,
+  CircleCheck,
+  CircleX,
   CreditCard,
   Download,
   Globe,
   Landmark,
   Percent,
+  RotateCcw,
   Printer,
   Smartphone,
   Target,
@@ -20,6 +23,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { DataTable } from "@/components/data-table/data-table";
 import type { DataColumn } from "@/components/data-table/types";
@@ -28,7 +32,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn, formatFCFA } from "@/lib/utils";
+import { recordSavingsTransactionAction, decideSavingsTransactionAction, reverseSavingsTransactionAction } from "@/server/actions/savings";
 
 import type {
   ClientItem,
@@ -197,7 +211,9 @@ const SAVINGS_COLUMNS: DataColumn<SavingsTransaction>[] = [
     label: "Débit",
     accessor: (row) => row.debit,
     render: (row) =>
-      row.debit != null ? (
+      row.status === "pending" && row.type === "Retrait" ? (
+        <span className="text-muted-foreground font-medium">-{row.amount.toLocaleString("fr-FR")} · en attente</span>
+      ) : row.debit != null ? (
         <span className="text-rose-600 dark:text-rose-400 font-semibold">
           -{row.debit.toLocaleString("fr-FR")}
         </span>
@@ -213,7 +229,9 @@ const SAVINGS_COLUMNS: DataColumn<SavingsTransaction>[] = [
     label: "Crédit",
     accessor: (row) => row.credit,
     render: (row) =>
-      row.credit != null ? (
+      row.status === "pending" && row.type === "Dépôt" ? (
+        <span className="text-muted-foreground font-medium">+{row.amount.toLocaleString("fr-FR")} · en attente</span>
+      ) : row.credit != null ? (
         <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
           +{row.credit.toLocaleString("fr-FR")}
         </span>
@@ -235,23 +253,251 @@ const SAVINGS_COLUMNS: DataColumn<SavingsTransaction>[] = [
   },
 ];
 
+function SavingsTransactionStatus({
+  transaction,
+  canValidate,
+  canReverse,
+}: {
+  transaction: SavingsTransaction;
+  canValidate: boolean;
+  canReverse: boolean;
+}) {
+  const router = useRouter();
+  const [rejectOpen, setRejectOpen] = React.useState(false);
+  const [reason, setReason] = React.useState("");
+  const [reverseOpen, setReverseOpen] = React.useState(false);
+  const [reverseReason, setReverseReason] = React.useState("");
+  const reversalIntent = React.useRef<{ fingerprint: string; key: string } | null>(null);
+  const [isPending, startTransition] = React.useTransition();
+
+  const decide = (decision: "validate" | "reject") => {
+    startTransition(async () => {
+      const result = await decideSavingsTransactionAction({
+        transactionId: transaction.id,
+        decision,
+        reason: decision === "reject" ? reason : undefined,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(decision === "validate" ? "Opération validée." : "Opération rejetée.");
+      setRejectOpen(false);
+      setReason("");
+      router.refresh();
+    });
+  };
+
+  const reverse = () => {
+    const normalizedReason = reverseReason.trim();
+    const fingerprint = `${transaction.id}:${normalizedReason}`;
+    if (!reversalIntent.current || reversalIntent.current.fingerprint !== fingerprint) {
+      reversalIntent.current = { fingerprint, key: crypto.randomUUID() };
+    }
+    startTransition(async () => {
+      const result = await reverseSavingsTransactionAction({
+        transactionId: transaction.id,
+        idempotencyKey: reversalIntent.current!.key,
+        reason: normalizedReason,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Contrepassation enregistrée.", {
+        description: "L’écriture d’origine est conservée dans l’historique.",
+      });
+      setReverseOpen(false);
+      setReverseReason("");
+      reversalIntent.current = null;
+      router.refresh();
+    });
+  };
+
+  const label = transaction.reversedById
+    ? "Contrepassée"
+    : transaction.reversalOfId
+      ? "Contrepassation"
+      : transaction.status === "validated"
+    ? "Validée"
+    : transaction.status === "rejected"
+      ? "Rejetée"
+      : "En attente";
+
+  return (
+    <div className="flex min-w-[190px] items-center gap-2">
+      <Badge
+        variant="outline"
+        title={transaction.statusNote}
+        className={cn(
+          "text-[9px] rounded-md",
+          transaction.status === "validated" && "border-transparent bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+          transaction.status === "rejected" && "border-transparent bg-rose-500/10 text-rose-700 dark:text-rose-300",
+          transaction.status === "pending" && "border-transparent bg-amber-500/10 text-amber-700 dark:text-amber-300",
+        )}
+      >
+        {label}
+      </Badge>
+      {transaction.status === "pending" && canValidate && (
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            disabled={isPending}
+            aria-label="Valider l’opération"
+            title="Valider l’opération"
+            className="h-6 gap-1 px-1.5 text-[10px]"
+            onClick={() => decide("validate")}
+          >
+            <CircleCheck className="size-3" />
+            Valider
+          </Button>
+          <Button
+            type="button"
+            size="icon-xs"
+            variant="ghost"
+            disabled={isPending}
+            aria-label="Rejeter l’opération"
+            title="Rejeter l’opération"
+            onClick={() => setRejectOpen(true)}
+          >
+            <CircleX className="size-3.5 text-destructive" />
+          </Button>
+        </div>
+      )}
+      {transaction.statusNote && transaction.status !== "pending" && (
+        <span className="max-w-40 truncate text-[10px] text-muted-foreground" title={transaction.statusNote}>
+          {transaction.statusNote}
+        </span>
+      )}
+      {transaction.reversedByReference && (
+        <span className="max-w-40 truncate text-[10px] text-muted-foreground" title={`Contrepassée par ${transaction.reversedByReference}`}>
+          Écriture liée : {transaction.reversedByReference}
+        </span>
+      )}
+      {transaction.reversalOfReference && (
+        <span className="max-w-40 truncate text-[10px] text-muted-foreground" title={`Contrepassation de ${transaction.reversalOfReference}`}>
+          Corrige : {transaction.reversalOfReference}
+        </span>
+      )}
+      {transaction.status === "validated" && !transaction.reversalOfId && !transaction.reversedById && canReverse && (
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          disabled={isPending}
+          aria-label="Contrepasser l’opération"
+          title="Contrepasser avec motif"
+          onClick={() => setReverseOpen(true)}
+        >
+          <RotateCcw className="size-3.5" />
+        </Button>
+      )}
+      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Rejeter cette opération</DialogTitle>
+            <DialogDescription>
+              Le solde ne changera pas. Le motif sera conservé dans l’historique du dossier.
+            </DialogDescription>
+          </DialogHeader>
+          <label htmlFor={`savings-rejection-${transaction.id}`} className="text-xs font-medium">
+            Motif du rejet
+          </label>
+          <Textarea
+            id={`savings-rejection-${transaction.id}`}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Précisez la pièce ou l’information à corriger."
+            maxLength={240}
+          />
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => setRejectOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={isPending || reason.trim().length < 5}
+              onClick={() => decide("reject")}
+            >
+              Rejeter l’opération
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={reverseOpen} onOpenChange={setReverseOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Contrepasser cette opération</DialogTitle>
+            <DialogDescription>
+              Une écriture inverse sera ajoutée au carnet. L’opération d’origine restera consultable et inchangée.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border bg-muted/40 p-3 text-xs">
+            <p><span className="text-muted-foreground">Référence :</span> <span className="font-mono">{transaction.reference}</span></p>
+            <p className="mt-1"><span className="text-muted-foreground">Montant :</span> {formatFCFA(transaction.amount)}</p>
+          </div>
+          <label htmlFor={`savings-reversal-${transaction.id}`} className="text-xs font-medium">
+            Motif de la contrepassation
+          </label>
+          <Textarea
+            id={`savings-reversal-${transaction.id}`}
+            value={reverseReason}
+            onChange={(event) => setReverseReason(event.target.value)}
+            placeholder="Décrivez la correction à apporter."
+            maxLength={240}
+          />
+          <DialogFooter>
+            <Button type="button" variant="outline" size="sm" onClick={() => setReverseOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={isPending || reverseReason.trim().length < 5}
+              onClick={reverse}
+            >
+              Contrepasser
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 /* ── Main Component ─────────────────────────────────────────────── */
 
 interface ClientSavingsPassbookProps {
   client: ClientItem;
+  capabilities: { canCredit: boolean; canDebit: boolean; canValidate: boolean; canReverse: boolean };
 }
 
-export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
+export function ClientSavingsPassbook({ client, capabilities }: ClientSavingsPassbookProps) {
+  const router = useRouter();
   const passbook = client.savingsPassbook;
-
-  // Local copy of transactions for live updates (no backend)
-  const [localTransactions, setLocalTransactions] = React.useState<SavingsTransaction[]>(
-    passbook?.transactions ?? []
-  );
-  const [localBalance, setLocalBalance] = React.useState(passbook?.currentBalance ?? 0);
-
-  // New transaction dialog
+  const transactions = passbook?.transactions ?? [];
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const columns = React.useMemo(() => {
+    const statusColumn: DataColumn<SavingsTransaction> = {
+      key: "status",
+      label: "État",
+      accessor: (row) => row.status,
+      filterable: true,
+      render: (row) => <SavingsTransactionStatus transaction={row} canValidate={capabilities.canValidate} canReverse={capabilities.canReverse} />,
+      headerClassName: "w-[230px]",
+    };
+    const balanceIndex = SAVINGS_COLUMNS.findIndex((column) => column.key === "balance");
+    return [
+      ...SAVINGS_COLUMNS.slice(0, balanceIndex),
+      statusColumn,
+      ...SAVINGS_COLUMNS.slice(balanceIndex),
+    ];
+  }, [capabilities.canValidate, capabilities.canReverse]);
 
   /**
    * Les lignes **visibles** : celles que le moteur laisse passer.
@@ -261,8 +507,8 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
    */
   const { groups, reset } = useDataTable({
     tableId: TABLE_ID,
-    columns: SAVINGS_COLUMNS,
-    rows: localTransactions,
+    columns,
+    rows: transactions,
   });
 
   const visibleTransactions = React.useMemo(
@@ -270,14 +516,10 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
     [groups]
   );
 
-  // Reset when client changes
+  // Reset the shared table filters when the selected client changes.
   React.useEffect(() => {
-    setLocalTransactions(client.savingsPassbook?.transactions ?? []);
-    setLocalBalance(client.savingsPassbook?.currentBalance ?? 0);
-    // Le filtre du moteur est lui aussi remis à zéro : un carnet ne
-    // s'ouvre pas sur la recherche du carnet précédent.
     reset();
-  }, [client.id, client.savingsPassbook?.transactions, client.savingsPassbook?.currentBalance, reset]);
+  }, [client.id, reset]);
 
   if (!passbook) {
     return (
@@ -291,41 +533,40 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
     );
   }
 
-  const savingsPercent = Math.min(
-    100,
-    Math.round((localBalance / passbook.savingsTarget) * 100)
-  );
+  const balance = passbook.currentBalance;
+  const savingsPercent = passbook.savingsTarget && passbook.savingsTarget > 0
+    ? Math.min(100, Math.round((balance / passbook.savingsTarget) * 100))
+    : null;
 
-  // Handle new transaction
-  const handleNewTransaction = (payload: NewTransactionPayload) => {
-    const now = new Date();
-    const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
-
-    const isDeposit = payload.type === "Dépôt";
-    const newBalance = isDeposit
-      ? localBalance + payload.amount
-      : localBalance - payload.amount;
-
-    const newTx: SavingsTransaction = {
-      id: `txn-new-${Date.now()}`,
-      date: dateStr,
-      type: payload.type,
-      description: payload.description,
-      channel: payload.channel,
-      reference: payload.reference,
-      credit: isDeposit ? payload.amount : null,
-      debit: isDeposit ? null : payload.amount,
-      balance: newBalance,
-      validatedBy: client.officer,
+  const handleNewTransaction = async (payload: NewTransactionPayload): Promise<boolean> => {
+    const channelCodes: Record<SavingsChannel, string> = {
+      "Guichet CFC": "agency",
+      "Mobile Money MTN": "mobile_money_mtn",
+      "Mobile Money Orange": "mobile_money_orange",
+      "Virement Bancaire": "bank_transfer",
+      SYSTAC: "systac",
+      "Prélèvement Employeur": "employer_debit",
+      "Virement SWIFT (Diaspora)": "swift_transfer",
     };
+    const result = await recordSavingsTransactionAction({
+      accountId: passbook.accountId,
+      type: payload.type === "Dépôt" ? "deposit" : "withdrawal",
+      amount: payload.amount,
+      channel: channelCodes[payload.channel],
+      reference: payload.reference,
+      idempotencyKey: payload.idempotencyKey,
+      description: payload.description,
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
 
-    setLocalTransactions((prev) => [newTx, ...prev]);
-    setLocalBalance(newBalance);
-
-    toast.success(
-      isDeposit ? "Versement enregistré." : "Retrait enregistré.",
-      { description: `${formatFCFA(payload.amount)} — ${payload.channel}.` },
-    );
+    toast.success("Opération enregistrée en attente de validation.", {
+      description: `${formatFCFA(payload.amount)} · ${payload.channel}. Le solde sera mis à jour après validation.`,
+    });
+    router.refresh();
+    return true;
   };
 
   /**
@@ -366,7 +607,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
       buildSavingsStatementHtml({
         accountNumber: passbook.accountNumber,
         clientName: client.name,
-        balance: localBalance,
+        balance,
         transactions: visibleTransactions,
       }),
     );
@@ -381,13 +622,13 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
   const kpis = [
     {
       label: "Solde Actuel",
-      value: formatFCFA(localBalance),
+      value: formatFCFA(balance),
       icon: <Wallet className="size-4 text-emerald-600" />,
       accent: "text-emerald-700 dark:text-emerald-400",
     },
     {
       label: "Objectif Épargne",
-      value: formatFCFA(passbook.savingsTarget),
+      value: passbook.savingsTarget === null ? "—" : formatFCFA(passbook.savingsTarget),
       icon: <Target className="size-4 text-blue-600" />,
       accent: "text-foreground",
     },
@@ -431,7 +672,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Ouvert le {passbook.openDate} · {localTransactions.length} opérations enregistrées
+              Ouvert le {passbook.openDate} · {transactions.length} opération{transactions.length > 1 ? "s" : ""} enregistrée{transactions.length > 1 ? "s" : ""}
             </p>
           </div>
 
@@ -455,14 +696,14 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
               <Download className="size-3" />
               Exporter CSV
             </Button>
-            <Button
+            {(capabilities.canCredit || capabilities.canDebit) && <Button
               size="sm"
               className="h-7 text-xs gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={() => setDialogOpen(true)}
             >
               <ArrowDownLeft className="size-3" />
-              Enregistrer un versement
-            </Button>
+              {capabilities.canCredit ? "Enregistrer une opération" : "Enregistrer un retrait"}
+            </Button>}
           </div>
         </div>
 
@@ -472,17 +713,18 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
             <span className="text-muted-foreground">
               Progression de l&apos;épargne
             </span>
-            <span className="font-bold text-foreground">
-              {savingsPercent}%{" "}
-              <span className="font-normal text-muted-foreground">
-                ({formatFCFA(localBalance)} / {formatFCFA(passbook.savingsTarget)})
+            {savingsPercent === null ? (
+              <span className="text-muted-foreground">Objectif non renseigné</span>
+            ) : (
+              <span className="font-bold text-foreground">
+                {savingsPercent}%{" "}
+                <span className="font-normal text-muted-foreground">
+                  ({formatFCFA(balance)} / {formatFCFA(passbook.savingsTarget!)})
+                </span>
               </span>
-            </span>
+            )}
           </div>
-          <Progress
-            value={savingsPercent}
-            className="h-2.5"
-          />
+          {savingsPercent !== null && <Progress value={savingsPercent} className="h-2.5" />}
         </div>
 
         {/* KPI Cards */}
@@ -515,8 +757,8 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
         <div className="border-b p-3">
           <DataTableToolbar
             tableId={TABLE_ID}
-            columns={SAVINGS_COLUMNS}
-            rows={localTransactions}
+            columns={columns}
+            rows={transactions}
             unitName="opérations"
             searchPlaceholder="Rechercher (libellé, réf, date)…"
           />
@@ -525,7 +767,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
         {/* Table */}
         <DataTable
           tableId={TABLE_ID}
-          columns={SAVINGS_COLUMNS}
+          columns={columns}
           rows={visibleTransactions}
           getRowId={(transaction) => transaction.id}
           emptyLabel="Aucune opération trouvée."
@@ -541,6 +783,7 @@ export function ClientSavingsPassbook({ client }: ClientSavingsPassbookProps) {
         onOpenChange={setDialogOpen}
         onSubmit={handleNewTransaction}
         clientName={client.name}
+        canWithdraw={capabilities.canDebit}
       />
     </div>
   );

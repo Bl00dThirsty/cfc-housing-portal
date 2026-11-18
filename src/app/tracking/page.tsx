@@ -7,8 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tag } from "@/components/ui/tag";
 import { stageLabel } from "@/domain/entities/services";
-import type { CreditPhase } from "@/domain/entities/processes";
-import { phaseLabelOf } from "@/domain/workflows/tracking";
 import { getCitizenTracking } from "@/server/queries/citizen-space";
 import { getPublicEnv } from "@/server/env";
 import { createServerSupabaseClient } from "@/server/supabase/server";
@@ -100,9 +98,7 @@ export default async function TrackingPage() {
   const optionalCount = checklist.length - requiredCount;
 
   const currentStep = tracking.steps.find((step) => step.status === "current");
-  const currentPhaseLabel =
-    currentStep?.phaseLabel ??
-    (tracking.currentPhase ? phaseLabelOf(tracking.currentPhase as CreditPhase) : null);
+  const currentPhaseLabel = currentStep?.phaseLabel ?? tracking.currentPhaseLabel;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">

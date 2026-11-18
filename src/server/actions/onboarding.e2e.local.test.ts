@@ -24,12 +24,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
-  ANON_KEY,
   applyServerEnv,
   ensureE2eCitizen,
+  getE2eConfiguration,
   serviceClient,
   signInWithCookie,
-  SUPABASE_URL,
 } from "@/server/testing/e2e-accounts";
 
 import {
@@ -128,6 +127,7 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
   });
 
   it("déroule le parcours : compte, service, dossier, et reprise", async () => {
+    const { password: e2ePassword } = getE2eConfiguration();
     const fresh = `e2e.parcours.${Date.now()}@cfc.cm`;
 
     // Le visiteur est anonyme : le bocal ne doit rien garder.
@@ -140,8 +140,8 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
       email: fresh,
       phone: "+237 6 99 00 00 01",
       cniNumber: "AB123456",
-      password: "CfcDev2026!",
-      passwordConfirm: "CfcDev2026!",
+      password: e2ePassword,
+      passwordConfirm: e2ePassword,
       consent: true,
     });
 
@@ -347,7 +347,8 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // tente donc **pour de vrai**, avec son propre jeton.
     const { accessToken } = await signIn(fresh);
 
-    const asCitizen = createClient(SUPABASE_URL, ANON_KEY, {
+    const { supabaseUrl, anonKey } = getE2eConfiguration();
+    const asCitizen = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: `Bearer ${accessToken}` } },
       auth: { autoRefreshToken: false, persistSession: false },
     });

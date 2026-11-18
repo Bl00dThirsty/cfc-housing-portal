@@ -69,6 +69,7 @@ export async function getServerProfile(): Promise<AuthProfile | null> {
   const actor = (actorData ?? null) as ActorRow | null;
   const actorType = actor?.actor_type ?? "citizen";
   const email = user.email ?? "";
+  const now = new Date().toISOString();
 
   if (actorType !== "staff") {
     const { data: citizenData } = await supabase
@@ -99,6 +100,9 @@ export async function getServerProfile(): Promise<AuthProfile | null> {
       .select("role, agency_id")
       .eq("actor_id", user.id)
       .is("deleted_at", null)
+      .lte("starts_at", now)
+      .or(`ends_at.is.null,ends_at.gt.${now}`)
+      .order("starts_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),

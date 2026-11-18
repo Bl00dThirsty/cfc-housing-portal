@@ -11,10 +11,9 @@
  */
 
 import {
-  CREDIT_PROCESS_STEPS,
-  PROCESS_PHASE_LABELS,
   type CreditPhase,
   type DossierEvent,
+  type ProcessStep,
 } from "@/domain/entities/processes";
 
 /** État d'une étape dans le parcours de l'emprunteur. */
@@ -34,16 +33,6 @@ export type IndexedStep = {
   status: StepStatus;
 };
 
-/** Ordre du circuit : c'est lui qui donne le sens de l'avancement. */
-export const PHASE_ORDER: readonly CreditPhase[] = [
-  "kyc_savings",
-  "risk_bet",
-  "committees",
-  "notary_mortgage",
-  "disbursements",
-  "closing_release",
-];
-
 /**
  * Événement qui atteste qu'une phase a été **franchie**.
  *
@@ -59,25 +48,20 @@ export const PHASE_MILESTONE_EVENTS: Record<CreditPhase, readonly string[]> = {
   closing_release: ["PAYOFF_STATEMENT", "MAINLEVEE_READY"],
 };
 
-/** Libellé d'une phase du circuit. */
-export function phaseLabelOf(phase: CreditPhase | null): string {
-  if (!phase) return "—";
-  return PROCESS_PHASE_LABELS[phase] ?? phase;
-}
-
 /** La phase est-elle franchie ? */
 export function isPhaseAchieved(
-  phase: CreditPhase,
-  currentPhase: CreditPhase | null,
+  phase: string,
+  currentPhase: string | null,
   eventTypes: readonly string[],
+  phaseOrder: readonly string[],
 ): boolean {
-  const milestones = PHASE_MILESTONE_EVENTS[phase] ?? [];
+  const milestones = PHASE_MILESTONE_EVENTS[phase as CreditPhase] ?? [];
   if (milestones.some((event) => eventTypes.includes(event))) return true;
 
   if (!currentPhase) return false;
 
-  const currentIndex = PHASE_ORDER.indexOf(currentPhase);
-  const phaseIndex = PHASE_ORDER.indexOf(phase);
+  const currentIndex = phaseOrder.indexOf(currentPhase);
+  const phaseIndex = phaseOrder.indexOf(phase);
   return phaseIndex !== -1 && currentIndex !== -1 && phaseIndex < currentIndex;
 }
 
@@ -94,14 +78,21 @@ export function indexProcessSteps(input: {
   currentPhase: string | null;
   /** Types des événements du journal du dossier. */
   eventTypes: readonly string[];
+  /** Ordre et libellés lus depuis le catalogue Supabase. */
+  phaseOrder: readonly string[];
+  phaseLabels: Readonly<Record<string, string>>;
+  /** Étapes actives lues depuis le catalogue Supabase. */
+  processSteps: readonly ProcessStep[];
 }): IndexedStep[] {
-  const currentPhase = PHASE_ORDER.includes(input.currentPhase as CreditPhase)
-    ? (input.currentPhase as CreditPhase)
+  const currentPhase = input.phaseOrder.includes(input.currentPhase ?? "")
+    ? input.currentPhase
     : null;
 
-  const achieved = new Set<CreditPhase>();
-  for (const phase of PHASE_ORDER) {
-    if (isPhaseAchieved(phase, currentPhase, input.eventTypes)) achieved.add(phase);
+  const achieved = new Set<string>();
+  for (const phase of input.phaseOrder) {
+    if (isPhaseAchieved(phase, currentPhase, input.eventTypes, input.phaseOrder)) {
+      achieved.add(phase);
+    }
   }
 
   // La phase courante n'est franchie que si son événement-marqueur est
@@ -110,44 +101,33 @@ export function indexProcessSteps(input: {
 
   let currentMarked = false;
 
-  return CREDIT_PROCESS_STEPS.map((step) => {
-    const phase = step.phase as CreditPhase;
+  return input.processSteps
+    .filter(
+      (step): step is ProcessStep & { phase: CreditPhase } =>
+        step.phase !== null && input.phaseOrder.includes(step.phase),
+    )
+    .map((step) => {
+      const phase = step.phase;
 
-    let status: StepStatus = "pending";
+      let status: StepStatus = "pending";
 
-    if (achieved.has(phase)) {
-      status = "done";
-    } else if (activePhase === phase && !currentMarked) {
-      status = "current";
-      currentMarked = true;
-    }
+      if (achieved.has(phase)) {
+        status = "done";
+      } else if (activePhase === phase && !currentMarked) {
+        status = "current";
+        currentMarked = true;
+      }
 
-    return {
-      code: step.code,
-      label: step.label,
-      phase,
-      phaseLabel: phaseLabelOf(phase),
-      lane: step.lane,
-      external: step.external,
-      status,
-    };
-  });
-}
-
-/** Étape par code — elle sert d'ancre dans les conversations. */
-export function stepByCode(code: string): IndexedStep | undefined {
-  const step = CREDIT_PROCESS_STEPS.find((candidate) => candidate.code === code);
-  if (!step) return undefined;
-
-  return {
-    code: step.code,
-    label: step.label,
-    phase: step.phase as CreditPhase,
-    phaseLabel: phaseLabelOf(step.phase as CreditPhase),
-    lane: step.lane,
-    external: step.external,
-    status: "pending",
-  };
+      return {
+        code: step.code,
+        label: step.label,
+        phase,
+        phaseLabel: input.phaseLabels[phase] ?? phase,
+        lane: step.lane,
+        external: step.external,
+        status,
+      };
+    });
 }
 
 /** Avancement du parcours, en pourcentage d'étapes franchies. */

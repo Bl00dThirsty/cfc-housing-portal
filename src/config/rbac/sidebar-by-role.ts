@@ -153,14 +153,6 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           capability: "dossier:read",
         },
         {
-          id: "agency-kyc",
-          title: "Validation KYC & Vigilance Renforcée",
-          href: "/portail-cfc/actors/agency/kyc-validation",
-          badge: "KYC",
-          groupCode: "Accueil & DUC",
-          capability: "kyc:read",
-        },
-        {
           id: "clients",
           title: "Emprunteurs & Dossier Unique Client (DUC)",
           href: "/portail-cfc/clients",
@@ -362,14 +354,6 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           capability: "dossier:read",
         },
         {
-          id: "agency-kyc",
-          title: "Validation KYC & Vigilance Renforcée",
-          href: "/portail-cfc/actors/agency/kyc-validation",
-          badge: "KYC",
-          groupCode: "Cellule Non-Résidents",
-          capability: "kyc:read",
-        },
-        {
           id: "clients-diaspora",
           title: "Emprunteurs Diaspora & DUC",
           href: "/portail-cfc/clients",
@@ -456,12 +440,6 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
           capability: "dossier:read",
           subItems: [
             { id: "agency-main", title: "Enrôlement & Épargne Habitat", href: "/portail-cfc/actors/agency" },
-            {
-              id: "agency-kyc",
-              title: "Validation KYC & Vigilance Renforcée",
-              href: "/portail-cfc/actors/agency/kyc-validation",
-              capability: "kyc:read",
-            },
             { id: "agency-momo", title: "Collecte Mobile Money (MoMo)", href: "/portail-cfc/actors/agency/mobile-money" },
             { id: "agency-simulator", title: "Simulateur d'Apport & Scoring", href: "/portail-cfc/actors/agency/simulator" },
             { id: "agency-promoters", title: "Partenariats Promoteurs & SIC", href: "/portail-cfc/actors/agency/promoters" },

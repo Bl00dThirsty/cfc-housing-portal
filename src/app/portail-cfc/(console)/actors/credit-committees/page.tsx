@@ -1,14 +1,13 @@
+import { OperationalRegisterPage } from "@/server/queries/operational-register-page";
 import { PoleKpiStrip } from "@/components/portail-cfc/pole-kpi-strip";
-import { ComitesActorPage } from "./comites-console";
 
 export const dynamic = "force-dynamic";
 
-/**
- * L'écran du pôle.
- *
- * La page est un composant **serveur** : elle mesure les indicateurs dans le
- * périmètre de l'agent et les passe à l'écran, qui est un composant client.
- */
-export default function Page() {
-  return <ComitesActorPage kpi={<PoleKpiStrip />} />;
+export default async function Page() {
+  const register = await OperationalRegisterPage({
+    register: "committee-all",
+    title: "Comités de crédit",
+    description: "Délibérations CGR, CRC et de gouvernance enregistrées dans Supabase, selon les habilitations de votre rôle.",
+  });
+  return <div className="flex flex-col gap-5"><PoleKpiStrip />{register}</div>;
 }

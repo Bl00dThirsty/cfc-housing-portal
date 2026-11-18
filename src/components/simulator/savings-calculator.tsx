@@ -1,322 +1,252 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, AlertCircle } from "lucide-react";
-import { PROJECT_TYPE_OPTIONS } from "@/domain/data/mock-data";
-import { ProjectType } from "@/domain/entities/types";
+import { AlertCircle, ArrowRight, CheckCircle2, Info, ShieldCheck } from "lucide-react";
+
 import { calculateHousingPlan } from "@/domain/calculations";
+import type { DebtCapacityPolicy, ServiceProduct, ServiceSummary } from "@/domain/entities/services";
 import { formatFCFA } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type CalculatorProduct = ServiceProduct & {
+  serviceCode: string;
+  serviceLabel: string;
+  serviceDescription: string | null;
+};
 
 interface SavingsCalculatorProps {
   compact?: boolean;
+  services: ServiceSummary[];
+  debtCapacityPolicy: DebtCapacityPolicy | null;
 }
 
-export default function SavingsCalculator({ compact = false }: SavingsCalculatorProps) {
-  const [selectedType, setSelectedType] = useState<ProjectType>("construction");
-  const [projectCost, setProjectCost] = useState<number>(15000000);
-  const [apportPercentage, setApportPercentage] = useState<number>(20);
-  const [durationMonths, setDurationMonths] = useState<number>(24);
-  const [monthlyIncome, setMonthlyIncome] = useState<number>(450000);
+function productsFromServices(services: ServiceSummary[]): CalculatorProduct[] {
+  return services.flatMap((service) => service.products.map((product) => ({
+    ...product,
+    serviceCode: service.code,
+    serviceLabel: service.label,
+    serviceDescription: service.description,
+  })));
+}
 
-  // Calcul dynamique
-  const result = calculateHousingPlan({
-    projectCost,
-    apportPercentage,
-    durationMonths,
-    monthlyIncome,
-    loanDurationYears: 15,
-    annualInterestRate: 0.055, // 5.5% bonifié
-  });
+function numericInput(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
-  const handleProjectTypeChange = (type: ProjectType) => {
-    setSelectedType(type);
-    const opt = PROJECT_TYPE_OPTIONS.find((p) => p.id === type);
-    if (opt) {
-      setProjectCost(opt.defaultAmount);
-    }
+export default function SavingsCalculator({
+  compact = false,
+  services,
+  debtCapacityPolicy,
+}: SavingsCalculatorProps) {
+  const products = useMemo(() => productsFromServices(services), [services]);
+  const [selectedProductCode, setSelectedProductCode] = useState(products[0]?.code ?? "");
+  const [projectCost, setProjectCost] = useState("");
+  const [apportPercentage, setApportPercentage] = useState(0);
+  const [durationMonths, setDurationMonths] = useState("");
+  const [monthlyIncome, setMonthlyIncome] = useState("");
+  const [loanDurationYears, setLoanDurationYears] = useState(0);
+
+  const selectedProduct = products.find((product) => product.code === selectedProductCode);
+  const currentProjectCost = numericInput(projectCost);
+  const currentIncome = numericInput(monthlyIncome);
+  const currentSavingsMonths = numericInput(durationMonths);
+  const productRate = selectedProduct?.indicativeRate;
+  const readyToCalculate = Boolean(
+    selectedProduct && productRate !== null && productRate !== undefined &&
+    currentProjectCost > 0 && apportPercentage > 0 && apportPercentage <= 100 &&
+    currentSavingsMonths > 0 && currentIncome > 0 && loanDurationYears > 0,
+  );
+
+  const result = readyToCalculate && selectedProduct && productRate !== null && productRate !== undefined
+    ? calculateHousingPlan({
+        projectCost: currentProjectCost,
+        apportPercentage,
+        durationMonths: currentSavingsMonths,
+        monthlyIncome: currentIncome,
+        loanDurationYears,
+        annualInterestRate: productRate / 100,
+      })
+    : null;
+
+  const loanExceedsCeiling = Boolean(
+    result && selectedProduct?.loanCeiling !== null && selectedProduct?.loanCeiling !== undefined &&
+    result.loanAmount > selectedProduct.loanCeiling,
+  );
+  const withinCapacity = Boolean(
+    result && debtCapacityPolicy && result.debtToIncomeRatio <= debtCapacityPolicy.maxDebtRatio,
+  );
+
+  const handleProductChange = (code: string) => {
+    const nextProduct = products.find((product) => product.code === code);
+    setSelectedProductCode(code);
+    setApportPercentage(nextProduct?.minApportPercent ?? 0);
+    setLoanDurationYears(nextProduct?.maxDurationYears ?? 0);
   };
 
+  if (products.length === 0) {
+    return (
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8">
+        <AlertCircle className="mx-auto size-7 text-amber-600" aria-hidden />
+        <h2 className="mt-3 font-semibold text-slate-900">Catalogue de financement indisponible</h2>
+        <p className="mx-auto mt-1 max-w-xl text-sm text-slate-600">
+          Aucun produit actif avec un barème n’est disponible dans le référentiel. Le simulateur n’invente pas de taux ni de produit de remplacement.
+        </p>
+      </section>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-      
-      {/* Colonne Gauche : Paramétrage du simulateur */}
-      <div className={`${compact ? 'lg:col-span-6' : 'lg:col-span-7'} bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-8 shadow-sm space-y-6`}>
-        
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+    <div className={`grid grid-cols-1 items-start gap-6 ${compact ? "lg:grid-cols-12" : "lg:grid-cols-12"}`}>
+      <section className={`${compact ? "lg:col-span-6" : "lg:col-span-7"} space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7`} aria-labelledby="calculator-title">
+        <header className="space-y-1 border-b border-slate-100 pb-4">
+          <h2 id="calculator-title" className="text-lg font-bold text-slate-900">Simulateur Épargne &amp; Crédit</h2>
+          <p className="text-sm text-slate-600">Les produits, taux, apports minimums et durées sont lus dans le catalogue CFC actif.</p>
+        </header>
+
+        <div className="space-y-2">
+          <label htmlFor="sim-product" className="text-sm font-medium text-slate-800">Produit de financement</label>
+          <Select value={selectedProductCode} onValueChange={handleProductChange}>
+            <SelectTrigger id="sim-product" className="bg-white">
+              <SelectValue placeholder="Choisir un produit" />
+            </SelectTrigger>
+            <SelectContent>
+              {products.map((product) => (
+                <SelectItem key={product.code} value={product.code}>{product.serviceLabel} · {product.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedProduct?.serviceDescription ? (
+            <p className="text-xs leading-relaxed text-slate-600">{selectedProduct.serviceDescription}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {selectedProduct?.indicativeRate !== null && selectedProduct?.indicativeRate !== undefined ? (
+              <Badge variant="outline">Taux annuel : {selectedProduct.indicativeRate.toLocaleString("fr-FR")} %</Badge>
+            ) : <Badge variant="outline">Taux indisponible</Badge>}
+            {selectedProduct?.savingsRate !== null && selectedProduct?.savingsRate !== undefined ? (
+              <Badge variant="outline">Rémunération épargne : {selectedProduct.savingsRate.toLocaleString("fr-FR")} %</Badge>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label htmlFor="sim-project-cost" className="text-sm font-medium text-slate-800">Coût du projet (FCFA)</label>
+            <Input id="sim-project-cost" inputMode="numeric" type="number" min="1" step="1" value={projectCost} onChange={(event) => setProjectCost(event.target.value)} placeholder="Saisir le coût total" />
+            <p className="text-xs text-slate-600">Aucun montant type n’est prérempli.</p>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="sim-income" className="text-sm font-medium text-slate-800">Revenu mensuel net (FCFA)</label>
+            <Input id="sim-income" inputMode="numeric" type="number" min="1" step="1" value={monthlyIncome} onChange={(event) => setMonthlyIncome(event.target.value)} placeholder="Saisir le revenu mensuel" />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="sim-apport" className="text-sm font-medium text-slate-800">Apport ciblé (%)</label>
+            <Input id="sim-apport" type="number" min={selectedProduct?.minApportPercent ?? 0} max="100" step="0.1" value={apportPercentage || ""} onChange={(event) => setApportPercentage(numericInput(event.target.value))} placeholder="Selon le produit" />
+            <p className="text-xs text-slate-600">Minimum produit : {selectedProduct?.minApportPercent === null || selectedProduct?.minApportPercent === undefined ? "non défini" : `${selectedProduct.minApportPercent.toLocaleString("fr-FR")} %`}.</p>
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="sim-saving-duration" className="text-sm font-medium text-slate-800">Durée de constitution (mois)</label>
+            <Input id="sim-saving-duration" type="number" min="1" step="1" value={durationMonths} onChange={(event) => setDurationMonths(event.target.value)} placeholder="Saisir une durée" />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <label htmlFor="sim-loan-duration" className="text-sm font-medium text-slate-800">Durée du crédit (années)</label>
+            <Input id="sim-loan-duration" type="number" min="1" max={selectedProduct?.maxDurationYears ?? undefined} step="1" value={loanDurationYears || ""} onChange={(event) => setLoanDurationYears(numericInput(event.target.value))} placeholder="Selon le produit" />
+            <p className="text-xs text-slate-600">Durée maximale du produit : {selectedProduct?.maxDurationYears ? `${selectedProduct.maxDurationYears} ans` : "non définie"}.</p>
+          </div>
+        </div>
+
+        {!debtCapacityPolicy ? (
+          <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900" role="status">
+            Le barème institutionnel de capacité d’endettement n’est pas disponible. Le calcul financier reste indicatif, sans avis de conformité.
+          </p>
+        ) : null}
+      </section>
+
+      <section className="relative overflow-hidden rounded-2xl bg-cfc-brown p-5 text-white shadow-md sm:p-7 lg:col-span-5" aria-labelledby="results-title">
+        <header className="mb-5 flex items-center justify-between gap-3 border-b border-white/15 pb-4">
           <div>
-            <h3 className="font-bold text-slate-900 text-lg">Simulateur Épargne & Crédit</h3>
-            <p className="text-xs text-slate-500">Calculez votre apport personnel et votre mensualité d&apos;épargne</p>
+            <h2 id="results-title" className="text-base font-semibold">Estimation du financement</h2>
+            <p className="mt-1 text-xs text-white/75">Calcul indicatif à partir du produit choisi</p>
           </div>
-          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-cfc-lightgold text-cfc-brown border border-cfc-gold/30">
-            Taux CFC 5,5%
-          </span>
-        </div>
+          <ShieldCheck className="size-5 text-cfc-gold" aria-hidden />
+        </header>
 
-        {/* 1. Type de projet */}
-        <div>
-          <span
-            id="sim-project-type"
-            className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
-          >
-            1. Nature du projet immobilier
-          </span>
-          <div
-            role="group"
-            aria-labelledby="sim-project-type"
-            className="grid grid-cols-2 sm:grid-cols-4 gap-2"
-          >
-            {PROJECT_TYPE_OPTIONS.map((opt) => {
-              const isSelected = selectedType === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => handleProjectTypeChange(opt.id)}
-                  className={`p-3 rounded-xl text-xs font-semibold text-center transition-all border ${
-                    isSelected
-                      ? "bg-cfc-brown text-white border-cfc-brown shadow-sm"
-                      : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  <div className="truncate">{opt.label.split(" ")[0]}</div>
-                  <div className="text-[10px] opacity-75 truncate">{opt.label.split(" ").slice(1).join(" ")}</div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {result ? (
+          <div className="space-y-4">
+            <dl className="space-y-3">
+              <div className="rounded-xl border border-white/15 bg-white/5 p-4">
+                <dt className="text-xs text-white/75">Apport à constituer</dt>
+                <dd className="mt-1 text-2xl font-bold text-cfc-gold">{formatFCFA(result.apportTotal)}</dd>
+                <div className="mt-2 flex justify-between gap-3 border-t border-white/15 pt-2 text-xs">
+                  <dt className="text-white/75">Épargne mensuelle estimée</dt>
+                  <dd className="font-semibold">{formatFCFA(result.monthlySavings)}</dd>
+                </div>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 p-4">
+                <dt className="text-xs text-white/75">Crédit estimé</dt>
+                <dd className="mt-1 text-2xl font-bold">{formatFCFA(result.loanAmount)}</dd>
+                <div className="mt-2 flex justify-between gap-3 border-t border-white/15 pt-2 text-xs">
+                  <dt className="text-white/75">Mensualité estimée</dt>
+                  <dd className="font-semibold">{formatFCFA(result.monthlyLoanRepayment)}</dd>
+                </div>
+              </div>
+            </dl>
 
-        {/* 2. Coût global du projet */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label htmlFor="sim-project-cost" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              2. Coût total estimé du projet
-            </label>
-            <span className="text-base font-bold text-cfc-brown">
-              {formatFCFA(projectCost)}
-            </span>
-          </div>
-          <input
-            id="sim-project-cost"
-            type="range"
-            min={3000000}
-            max={60000000}
-            step={500000}
-            value={projectCost}
-            onChange={(e) => setProjectCost(Number(e.target.value))}
-            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="flex justify-between text-[11px] text-slate-400 mt-1">
-            <span>3M FCFA</span>
-            <span>30M FCFA</span>
-            <span>60M FCFA</span>
-          </div>
-        </div>
+            {loanExceedsCeiling ? (
+              <p className="flex gap-2 rounded-md border border-amber-300/40 bg-amber-300/10 p-3 text-xs text-amber-100" role="alert">
+                <AlertCircle className="size-4 shrink-0" aria-hidden />
+                Le crédit estimé dépasse le plafond enregistré pour ce produit ({formatFCFA(selectedProduct?.loanCeiling ?? 0)}).
+              </p>
+            ) : null}
 
-        {/* 3. Pourcentage d'apport personnel */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label htmlFor="sim-apport-percentage" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              3. Apport personnel cible (% du projet)
-            </label>
-            <span className="text-base font-bold text-slate-900">
-              {apportPercentage} %
-            </span>
-          </div>
-          <input
-            id="sim-apport-percentage"
-            type="range"
-            min={10}
-            max={30}
-            step={1}
-            value={apportPercentage}
-            onChange={(e) => setApportPercentage(Number(e.target.value))}
-            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="flex justify-between text-[11px] text-slate-400 mt-1">
-            <span>10% (Minimum)</span>
-            <span>20% (Standard recommandé)</span>
-            <span>30% (Optimal)</span>
-          </div>
-        </div>
-
-        {/* 4. Durée de constitution de l'épargne */}
-        <div>
-          <span
-            id="sim-savings-duration"
-            className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
-          >
-            4. Durée d&apos;épargne programmée
-          </span>
-          <div
-            role="group"
-            aria-labelledby="sim-savings-duration"
-            className="grid grid-cols-3 gap-3"
-          >
-            {[12, 24, 36].map((months) => (
-              <button
-                key={months}
-                type="button"
-                aria-pressed={durationMonths === months}
-                onClick={() => setDurationMonths(months)}
-                className={`p-3 rounded-xl border text-center transition-all ${
-                  durationMonths === months
-                    ? "border-cfc-brown bg-cfc-lightgold/40 text-cfc-brown font-bold shadow-sm"
-                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <div className="text-xs">{months} Mois</div>
-                <div className="text-[10px] text-slate-500 font-normal">{months / 12} an{months > 12 ? 's' : ''}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 5. Revenu net mensuel */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label htmlFor="sim-monthly-income" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              5. Revenu net mensuel justifié (Ménage)
-            </label>
-            <span className="text-base font-bold text-slate-900">
-              {formatFCFA(monthlyIncome)}
-            </span>
-          </div>
-          <input
-            id="sim-monthly-income"
-            type="range"
-            min={100000}
-            max={2500000}
-            step={25000}
-            value={monthlyIncome}
-            onChange={(e) => setMonthlyIncome(Number(e.target.value))}
-            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="flex justify-between text-[11px] text-slate-400 mt-1">
-            <span>100k FCFA</span>
-            <span>1M FCFA</span>
-            <span>2.5M FCFA</span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Colonne Droite : Carte Synthèse Financière & Éligibilité */}
-      <div className={`${compact ? 'lg:col-span-6' : 'lg:col-span-5'} space-y-6`}>
-        
-        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 sm:p-7 text-white shadow-xl relative overflow-hidden border border-slate-700">
-          <div className="absolute -right-8 -bottom-8 w-44 h-44 bg-cfc-gold/15 rounded-full blur-3xl"></div>
-
-          <div className="flex items-center justify-between mb-5">
-            <span className="text-xs font-bold uppercase tracking-widest text-cfc-gold">Plan de Financement CFC</span>
-            <span className="text-[10px] bg-white/10 px-2.5 py-1 rounded-full text-slate-300 font-medium">Bonifié 15 ans</span>
-          </div>
-
-          {/* Bloc 1 : Apport Requis */}
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 mb-4">
-            <div className="text-xs text-slate-300">Apport Personnel à Constituer (Épargne Habitat)</div>
-            <div className="text-2xl sm:text-3xl font-black text-cfc-gold mt-1">
-              {formatFCFA(result.apportTotal)}
-            </div>
-            <div className="mt-2.5 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
-              <span className="text-slate-300">Mensualité d&apos;épargne recommandée :</span>
-              <span className="font-bold text-white text-sm">
-                {formatFCFA(result.monthlySavings)} / mois
-              </span>
-            </div>
-          </div>
-
-          {/* Bloc 2 : Crédit Déblocable */}
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10 mb-5">
-            <div className="text-xs text-slate-300">Montant du Crédit Immobilier CFC Déblocable</div>
-            <div className="text-2xl sm:text-3xl font-black text-white mt-1">
-              {formatFCFA(result.loanAmount)}
-            </div>
-            <div className="mt-2.5 pt-2.5 border-t border-white/10 flex items-center justify-between text-xs">
-              <span className="text-slate-300">Remboursement prévisionnel (15 ans) :</span>
-              <span className="font-bold text-slate-200">
-                ~ {formatFCFA(result.monthlyLoanRepayment)} / mois
-              </span>
-            </div>
-          </div>
-
-          {/* Jauge Prudentielle COBAC */}
-          <div className="mb-6 bg-white/5 p-3.5 rounded-xl border border-white/10">
-            <div className="flex justify-between items-center text-xs mb-1.5">
-              <span className="text-slate-300 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-cfc-gold" />
-                Taux d&apos;endettement ménage
-              </span>
-              <span className={`font-bold ${
-                result.debtToIncomeRatio <= 33 ? 'text-emerald-400' : result.debtToIncomeRatio <= 40 ? 'text-amber-400' : 'text-rose-400'
-              }`}>
-                {result.debtToIncomeRatio.toFixed(1)} %
-              </span>
+            <div className="rounded-xl border border-white/15 bg-white/5 p-4">
+              <div className="flex items-start justify-between gap-3 text-xs">
+                <span className="flex items-center gap-1.5 text-white/75">
+                  <ShieldCheck className="size-3.5 text-cfc-gold" aria-hidden />
+                  Capacité d’endettement
+                </span>
+                <span className={`font-semibold ${debtCapacityPolicy ? (withinCapacity ? "text-emerald-300" : "text-rose-200") : "text-white"}`}>
+                  {result.debtToIncomeRatio.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15">
+                <div className={`h-full ${debtCapacityPolicy ? (withinCapacity ? "bg-emerald-400" : "bg-rose-400") : "bg-cfc-gold"}`} style={{ width: `${Math.min(result.debtToIncomeRatio, 100)}%` }} />
+              </div>
+              {debtCapacityPolicy ? (
+                <p className="mt-2 flex items-start gap-1.5 text-[11px] text-white/80" title={debtCapacityPolicy.description ?? debtCapacityPolicy.label}>
+                  {withinCapacity ? <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-300" aria-hidden /> : <Info className="mt-0.5 size-3.5 shrink-0 text-rose-200" aria-hidden />}
+                  {withinCapacity
+                    ? `Dans la limite du barème actif : ${debtCapacityPolicy.maxDebtRatio.toLocaleString("fr-FR")} % (${debtCapacityPolicy.label}).`
+                    : `Au-dessus du barème actif : ${debtCapacityPolicy.maxDebtRatio.toLocaleString("fr-FR")} % (${debtCapacityPolicy.label}).`}
+                </p>
+              ) : null}
             </div>
 
-            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-2">
-              <div
-                className={`h-full transition-all duration-300 ${
-                  result.debtToIncomeRatio <= 33 ? 'bg-emerald-400' : result.debtToIncomeRatio <= 40 ? 'bg-amber-400' : 'bg-rose-500'
-                }`}
-                style={{ width: `${Math.min(result.debtToIncomeRatio, 100)}%` }}
-              ></div>
-            </div>
-
-            <p className="text-[11px] text-slate-300 flex items-center gap-1.5">
-              {result.debtToIncomeRatio <= 33 ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              ) : result.debtToIncomeRatio <= 40 ? (
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-              )}
-              <span>
-                {result.debtToIncomeRatio <= 33
-                  ? "Conforme aux normes prudentielles COBAC (< 33%)"
-                  : result.debtToIncomeRatio <= 40
-                  ? "Seuil limite toléré (33% - 40%)"
-                  : "Dépassement recommandé : ajuster durée ou apport"}
-              </span>
+            <Button asChild disabled={loanExceedsCeiling} className="w-full bg-cfc-gold text-slate-950 hover:bg-cfc-goldhover">
+              <Link href="/onboarding" aria-disabled={loanExceedsCeiling}>
+                Commencer un dossier <ArrowRight className="ml-2 size-4" aria-hidden />
+              </Link>
+            </Button>
+            <p className="text-[11px] leading-relaxed text-white/70">
+              Cette estimation ne vaut pas accord de crédit. Les valeurs finales dépendent de l’instruction du dossier et du barème en vigueur.
             </p>
           </div>
-
-          {/* CTA Onboarding */}
-          <Link
-            href={`/onboarding?cost=${projectCost}&apport=${result.apportTotal}&type=${selectedType}&save=${Math.round(result.monthlySavings)}`}
-            className="w-full py-3.5 px-4 bg-cfc-gold hover:bg-cfc-goldhover text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 group"
-          >
-            <span>Souscrire & Générer mon Dossier Unique (DUC)</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </Link>
-
-        </div>
-
-        {/* Moyens de paiement mobile */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
-          <div className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            Dépôts d&apos;épargne simplifiés
+        ) : (
+          <div className="rounded-xl border border-dashed border-white/25 p-5 text-sm text-white/75">
+            Sélectionnez un produit puis saisissez les données du projet pour calculer l’épargne et la mensualité estimées.
           </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-amber-500"></span> MTN Mobile Money
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 border border-orange-200 text-orange-900 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-orange-500"></span> Orange Money
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">
-              Virement SYSTAC
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-500">
-            Lettrage et réconciliation comptable instantanés vers votre compte épargne dans le progiciel Carthago.
-          </p>
-        </div>
-
-      </div>
-
+        )}
+      </section>
     </div>
   );
 }

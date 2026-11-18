@@ -41,11 +41,11 @@ export default async function OnboardingPage() {
     }
   }
 
-  const [services, draft, kycView] = configured && citizenId
+  const [services, draft, kycView] = configured
     ? await Promise.all([
         listServices(),
-        loadOnboardingDraft(),
-        getKycProfileQuery(citizenId),
+        signedIn ? loadOnboardingDraft() : Promise.resolve(EMPTY_DRAFT),
+        citizenId ? getKycProfileQuery(citizenId) : Promise.resolve(null),
       ])
     : [[], EMPTY_DRAFT, null];
 

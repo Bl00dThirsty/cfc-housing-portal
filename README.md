@@ -55,7 +55,6 @@ une page masquée du menu n'est jamais une protection.
 
 - Node.js 20+ et npm
 - Docker (pour la pile Supabase locale)
-- [Supabase CLI](https://supabase.com/docs/guides/cli)
 
 ### 1. Installer
 
@@ -63,17 +62,7 @@ une page masquée du menu n'est jamais une protection.
 npm install
 ```
 
-### 2. Démarrer Supabase localement
-
-```bash
-supabase start
-```
-
-La commande affiche l'API (`http://127.0.0.1:54321`), la base
-(`127.0.0.1:54322`), Studio (`http://127.0.0.1:54323`) et Mailpit
-(`http://127.0.0.1:54324`).
-
-### 3. Configurer les variables
+### 2. (Facultatif) Configurer les variables locales
 
 ```powershell
 Copy-Item .env.example .env.local
@@ -81,56 +70,85 @@ Copy-Item .env.example .env.local
 
 Sur macOS ou Linux : `cp .env.example .env.local`.
 
-Reportez les valeurs de `supabase status -o env` :
-
-| Variable | Usage |
-| --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | URL du projet Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique soumise aux règles RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clé serveur uniquement; ne jamais l'exposer au navigateur |
-| `NEXT_PUBLIC_SITE_URL` | URL du site, par exemple `http://localhost:3000` |
-| `RESEND_API_KEY` / `SMTP_*` | Messagerie métier (facultative : envois journalisés `skipped`) |
+Supabase ne demande pas de configuration manuelle. `system:local` installe
+la version du CLI épinglée par le projet, démarre les services, récupère les
+clés générées par le CLI et les enregistre dans `.env.local`. Copiez
+`.env.example` seulement si vous voulez ajouter un fournisseur e-mail ou
+modifier les valeurs locales facultatives.
 
 La liste complète et commentée est dans [`.env.example`](./.env.example).
 
-### 4. Créer le schéma et les comptes de démonstration
+### 3. Démarrer le système local
 
 ```bash
-npm run db:reset        # applique toutes les migrations + seed.sql
-npm run db:seed:users   # crée les comptes de démonstration locaux
+npm run system:local
 ```
 
-`npm run db:seed:users` refuse toute URL qui n'utilise pas `localhost`,
-`127.0.0.1` ou `::1`, même avec une clé de service définie.
+Cette commande vérifie le CLI Supabase et Next.js du projet, installe les
+dépendances épinglées si un outil manque, démarre Supabase local, récupère ses
+clés, applique les migrations en attente sans supprimer la base, crée les
+comptes et données de démonstration locaux, puis démarre Next.js. Docker doit
+être lancé. L'API locale est disponible sur
+`http://127.0.0.1:54321`, Studio sur `http://127.0.0.1:54323` et Mailpit sur
+`http://127.0.0.1:54324`.
 
-### 5. Lancer
+Le CLI npm du projet est utilisé pour garder la même version sur Windows,
+macOS et Linux; aucune installation globale n'est requise. Les commandes
+système chargent les fichiers d'environnement de développement, dont
+`.env.local`, et préservent les variables explicitement exportées par le shell.
+Une URL déjà configurée pour `system:local` doit utiliser `localhost`,
+`127.0.0.1` ou `::1`; la commande refuse une cible distante même avec une clé
+de service.
+La commande destructive `npm run db:reset` reste disponible séparément pour
+recréer entièrement la base locale.
+
+### 4. Préparer staging ou production
+
+Les commandes distantes utilisent le CLI Supabase 3.2.0 épinglé par le projet.
+Renseignez les variables dans un gestionnaire de secrets ou dans un fichier
+local ignoré par Git. Ne publiez jamais de clé `service_role`/`secret`, mot de
+passe de base ou token d'accès.
+
+| Variable | Staging | Production |
+| --- | --- | --- |
+| `SUPABASE_STAGING_PROJECT_REF` / `SUPABASE_PRODUCTION_PROJECT_REF` | Référence staging, distincte de la production | Référence du projet de production |
+| `SUPABASE_STAGING_URL` / `SUPABASE_PRODUCTION_URL` | URL HTTPS dont l'hôte correspond à la référence | URL HTTPS dont l'hôte correspond à la référence |
+| `SUPABASE_STAGING_ANON_KEY` ou `SUPABASE_STAGING_PUBLISHABLE_KEY` | Clé publique staging | — |
+| `SUPABASE_PRODUCTION_ANON_KEY` ou `SUPABASE_PRODUCTION_PUBLISHABLE_KEY` | — | Clé publique production |
+| `SUPABASE_STAGING_SECRET_KEY` ou `SUPABASE_STAGING_SERVICE_ROLE_KEY` | Clé privée staging, utilisée uniquement pour les fixtures staging | — |
+| `SUPABASE_STAGING_DB_PASSWORD` / `SUPABASE_PRODUCTION_DB_PASSWORD` | Mot de passe DB staging | Mot de passe DB production |
+| `SUPABASE_STAGING_ACCESS_TOKEN` ou `SUPABASE_ACCESS_TOKEN` | Token Supabase autorisé sur staging | — |
+| `SUPABASE_PRODUCTION_ACCESS_TOKEN` ou `SUPABASE_ACCESS_TOKEN` | — | Token Supabase autorisé sur production |
+| `CFC_STAGING_DEV_PASSWORD` | Mot de passe des comptes de démonstration staging | — |
+
+### 5. Choisir une cible cloud explicitement
 
 ```bash
-npm run dev
+npm run system:staging
+npm run system:production
 ```
 
-Si le port 3000 est occupé : `PORT=3001 npm run dev` (PowerShell :
-`$env:PORT="3001"; npm run dev`).
+`system:staging` vérifie que ses références sont distinctes, lie explicitement
+le projet staging, affiche l'aperçu des migrations, applique les migrations
+et le seed de référence, crée les comptes de démonstration staging puis lance
+le portail contre staging. Une instance staging distincte doit être
+configurée avant d'utiliser cette commande.
+
+`system:production` lie explicitement le projet de production, affiche
+l'aperçu puis applique les migrations après la confirmation demandée par le
+CLI. Il ne lance ni `db reset`, ni `--include-seed`, ni le seeder de comptes
+de démonstration. Il prépare la base; le déploiement du site reste géré par
+la configuration de l'hébergeur (Vercel dans ce dépôt). Vérifiez les variables
+d'environnement de l'hébergeur séparément avant le déploiement.
 
 ## Comptes de démonstration
 
-Mot de passe commun : **`CfcDev2026!`** (surchargez-le au seed avec
-`CFC_DEV_PASSWORD`).
-
-| Adresse | Rôle | Écran d'atterrissage |
-| --- | --- | --- |
-| `guichet@cfc.cm` | GUICHET | `/portail-cfc/actors/agency` |
-| `gestionnaire@cfc.cm` | GESTIONNAIRE | `/portail-cfc/dossiers` |
-| `risques@cfc.cm` | RISQUES_BET | `/portail-cfc/actors/risk-engineering` |
-| `notaire@cfc.cm` | NOTAIRE | `/portail-cfc/actors/notary-cadastre` |
-| `comite@cfc.cm` | COMITE | `/portail-cfc/actors/credit-committees` |
-| `diaspora@cfc.cm` | DIASPORA | `/portail-cfc/actors/agency/diaspora` |
-| `admin@cfc.cm` | ADMIN | `/portail-cfc/analytics` |
-| `emprunteur@cfc.cm` | Citoyen | `/portail-client` |
-| `emprunteur.diaspora@cfc.cm` | Citoyen diaspora | `/portail-client` |
-| `emprunteur.pieces@cfc.cm` | Citoyen (pièces) | `/portail-client` |
-
-Ces comptes sont des **données de démonstration**, pas des identités de
+Les identités de démonstration sont définies par les fixtures du seeder
+local/staging, pas recopiées dans les écrans ou la documentation. Le seeder
+affiche les comptes provisionnés. En local, un mot de passe aléatoire est
+créé une fois et conservé dans `.env.local` (`CFC_DEV_PASSWORD`). En staging,
+définissez un mot de passe distinct dans un gestionnaire de secrets
+(`CFC_STAGING_DEV_PASSWORD`). Aucun compte de démonstration n'est créé en
 production. Un citoyen sans dossier est conduit vers `/onboarding` : c'est le
 parcours normal d'un compte neuf, pas une erreur.
 
@@ -146,16 +164,41 @@ parcours normal d'un compte neuf, pas une erreur.
 | `npm test` | Exécuter les tests Vitest |
 | `npm run smoke` | Vérifications HTTP authentifiées contre l'app en cours |
 | `npm run db:reset` | Réinitialiser la base Supabase locale |
-| `npm run db:seed:users` | Créer les comptes de démonstration locaux |
+| `npm run db:seed:users` | Créer les comptes de démonstration locaux (loopback uniquement par défaut) |
+| `npm run system:local` | Démarrer Supabase local, migrer sans reset, seed local, lancer Next.js |
+| `npm run system:staging` | Lier staging, prévisualiser/appliquer migrations, seed staging, lancer Next.js |
+| `npm run system:production` | Lier production, prévisualiser/appliquer les migrations confirmées |
+| `npm run test:system` | Vérifier les gardes de cible, de seed et les plans de commande |
+
+La conception cible, les diagrammes de flux, les rôles, le modèle de données,
+les contraintes de sécurité et les étapes d'achèvement sont détaillés dans
+[`docs/superpowers/specs/2026-11-18-cfc-system-completion-design.md`](./docs/superpowers/specs/2026-11-18-cfc-system-completion-design.md).
+Le plan de vérification et les lots de travail encore ouverts sont suivis dans
+[`docs/superpowers/plans/2026-11-18-system-bootstrap.md`](./docs/superpowers/plans/2026-11-18-system-bootstrap.md).
+
+### Source de vérité et périmètre des données
+
+| Donnée | Source autoritative | Règle |
+| --- | --- | --- |
+| Dossiers, KYC, documents, affectations, notifications, épargne et opérations | Projet Supabase choisi par la commande d'environnement | Les écrans affichent uniquement les lignes lues et autorisées dans ce projet |
+| Services, produits, étapes et phases de processus | Tables `ref`, migrations versionnées et vues de lecture `cfc_*` | Les pages chargent les valeurs effectives depuis Supabase |
+| Comptes et dossiers synthétiques | `scripts/seed-dev-users.mjs` | Local ou staging uniquement, avec cible vérifiée; jamais production |
+| Données de tests | Fabriques de test | Restent dans les tests et ne sont jamais importées par les pages opérationnelles |
+| Modules sans tables ni transitions validées | Aucune source tant que le workflow n'est pas défini | L'écran indique que la persistance n'est pas disponible; il ne génère pas de faux enregistrements |
+
+Les commandes système ne sont pas interchangeables : `system:local` ne se lie
+jamais à un projet cloud, `system:staging` exige un projet distinct et peut
+créer des comptes de démonstration, et `system:production` applique les
+migrations après confirmation sans exécuter les seeds de démonstration. Les
+migrations cloud n'ont pas été lancées depuis cette session.
 
 ### Tests de bout en bout
 
 Les suites `*.e2e.local.test.ts` touchent une vraie base locale. Elles sont
-sautées sans configuration. Pour les exécuter :
+sautées sans configuration. Après `npm run system:local`, pour les exécuter :
 
 ```powershell
 $env:CFC_E2E="1"
-$env:SUPABASE_SERVICE_ROLE_KEY="<service_role locale>"
 npm test
 ```
 
@@ -183,14 +226,13 @@ définir dans **Vercel → Settings → Environment Variables** (Production) :
 ### Supabase hébergé
 
 ```bash
-supabase link --project-ref yyqfqsmsfaccsstwlpog
-supabase migration list          # vérifier ce qui est déjà appliqué
-supabase db push --include-all   # appliquer les migrations manquantes
+npm run system:production
 ```
 
-`--include-all` est indispensable : certaines migrations précèdent celles déjà
-appliquées. Une migration doit toujours pouvoir tourner sur une base **neuve**
-(sans dépendre de `seed.sql`).
+La commande utilise les variables production, lie explicitement le projet,
+montre l'aperçu des migrations et conserve la confirmation du CLI. Elle
+n'inclut jamais les seeds de développement. Une migration doit pouvoir tourner
+sur une base neuve sans dépendre de fixtures métier.
 
 ### Authentification (Supabase → Authentication)
 
@@ -255,8 +297,10 @@ docs/           Documentation métier et technique
   côté serveur, jamais préfixée `NEXT_PUBLIC_`.
 - Les en-têtes de sécurité (nosniff, frame-ancestors, HSTS,
   `Permissions-Policy`) sont posés par `next.config.ts`.
-- L'accès aux routes de la console se déduit de la navigation par rôle : ce
-  qu'un agent ne voit pas, il ne peut pas l'ouvrir.
+- La navigation par rôle facilite l'usage, mais ne protège pas les données.
+  Les routes sont contrôlées par le middleware, les actions et requêtes
+  vérifient l'identité/capacité, et Postgres applique les politiques RLS aux
+  lignes. Les fichiers KYC restent privés dans Storage.
 
 ## Documentation
 

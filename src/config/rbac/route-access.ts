@@ -16,6 +16,7 @@
  */
 
 import { STAFF_ROLES, type StaffRole } from "@/domain/policies/capabilities";
+import { hasCapability } from "@/domain/policies/permissions";
 import { getSidebarSectionsForRole } from "@/config/rbac/sidebar-by-role";
 
 /** Racine de la console CFC. */
@@ -98,6 +99,13 @@ export function isCommonAgentRoute(pathname: string): boolean {
 export function canAgentOpenRoute(role: StaffRole, pathname: string): boolean {
   const route = routeOf(pathname);
   if (isCommonAgentRoute(route)) return true;
+
+  // Operational dossier summaries are a shared staff screen. The dynamic
+  // detail route shows no KYC documents or full contact profile; row access
+  // still passes through the dossier RLS policy.
+  if (route.startsWith(`${AGENT_PORTAL_ROOT}/dossiers/`)) {
+    return hasCapability(role, "dossier:read");
+  }
 
   const map = rolesByRoute();
 

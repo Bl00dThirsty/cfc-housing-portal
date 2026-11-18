@@ -1,7 +1,7 @@
 import { getPublicEnv } from "@/server/env";
 import { createServerSupabaseClient } from "@/server/supabase/server";
 import { referenceView } from "@/server/queries/reference";
-import type { DossierEvent } from "@/domain/entities/processes";
+import type { CreditPhase, DossierEvent, ProcessStep } from "@/domain/entities/processes";
 import {
   checklistStatusFor,
   type ChecklistItem,
@@ -21,8 +21,8 @@ import {
  * l'état courant, `public.dossier_documents` et `ref.service_document_requirement`
  * font la complétude.
  *
- * Le vocabulaire des phases et des événements appartient au domaine
- * (`@/domain/entities/processes`) : cette couche ne fait que lire.
+ * Les phases et étapes sont lues dans le catalogue Supabase ; cette couche
+ * applique les règles d'avancement aux valeurs configurées.
  */
 
 export type CitizenSpace = {
@@ -30,6 +30,7 @@ export type CitizenSpace = {
   ducCode: string;
   serviceLabel: string | null;
   currentPhase: string | null;
+  currentPhaseLabel: string | null;
   completionPercent: number | null;
   status: string | null;
   /** L'avancement du parcours : KYC, service, pièces, examen, pause. */
@@ -65,6 +66,7 @@ export type CitizenTracking = {
   dossierId: string;
   ducCode: string;
   currentPhase: string | null;
+  currentPhaseLabel: string | null;
   /** Étapes indexées du circuit de crédit. */
   steps: IndexedStep[];
   /** Avancement du parcours, en pourcentage d'étapes franchies. */
@@ -104,7 +106,14 @@ export async function getCitizenSpace(userId: string): Promise<{
 
   const dossierId = dossier.id as string;
 
-  const [eventsResult, documentsResult, notificationsResult, checklistResult] = await Promise.all([
+  const [
+    eventsResult,
+    documentsResult,
+    notificationsResult,
+    checklistResult,
+    processStepsResult,
+    processPhasesResult,
+  ] = await Promise.all([
     supabase
       .from("dossier_events")
       .select("id, event_type, actor_role, payload, legal_basis, occurred_at")
@@ -127,7 +136,40 @@ export async function getCitizenSpace(userId: string): Promise<{
       .select("id, doc_type_code, status, uploaded_at")
       .eq("dossier_id", dossierId)
       .is("deleted_at", null),
+    supabase
+      .from(referenceView("process_step"))
+      .select("code, process_code, label, phase, lane, is_external, sort_order")
+      .not("phase", "is", null)
+      .is("deleted_at", null)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from(referenceView("process_phase"))
+      .select("code, label, sort_order")
+      .order("sort_order", { ascending: true }),
   ]);
+
+  if (processStepsResult.error || processPhasesResult.error) {
+    return {
+      ok: false,
+      error: "Le catalogue du parcours est indisponible. Réessayez dans quelques instants.",
+    };
+  }
+
+  const processPhases = (processPhasesResult.data ?? []) as {
+    code: string;
+    label: string;
+    sort_order: number;
+  }[];
+  const phaseOrder = processPhases.map((phase) => phase.code as CreditPhase);
+  const phaseLabels = Object.fromEntries(processPhases.map((phase) => [phase.code, phase.label]));
+  const processSteps = (processStepsResult.data ?? []).map((step) => ({
+    code: step.code as string,
+    process: step.process_code as ProcessStep["process"],
+    label: step.label as string,
+    phase: step.phase as CreditPhase | null,
+    lane: step.lane as ProcessStep["lane"],
+    external: step.is_external as boolean,
+  } satisfies ProcessStep));
 
   const serviceLabel = await resolveServiceLabel(supabase, dossier.service_code as string | null);
 
@@ -160,6 +202,9 @@ export async function getCitizenSpace(userId: string): Promise<{
     eventTypes: ((eventsResult.data ?? []) as { event_type: string }[]).map(
       (event) => event.event_type,
     ),
+    phaseOrder,
+    phaseLabels,
+    processSteps,
   });
 
   return {
@@ -169,6 +214,10 @@ export async function getCitizenSpace(userId: string): Promise<{
       ducCode: dossier.duc_code as string,
       serviceLabel,
       currentPhase: dossier.current_phase as string | null,
+      currentPhaseLabel:
+        dossier.current_phase === null
+          ? null
+          : phaseLabels[dossier.current_phase as string] ?? (dossier.current_phase as string),
       completionPercent:
         dossier.completion_percent === null ? null : Number(dossier.completion_percent),
       status: dossier.status as string | null,
@@ -216,6 +265,7 @@ export async function getCitizenTracking(userId: string): Promise<{
       dossierId: space.dossierId,
       ducCode: space.ducCode,
       currentPhase: space.currentPhase,
+      currentPhaseLabel: space.currentPhaseLabel,
       steps: space.steps,
       progress: processProgress(space.steps),
       checklist: space.checklist,

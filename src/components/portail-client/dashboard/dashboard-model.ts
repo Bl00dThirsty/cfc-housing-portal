@@ -1,4 +1,4 @@
-import { phaseLabel, type DossierEvent } from "@/domain/entities/processes";
+import type { DossierEvent } from "@/domain/entities/processes";
 import {
   stageLabel,
   type ChecklistItem,
@@ -20,7 +20,7 @@ import {
 /** Ce dont le tableau de bord a besoin — un fragment de l'espace citoyen. */
 export type DashboardInput = {
   completionPercent: number | null;
-  currentPhase: string | null;
+  currentPhaseLabel: string | null;
   checklist: ChecklistItem[];
   events: DossierEvent[];
   finance: {
@@ -139,7 +139,7 @@ function buildKpis(
     label: "Avancement du dossier",
     value: completion === null ? "—" : String(Math.round(completion)),
     unit: "%",
-    note: completion === null ? "Progression non renseignée" : phaseLabel(input.currentPhase),
+    note: completion === null ? "Progression non renseignée" : input.currentPhaseLabel,
     progress: completion === null ? null : clampPercent(completion),
   });
 

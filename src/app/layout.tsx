@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import ShellLayout from "@/components/layout/shell-layout";
 import { CfcToaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-cfc",
@@ -37,8 +38,10 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <ShellLayout>{children}</ShellLayout>
-          <CfcToaster />
+          <TooltipProvider>
+            <ShellLayout>{children}</ShellLayout>
+            <CfcToaster />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

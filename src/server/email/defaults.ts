@@ -166,6 +166,37 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     ].join("\n"),
   },
 
+  /**
+   * Le mot de passe vient d'être modifié.
+   *
+   * C'est le **CFC** qui prévient, et non la plateforme : la messagerie de la
+   * plateforme a un quota, et son modèle n'est pas celui de la banque. Un
+   * avis de sécurité doit dire d'où il vient.
+   */
+  PASSWORD_CHANGED: {
+    code: "PASSWORD_CHANGED",
+    label: "Modification du mot de passe",
+    eventType: "PASSWORD_CHANGED",
+    audience: "citizen",
+    variables: ["prenom", "nom", "email", "date", "lien", "logo", "siege"],
+    subject: "Votre mot de passe a été modifié — CFC Habitat",
+    html: wrapHtml(
+      "Votre mot de passe a été modifié",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Le mot de passe de votre compte CFC Habitat ({{email}}) a été modifié le {{date}}. Si vous n'êtes pas à l'origine de ce changement, contactez immédiatement votre agence : votre compte doit être sécurisé.</p>",
+        cta("Ouvrir mon portail", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Le mot de passe de votre compte CFC Habitat ({{email}}) a été modifié le {{date}}. Si vous n'êtes pas à l'origine de ce changement, contactez immédiatement votre agence.",
+      "",
+      "Ouvrir mon portail : {{lien}}",
+    ].join("\n"),
+  },
+
   KYC_SUBMITTED: {
     code: "KYC_SUBMITTED",
     label: "Dépôt du dossier KYC",
@@ -610,6 +641,37 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
       "L'acte de mainlevée de l'hypothèque de votre dossier (DUC {{duc}}, référence {{reference}}) est disponible depuis le {{date}}.",
       "",
       "Consulter mon dossier : {{lien}}",
+    ].join("\n"),
+  },
+
+  /**
+   * Un dossier est attribué à un conseiller.
+   *
+   * Le destinataire est un **agent** : le message lui dit ce qu'il a à
+   * faire, et non ce qu'il doit comprendre du demandeur. Le lien mène à la
+   * console, pas au portail citoyen.
+   */
+  DOSSIER_ASSIGNED: {
+    code: "DOSSIER_ASSIGNED",
+    label: "Dossier attribué au conseiller",
+    eventType: "DOSSIER_ASSIGNED",
+    audience: "staff",
+    variables: ["prenom", "nom", "duc", "reference", "date", "lien", "logo", "siege"],
+    subject: "Un dossier vous est attribué — {{reference}}",
+    html: wrapHtml(
+      "Un dossier vous est attribué",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Le dossier {{reference}} (DUC {{duc}}) vous est attribué le {{date}}. Il entre dans votre portefeuille : c'est vous qui l'instruisez et qui en informez le demandeur.</p>",
+        cta("Ouvrir la console CFC", "{{lien}}"),
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Le dossier {{reference}} (DUC {{duc}}) vous est attribué le {{date}}. Il entre dans votre portefeuille : c'est vous qui l'instruisez et qui en informez le demandeur.",
+      "",
+      "Ouvrir la console CFC : {{lien}}",
     ].join("\n"),
   },
 

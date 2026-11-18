@@ -5,6 +5,10 @@ import { applyServerEnv, serviceClient } from "./e2e-accounts";
 
 const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const originalSecretKey = process.env.SUPABASE_SECRET_KEY;
+const originalSupabaseUrl = process.env.SUPABASE_URL;
+const originalPublicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const originalAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const originalPassword = process.env.CFC_DEV_PASSWORD;
 
 function restoreEnvironmentVariable(
   name: string,
@@ -19,6 +23,9 @@ function restoreEnvironmentVariable(
 
 describe("Supabase service key safety", () => {
   beforeEach(() => {
+    process.env.SUPABASE_URL = "http://127.0.0.1:54321";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
+    process.env.CFC_DEV_PASSWORD = "test-only-password";
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     delete process.env.SUPABASE_SECRET_KEY;
   });
@@ -29,6 +36,10 @@ describe("Supabase service key safety", () => {
       originalServiceRoleKey,
     );
     restoreEnvironmentVariable("SUPABASE_SECRET_KEY", originalSecretKey);
+    restoreEnvironmentVariable("SUPABASE_URL", originalSupabaseUrl);
+    restoreEnvironmentVariable("NEXT_PUBLIC_SUPABASE_URL", originalPublicUrl);
+    restoreEnvironmentVariable("NEXT_PUBLIC_SUPABASE_ANON_KEY", originalAnonKey);
+    restoreEnvironmentVariable("CFC_DEV_PASSWORD", originalPassword);
   });
 
   it("requires an environment key before creating an E2E service client", () => {
@@ -77,6 +88,6 @@ describe("Supabase service key safety", () => {
     );
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Refusing to seed a non-local Supabase URL");
+    expect(result.stderr).toContain("SUPABASE_URL must use a loopback host");
   });
 });

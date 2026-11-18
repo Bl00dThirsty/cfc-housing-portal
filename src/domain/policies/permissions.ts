@@ -48,13 +48,11 @@ export const CITIZEN_CAPABILITIES: readonly Capability[] = [
  */
 const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
   // G1 — Guichet Unique & Accueil : enrôlement, réception des pièces,
-  // vérification préliminaire KYC, constitution de l'épargne.
+  // constitution de l'épargne. Le profil KYC complet est réservé au gestionnaire affecté.
   GUICHET: [
     "dossier:read",
     "dossier:create",
     "dossier:update",
-    "kyc:read",
-    "kyc:verify",
     "document:read",
     "document:upload",
     "document:request",
@@ -74,7 +72,6 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "dossier:update",
     "dossier:decide",
     "dossier:export",
-    "kyc:read",
     "kyc:verify",
     "kyc:decide",
     "document:read",
@@ -86,6 +83,7 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "savings:credit",
     "savings:debit",
     "savings:validate",
+    "savings:reverse",
     "committee:read",
     "analytics:read",
   ],
@@ -95,7 +93,6 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
   RISQUES_BET: [
     "dossier:read",
     "dossier:update",
-    "kyc:read",
     "document:read",
     "document:upload",
     "document:validate",
@@ -144,14 +141,11 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
   ],
 
   // Cellule Diaspora & Non-Résidents : dossiers des Camerounais de l'étranger,
-  // procurations et mandat limité, virements SWIFT.
+  // procurations et mandat limité, virements SWIFT. Le KYC reste au gestionnaire affecté.
   DIASPORA: [
     "dossier:read",
     "dossier:create",
     "dossier:update",
-    "kyc:read",
-    "kyc:verify",
-    "kyc:decide",
     "document:read",
     "document:upload",
     "document:request",
@@ -165,7 +159,9 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
 
   // DSI & Direction Générale : supervision transverse, paramétrage du
   // catalogue documentaire, gestion des habilitations et journal d'audit.
-  ADMIN: ALL_CAPABILITIES,
+  ADMIN: ALL_CAPABILITIES.filter(
+    (capability) => capability !== "kyc:read" && capability !== "kyc:verify" && capability !== "kyc:decide",
+  ),
 };
 
 /**

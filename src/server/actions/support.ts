@@ -29,7 +29,7 @@ import {
   sanitizeFileName,
   SUPPORT_BUCKET,
 } from "@/server/support/attachments";
-import { stepByCode } from "@/domain/workflows/tracking";
+import { referenceView } from "@/server/queries/reference";
 
 export type SupportMessage = {
   id: string;
@@ -268,15 +268,24 @@ export async function sendSupportMessageAction(
       return { ok: false, error: "Le message dépasse 4 000 caractères." };
     }
 
-    // Un ancrage doit désigner une étape réelle du circuit.
-    if (input.stepCode && !stepByCode(input.stepCode)) {
-      return { ok: false, error: "Étape de parcours inconnue." };
-    }
-
     const profile = await getServerProfile();
     if (!profile) return { ok: false, error: "Session requise." };
 
     const supabase = await createServerSupabaseClient();
+    if (input.stepCode) {
+      const { data: processStep, error: processStepError } = await supabase
+        .from(referenceView("process_step"))
+        .select("code")
+        .eq("code", input.stepCode)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (processStepError) {
+        return { ok: false, error: "Le catalogue des étapes est indisponible." };
+      }
+      if (!processStep) return { ok: false, error: "Étape de parcours inconnue." };
+    }
+
     const { data, error } = await supabase
       .from("support_messages")
       .insert({

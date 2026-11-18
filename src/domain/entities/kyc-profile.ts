@@ -277,32 +277,6 @@ export const PRIOR_CLIENT_CASES: readonly {
   },
 ];
 
-/** Un conseiller de démonstration. */
-export type DemoAdvisor = {
-  id: string;
-  name: string;
-  email: string;
-  active: boolean;
-};
-
-/** Les quatre conseillers de démonstration — l'un d'eux est inactif. */
-export const DEMO_ADVISORS: readonly DemoAdvisor[] = [
-  { id: "adv-1", name: "Mme Mbezele", email: "mbezele@cfc.cm", active: true },
-  { id: "adv-2", name: "M. Tagne", email: "tagne@cfc.cm", active: true },
-  { id: "adv-3", name: "Mme Manga", email: "manga@cfc.cm", active: true },
-  { id: "adv-4", name: "M. Ndi", email: "ndi@cfc.cm", active: false },
-];
-
-/**
- * Le conseiller affecté, par rotation simple.
- *
- * Le conseiller inactif est ignoré : la rotation ne s'arrête jamais sur lui.
- */
-export function advisorForSequence(index: number): DemoAdvisor {
-  const active = DEMO_ADVISORS.filter((advisor) => advisor.active);
-  return active[index % active.length];
-}
-
 /**
  * Les champs qui bloquent l'accès au choix du service.
  *

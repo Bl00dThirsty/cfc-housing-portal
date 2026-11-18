@@ -24,6 +24,7 @@ export type RequiredDocument = {
 export type ServiceProduct = {
   code: string;
   label: string;
+  loanCeiling: number | null;
   /** L'apport minimal, en pourcentage du prix. */
   minApportPercent: number | null;
   /** La durée maximale, en années. */
@@ -32,6 +33,14 @@ export type ServiceProduct = {
   indicativeRate: number | null;
   /** Le taux d'épargne, en pourcentage. */
   savingsRate: number | null;
+};
+
+export type DebtCapacityPolicy = {
+  code: string;
+  label: string;
+  description: string | null;
+  maxDebtRatio: number;
+  appliesTo: string | null;
 };
 
 export type ServiceSummary = {

@@ -106,7 +106,7 @@ export default async function CitizenPortalPage({
   // valeurs sérialisables, jamais un client Supabase.
   const dashboard = buildDashboardModel({
     completionPercent: space.completionPercent,
-    currentPhase: space.currentPhase,
+    currentPhaseLabel: space.currentPhaseLabel,
     checklist: space.checklist,
     events: space.events,
     finance: space.finance,
@@ -157,7 +157,7 @@ export default async function CitizenPortalPage({
           <CitizenDashboard model={dashboard} />
 
           <DossierPhaseCard
-            currentPhase={space.currentPhase}
+            currentPhaseLabel={space.currentPhaseLabel}
             completionPercent={space.completionPercent}
             status={space.status}
             serviceLabel={space.serviceLabel}

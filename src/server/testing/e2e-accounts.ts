@@ -1,5 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { loadLocalEnvironment } from "../../../scripts/lib/local-env-loading.mjs";
+
+loadLocalEnvironment(process.cwd());
 
 /**
  * Comptes éphémères pour les tests de bout en bout.
@@ -14,12 +17,29 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * ne touchent pas les comptes de démonstration.
  */
 
-export const E2E_PASSWORD = process.env.CFC_DEV_PASSWORD ?? "CfcDev2026!";
-
-export const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
-export const ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+export function getE2eConfiguration(): {
+  supabaseUrl: string;
+  anonKey: string;
+  password: string;
+} {
+  const supabaseUrl =
+    process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.SUPABASE_ANON_KEY ??
+    "";
+  const password = process.env.CFC_DEV_PASSWORD ?? "";
+  const missing = [
+    !supabaseUrl ? "SUPABASE_URL" : null,
+    !anonKey ? "NEXT_PUBLIC_SUPABASE_ANON_KEY" : null,
+    !password ? "CFC_DEV_PASSWORD" : null,
+  ].filter(Boolean);
+  if (missing.length > 0) {
+    throw new Error(`Configure ${missing.join(", ")} before running local E2E tests.`);
+  }
+  return { supabaseUrl, anonKey, password };
+}
 function requireServiceKey(): string {
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
@@ -34,19 +54,21 @@ function requireServiceKey(): string {
 
 /** Client de service : contourne la RLS, réservé à la préparation des tests. */
 export function serviceClient(): SupabaseClient {
-  return createClient(SUPABASE_URL, requireServiceKey(), {
+  const { supabaseUrl } = getE2eConfiguration();
+  return createClient(supabaseUrl, requireServiceKey(), {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }
 
 /** Renseigne l'environnement pour les modules serveur importés par la suite. */
 export function applyServerEnv(): void {
+  const { supabaseUrl, anonKey } = getE2eConfiguration();
   // `Object.assign` et non une affectation pointée : le compilateur remplace
   // `process.env.NEXT_PUBLIC_*` par une constante, et l'affectation directe
   // deviendrait une affectation à une rvalue.
   Object.assign(process.env, {
-    NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON_KEY,
+    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
     SUPABASE_SERVICE_ROLE_KEY: requireServiceKey(),
   });
 }
@@ -79,20 +101,21 @@ export async function ensureE2eCitizen(
   email: string,
   fullName: string,
 ): Promise<string> {
+  const { password } = getE2eConfiguration();
   const existing = await findUserByEmail(admin, email);
 
   let userId = existing?.id ?? null;
 
   if (userId) {
     const { error } = await admin.auth.admin.updateUserById(userId, {
-      password: E2E_PASSWORD,
+      password,
       email_confirm: true,
     });
     if (error) throw error;
   } else {
     const { data, error } = await admin.auth.admin.createUser({
       email,
-      password: E2E_PASSWORD,
+      password,
       email_confirm: true,
     });
     if (error) throw error;
@@ -132,9 +155,10 @@ export async function signInWithCookie(email: string): Promise<{
   cookies: { name: string; value: string }[];
   accessToken: string;
 }> {
+  const { supabaseUrl, anonKey, password } = getE2eConfiguration();
   let captured: { name: string; value: string }[] = [];
 
-  const client = createServerClient(SUPABASE_URL, ANON_KEY, {
+  const client = createServerClient(supabaseUrl, anonKey, {
     cookies: {
       getAll: () => [],
       setAll: (list) => {
@@ -145,7 +169,7 @@ export async function signInWithCookie(email: string): Promise<{
 
   const { data, error } = await client.auth.signInWithPassword({
     email,
-    password: E2E_PASSWORD,
+    password,
   });
   if (error) throw error;
 

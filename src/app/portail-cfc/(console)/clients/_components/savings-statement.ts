@@ -24,10 +24,18 @@ const HEADERS = [
   "Libellé",
   "Canal",
   "Référence",
+  "Montant annoncé",
   "Débit",
   "Crédit",
+  "État",
   "Solde",
 ] as const;
+
+function statusLabel(status: SavingsTransaction["status"]): string {
+  if (status === "validated") return "Validée";
+  if (status === "rejected") return "Rejetée";
+  return "En attente";
+}
 
 /** Échappe le texte destined au HTML. */
 function escapeHtml(value: string): string {
@@ -59,8 +67,10 @@ export function buildSavingsCsv(transactions: SavingsTransaction[]): string {
       transaction.description,
       transaction.channel,
       transaction.reference,
+      transaction.amount,
       transaction.debit,
       transaction.credit,
+      statusLabel(transaction.status),
       transaction.balance,
     ]
       .map(csvCell)
@@ -107,8 +117,10 @@ export function buildSavingsStatementHtml(input: SavingsStatementInput): string 
         <td>${escapeHtml(transaction.description)}</td>
         <td>${escapeHtml(transaction.channel)}</td>
         <td class="mono">${escapeHtml(transaction.reference)}</td>
+        <td class="num">${transaction.amount.toLocaleString("fr-FR")}</td>
         <td class="num debit">${debit}</td>
         <td class="num credit">${credit}</td>
+        <td>${statusLabel(transaction.status)}${transaction.statusNote ? ` · ${escapeHtml(transaction.statusNote)}` : ""}</td>
         <td class="num">${transaction.balance.toLocaleString("fr-FR")}</td>
       </tr>`;
     })
@@ -158,7 +170,7 @@ export function buildSavingsStatementHtml(input: SavingsStatementInput): string 
       <tr>${HEADERS.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>
     </thead>
     <tbody>
-      ${rows || `<tr><td colspan="8">Aucune opération enregistrée.</td></tr>`}
+      ${rows || `<tr><td colspan="10">Aucune opération enregistrée.</td></tr>`}
     </tbody>
   </table>
   <footer>Document généré par le portail du Crédit Foncier du Cameroun. Ce relevé n'a pas de valeur contractuelle.</footer>

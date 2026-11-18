@@ -9,7 +9,6 @@ import { ROLE_LABELS, type AppRole } from "@/lib/auth-data";
 import { dossierStatusLabel } from "@/domain/entities/dossier";
 import {
   eventLabel,
-  phaseLabel,
   type DossierEvent,
 } from "@/domain/entities/processes";
 
@@ -100,12 +99,12 @@ export function DossierTimeline({
  * Bandeau d'avancement : la phase courante et le chemin qui y mène.
  */
 export function DossierPhaseCard({
-  currentPhase,
+  currentPhaseLabel,
   completionPercent,
   status,
   serviceLabel,
 }: {
-  currentPhase: string | null;
+  currentPhaseLabel: string | null;
   completionPercent: number | null;
   status: string | null;
   serviceLabel: string | null;
@@ -118,7 +117,7 @@ export function DossierPhaseCard({
         <div className="flex flex-col">
           <span className="eyebrow-style font-normal text-subtle">Étape en cours</span>
           <span className="text-sm font-medium text-foreground">
-            {phaseLabel(currentPhase)}
+            {currentPhaseLabel ?? "—"}
           </span>
         </div>
         <div className="flex items-center gap-2">

@@ -11,16 +11,16 @@ export function calculateHousingPlan(params: {
   apportPercentage: number;
   durationMonths: number;
   monthlyIncome: number;
-  loanDurationYears?: number;
-  annualInterestRate?: number;
+  loanDurationYears: number;
+  annualInterestRate: number;
 }): SimulationResult {
   const {
     projectCost,
     apportPercentage,
     durationMonths,
     monthlyIncome,
-    loanDurationYears = 15,
-    annualInterestRate = 0.055, // 5.5% taux bonifié CFC
+    loanDurationYears,
+    annualInterestRate,
   } = params;
 
   const apportTotal = projectCost * (apportPercentage / 100);
@@ -41,8 +41,6 @@ export function calculateHousingPlan(params: {
 
   // Taux d'endettement COBAC
   const debtToIncomeRatio = monthlyIncome > 0 ? (monthlyLoanRepayment / monthlyIncome) * 100 : 0;
-  const isCobacCompliant = debtToIncomeRatio <= 33;
-
   return {
     projectCost,
     apportPercentage,
@@ -55,6 +53,5 @@ export function calculateHousingPlan(params: {
     monthlyLoanRepayment,
     monthlyIncome,
     debtToIncomeRatio,
-    isCobacCompliant,
   };
 }

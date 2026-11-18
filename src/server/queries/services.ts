@@ -4,6 +4,7 @@ import { referenceView } from "@/server/queries/reference";
 import type {
   DocumentNature,
   DocumentTypeSummary,
+  DebtCapacityPolicy,
   RequirementRow,
   RequiredDocument,
   ServiceSummary,
@@ -25,6 +26,7 @@ export async function listServices(): Promise<ServiceSummary[]> {
   if (!env) return [];
 
   const client = await createServerSupabaseClient();
+  const today = new Date().toISOString().slice(0, 10);
 
   const [
     servicesResult,
@@ -42,18 +44,23 @@ export async function listServices(): Promise<ServiceSummary[]> {
       .order("sort_order", { ascending: true }),
     client
       .from(referenceView("service_document_requirement"))
-      .select("service_code, stage, doc_type_code, required, min_count")
+      .select("service_code, stage, doc_type_code, required, min_count, effective_from, effective_to")
+      .lte("effective_from", today)
+      .or(`effective_to.is.null,effective_to.gte.${today}`)
       .is("deleted_at", null),
     client
       .from(referenceView("document_type"))
       .select("code, label, nature_code, issuing_authority, category")
+      .lte("valid_from", today)
+      .or(`valid_to.is.null,valid_to.gte.${today}`)
       .is("deleted_at", null),
     client.from(referenceView("document_nature")).select("code, label").is("deleted_at", null),
     // Les produits portent l'apport minimal et la durée maximale : ce sont
     // les deux conditions que la carte doit afficher.
     client
       .from(referenceView("product"))
-      .select("code, label, service_code, min_apport_percent, max_duration_years")
+      .select("code, label, service_code, loan_ceiling, min_apport_percent, max_duration_years")
+      .eq("is_active", true)
       .is("deleted_at", null)
       .order("code", { ascending: true }),
     // Les barèmes : le taux indicatif du service. Seul le barème **en
@@ -61,6 +68,8 @@ export async function listServices(): Promise<ServiceSummary[]> {
     client
       .from(referenceView("product_rate"))
       .select("product_code, annual_rate, savings_rate, valid_from, valid_to")
+      .lte("valid_from", today)
+      .or(`valid_to.is.null,valid_to.gte.${today}`)
       .is("deleted_at", null),
   ]);
 
@@ -82,6 +91,7 @@ export async function listServices(): Promise<ServiceSummary[]> {
     code: string;
     label: string;
     service_code: string;
+    loan_ceiling: number | null;
     min_apport_percent: number | null;
     max_duration_years: number | null;
   }[];
@@ -95,8 +105,6 @@ export async function listServices(): Promise<ServiceSummary[]> {
 
   const documentByCode = new Map(documentTypes.map((doc) => [doc.code, doc]));
   const natureByCode = new Map(natures.map((nature) => [nature.code, nature]));
-
-  const today = new Date().toISOString().slice(0, 10);
 
   return services.map((service) => ({
     code: service.code,
@@ -119,6 +127,7 @@ export async function listServices(): Promise<ServiceSummary[]> {
         return {
           code: product.code,
           label: product.label,
+          loanCeiling: product.loan_ceiling === null ? null : Number(product.loan_ceiling),
           minApportPercent: product.min_apport_percent,
           maxDurationYears: product.max_duration_years,
           indicativeRate: current?.annual_rate ?? null,
@@ -147,6 +156,46 @@ export async function listServices(): Promise<ServiceSummary[]> {
         } satisfies RequiredDocument;
       }),
   }));
+}
+
+/** Active institution-wide debt capacity policy used by the public simulator. */
+export async function getGeneralDebtCapacityPolicy(): Promise<DebtCapacityPolicy | null> {
+  const env = getPublicEnv();
+  if (!env) return null;
+
+  const client = await createServerSupabaseClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await client
+    .from(referenceView("debt_capacity_policy"))
+    .select("code, label, description, max_debt_ratio, applies_to, effective_from, effective_to")
+    .eq("applies_to", "ALL")
+    .lte("effective_from", today)
+    .or(`effective_to.is.null,effective_to.gte.${today}`)
+    .is("deleted_at", null)
+    .order("effective_from", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[services] politique de capacité illisible :", error.message);
+    return null;
+  }
+  if (!data) return null;
+
+  const row = data as {
+    code: string;
+    label: string;
+    description: string | null;
+    max_debt_ratio: number | string;
+    applies_to: string | null;
+  };
+  return {
+    code: row.code,
+    label: row.label,
+    description: row.description,
+    maxDebtRatio: Number(row.max_debt_ratio),
+    appliesTo: row.applies_to,
+  };
 }
 
 export async function listDocumentNatures(): Promise<NatureRow[]> {

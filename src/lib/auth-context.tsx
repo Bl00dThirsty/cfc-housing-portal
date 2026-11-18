@@ -197,12 +197,16 @@ async function fetchProfile(user: User): Promise<AuthProfile | null> {
     };
   }
 
+  const now = new Date().toISOString();
   const [{ data: assignmentData }, { data: staffData }] = await Promise.all([
     supabase
       .from("staff_assignments")
       .select("role, agency_id")
       .eq("actor_id", user.id)
       .is("deleted_at", null)
+      .lte("starts_at", now)
+      .or(`ends_at.is.null,ends_at.gt.${now}`)
+      .order("starts_at", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),

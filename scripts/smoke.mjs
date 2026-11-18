@@ -14,47 +14,33 @@
  */
 
 import { createServerClient } from "@supabase/ssr";
-import { readFileSync } from "node:fs";
+import { loadLocalEnvironment } from "./lib/local-env-loading.mjs";
 
-/**
- * L'environnement local, quand il n'est pas déjà dans le processus.
- *
- * Le contrôle doit pouvoir être lancé tel quel : `node scripts/smoke.mjs`.
- * Une variable **vide** n'est pas une configuration : elle ne doit pas
- * masquer la valeur du fichier local.
- */
-function loadLocalEnv() {
-  try {
-    const content = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const index = trimmed.indexOf("=");
-      if (index === -1) continue;
-      const key = trimmed.slice(0, index).trim();
-      let value = trimmed.slice(index + 1).trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
-        value = value.slice(1, -1);
-      }
-      if (!process.env[key]) process.env[key] = value;
-    }
-  } catch {
-    // Pas de fichier local : l'environnement du processus suffit.
-  }
-}
-
-loadLocalEnv();
+loadLocalEnvironment(process.cwd());
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
-const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
-const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD || "CfcDev2026!";
+  process.env.SUPABASE_ANON_KEY;
+const DEV_PASSWORD = process.env.CFC_DEV_PASSWORD;
+
+const missingConfig = [
+  !SUPABASE_URL ? "NEXT_PUBLIC_SUPABASE_URL" : null,
+  !SUPABASE_ANON_KEY ? "NEXT_PUBLIC_SUPABASE_ANON_KEY" : null,
+  !DEV_PASSWORD ? "CFC_DEV_PASSWORD" : null,
+].filter(Boolean);
+if (missingConfig.length > 0) {
+  console.error(`Configure ${missingConfig.join(", ")} before running the local smoke check.`);
+  process.exit(1);
+}
+
+const targetUrl = new URL(SUPABASE_URL);
+if (!["localhost", "127.0.0.1", "[::1]"].includes(targetUrl.hostname.toLowerCase())) {
+  console.error("The smoke script only signs into the local development Supabase project.");
+  process.exit(1);
+}
 
 const results = [];
 
@@ -83,6 +69,7 @@ async function signIn(email) {
   return {
     user: data.user,
     cookie: cookies.map((c) => `${c.name}=${c.value}`).join("; "),
+    supabase,
   };
 }
 
@@ -97,8 +84,9 @@ async function fetchPage(path, cookieHeader) {
 
 async function main() {
   const agent = await signIn("guichet@cfc.cm");
+  const manager = await signIn("gestionnaire@cfc.cm");
   const admin = await signIn("admin@cfc.cm");
-  console.log(`\nSessions : ${agent.user.email} (GUICHET) · ${admin.user.email} (ADMIN)\n`);
+  console.log(`\nSessions : ${agent.user.email} (GUICHET) · ${manager.user.email} (GESTIONNAIRE) · ${admin.user.email} (ADMIN)\n`);
 
   const anonymous = await fetchPage("/portail-cfc/clients");
   check(
@@ -122,6 +110,14 @@ async function main() {
   for (const path of ["/login", "/inscription", "/onboarding", "/portail-client", "/simulator"]) {
     const page = await fetchPage(path);
     check(`route publique ${path} répond 200`, page.status === 200, `status=${page.status}`);
+    if (path === "/simulator") {
+      check(
+        "le simulateur charge le catalogue et les barèmes actifs",
+        page.body.includes("Produit de financement") && page.body.includes("Taux annuel") &&
+          !page.body.includes("Catalogue de financement indisponible"),
+        "produits, taux et règles proviennent du référentiel Supabase",
+      );
+    }
   }
 
   // La porte agent doit être atteignable : la rediriger vers elle-même
@@ -230,17 +226,28 @@ async function main() {
     `status=${console_.status}`,
   );
   check(
-    "la console rend le tableau CRM (en-tête « Emprunteur »)",
-    console_.body.includes("Emprunteur"),
+    "le GUICHET reçoit une file opérationnelle limitée",
+    console_.body.includes("Dossiers accessibles") &&
+      console_.body.includes("État opérationnel") &&
+      !console_.body.includes("Fiche détaillée"),
+    "le guichet voit l'état autorisé du dossier sans la fiche emprunteur",
   );
   check(
-    "la console rend la barre de filtres (« Phase »)",
-    console_.body.includes("Phase"),
+    "la file GUICHET montre les dossiers persistés",
+    console_.body.includes("CFC-DEV-"),
+    "les lignes viennent du portefeuille Supabase autorisé",
   );
-  check("la console rend une ligne d'emprunteur (DUC)", console_.body.includes("DUC-2026-"));
+
+  const managerConsole = await fetchPage("/portail-cfc/clients", manager.cookie);
   check(
-    "la console rend la commande d'export CSV",
-    console_.body.includes("Exporter"),
+    "le GESTIONNAIRE accède au CRM de son portefeuille",
+    managerConsole.status === 200 && managerConsole.body.includes("Emprunteur"),
+    `status=${managerConsole.status}`,
+  );
+  check(
+    "le CRM du gestionnaire propose phase et export CSV",
+    managerConsole.body.includes("Phase") && managerConsole.body.includes("Exporter"),
+    "filtrage et export sont disponibles sur les dossiers autorisés",
   );
   check(
     "la console ne fuit plus le sélecteur de rôle en libre-service",
@@ -317,10 +324,26 @@ async function main() {
     `status=${adminScreen.status}`,
   );
   check(
-    "l'écran de pilotage mesure ses indicateurs",
-    adminScreen.body.includes("Taux d'activation") &&
-      adminScreen.body.includes("Dossiers ouverts"),
-    "les indicateurs mesurés de la plateforme sont attendus",
+    "l'écran de pilotage mesure ses indicateurs enregistrés",
+    adminScreen.body.includes("Indicateurs issus de Supabase") &&
+      adminScreen.body.includes("Dossiers accessibles") &&
+      adminScreen.body.includes("Comptes d’épargne actifs") &&
+      adminScreen.body.includes("Opérations d’épargne à valider"),
+    "les agrégats mesurés portent uniquement sur les données enregistrées",
+  );
+
+  const { data: assignedDemoDossier, error: assignedDemoDossierError } = await admin.supabase
+    .from("dossiers")
+    .select("id")
+    .eq("duc_code", "CFC-DEV-0001")
+    .maybeSingle();
+  const assignmentDetails = assignedDemoDossier?.id
+    ? await fetchPage(`/portail-cfc/clients/${assignedDemoDossier.id}`, admin.cookie)
+    : null;
+  check(
+    "l'administrateur charge les gestionnaires régionaux avant une réaffectation",
+    !assignedDemoDossierError && assignmentDetails?.status === 200 && assignmentDetails.body.includes("Affectation du dossier"),
+    assignmentDetails ? `status=${assignmentDetails.status}` : "dossier démo absent ou lecture refusée",
   );
 
   const kyc = await fetchPage("/portail-cfc/actors/agency/kyc-validation", agent.cookie);

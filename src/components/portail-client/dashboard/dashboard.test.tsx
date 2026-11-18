@@ -70,6 +70,7 @@ function normalize(value: string): string {
 
 const fullInput = {  completionPercent: 42,
   currentPhase: "kyc_savings",
+  currentPhaseLabel: "Instruction du dossier",
   checklist: [
     item({ status: "verified" }),
     item({ docTypeCode: "X", status: "uploaded", stage: "SAVINGS" }),
@@ -96,6 +97,7 @@ const fullInput = {  completionPercent: 42,
 const emptyInput = {
   completionPercent: null,
   currentPhase: null,
+  currentPhaseLabel: null,
   checklist: [],
   events: [],
   finance: {

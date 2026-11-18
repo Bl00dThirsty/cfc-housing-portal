@@ -11,19 +11,38 @@
 //   node scripts/publish-email-templates.mjs
 //   CFC_ADMIN_EMAIL=admin@cfc.cm node scripts/publish-email-templates.mjs
 import { createClient } from "@supabase/supabase-js";
+import { loadLocalEnvironment } from "./lib/local-env-loading.mjs";
 
 import { DEFAULT_EMAIL_TEMPLATES } from "../src/server/email/defaults.ts";
 
-const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
+loadLocalEnvironment(process.cwd());
+
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const ANON_KEY =
   process.env.SUPABASE_ANON_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const ADMIN_EMAIL =
   process.env.CFC_ADMIN_EMAIL ||
-  process.env.CFC_DEV_ADMIN_EMAIL ||
-  "admin@cfc.cm";
-const ADMIN_PASSWORD = process.env.CFC_DEV_PASSWORD || "CfcDev2026!";
+  process.env.CFC_DEV_ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.CFC_DEV_PASSWORD;
+
+const missingConfig = [
+  !SUPABASE_URL ? "NEXT_PUBLIC_SUPABASE_URL" : null,
+  !ANON_KEY ? "NEXT_PUBLIC_SUPABASE_ANON_KEY" : null,
+  !ADMIN_EMAIL ? "CFC_ADMIN_EMAIL" : null,
+  !ADMIN_PASSWORD ? "CFC_DEV_PASSWORD" : null,
+].filter(Boolean);
+if (missingConfig.length > 0) {
+  console.error(`Configure ${missingConfig.join(", ")} before publishing local email templates.`);
+  process.exit(1);
+}
+
+const targetUrl = new URL(SUPABASE_URL);
+if (!["localhost", "127.0.0.1", "[::1]"].includes(targetUrl.hostname.toLowerCase())) {
+  console.error("Email template publication from this script is restricted to local Supabase.");
+  process.exit(1);
+}
 
 // 1. La session de l'agent : c'est lui qui publie.
 const anonymous = createClient(SUPABASE_URL, ANON_KEY, {

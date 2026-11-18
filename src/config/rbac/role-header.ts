@@ -52,7 +52,6 @@ const STAFF_CONFIGS: Record<string, RoleHeaderConfig> = {
     search: { placeholder: "Rechercher un dossier, un emprunteur…", scope: "G1" },
     quickActions: [
       { id: "enrol", label: "Enrôler un emprunteur", href: "/portail-cfc/actors/agency", icon: "UserPlus", capability: "dossier:create" },
-      { id: "kyc", label: "Valider un KYC", href: "/portail-cfc/actors/agency/kyc-validation", icon: "ShieldCheck", capability: "kyc:read" },
     ],
     showSupport: true,
   },

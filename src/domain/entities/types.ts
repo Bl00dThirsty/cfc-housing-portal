@@ -1,15 +1,3 @@
-export type ProjectType = 'construction' | 'terrain' | 'social' | 'renovation';
-
-export interface ProjectTypeOption {
-  id: ProjectType;
-  label: string;
-  icon: string;
-  description: string;
-  minAmount: number;
-  maxAmount: number;
-  defaultAmount: number;
-}
-
 export interface SimulationResult {
   projectCost: number;
   apportPercentage: number;
@@ -22,7 +10,6 @@ export interface SimulationResult {
   monthlyLoanRepayment: number;
   monthlyIncome: number;
   debtToIncomeRatio: number;
-  isCobacCompliant: boolean;
 }
 
 export interface CustomerProfile {
@@ -71,38 +58,4 @@ export interface DocumentItem {
   fileName?: string;
   fileSize?: string;
   uploadedAt?: string;
-}
-
-export type CreditPhaseId = 
-  | 'phase_1_kyc_savings'
-  | 'phase_2_risks_bet'
-  | 'phase_3_committees'
-  | 'phase_4_notary_mortgage'
-  | 'phase_5_disbursements'
-  | 'phase_6_closing_release';
-
-export interface WorkflowPhase {
-  id: CreditPhaseId;
-  stepNumber: number;
-  title: string;
-  shortTitle: string;
-  description: string;
-  responsibleActors: string[];
-}
-
-export interface CreditApplication {
-  id: string;
-  ducId: string;
-  customerName: string;
-  projectType: ProjectType;
-  projectCost: number;
-  loanAmount: number;
-  savingsBalance: number;
-  savingsTarget: number;
-  currentPhase: CreditPhaseId;
-  phaseStatus: 'in_progress' | 'completed' | 'blocked' | 'pending_review';
-  agency: string;
-  submittedAt: string;
-  lastUpdated: string;
-  documents: DocumentItem[];
 }

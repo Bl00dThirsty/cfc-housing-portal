@@ -14,12 +14,11 @@ import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
-  ANON_KEY,
   applyServerEnv,
   ensureE2eCitizen,
+  getE2eConfiguration,
   serviceClient,
   signInWithCookie,
-  SUPABASE_URL,
 } from "@/server/testing/e2e-accounts";
 
 import { confirmUpload, requestSignedUpload } from "./upload";
@@ -350,7 +349,8 @@ describe.skipIf(!process.env.CFC_E2E)("dépôt documentaire — bout en bout", (
 
     try {
       const { session } = await signIn("e2e.storage@cfc.cm");
-      const client = createClient(SUPABASE_URL, ANON_KEY, {
+      const { supabaseUrl, anonKey } = getE2eConfiguration();
+      const client = createClient(supabaseUrl, anonKey, {
         global: {
           headers: { Authorization: `Bearer ${session.access_token}` },
         },

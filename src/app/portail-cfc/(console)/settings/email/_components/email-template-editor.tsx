@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { reportOutcome } from "@/lib/action-feedback";
+import { emailPreviewValues } from "@/domain/entities/email-preview";
 import { renderTemplate } from "@/server/email/render";
 import {
   sendEmailAction,
@@ -31,30 +32,6 @@ import type { EmailTemplateContent } from "@/server/email/types";
  * La sauvegarde ne modifie **jamais** le modèle en place : elle publie une
  * version nouvelle et ferme la précédente.
  */
-
-/** Valeurs d'exemple proposées pour l'aperçu. */
-const SAMPLE_VALUES: Record<string, string> = {
-  prenom: "Awa",
-  nom: "Njoya",
-  email: "awa.njoya@example.cm",
-  telephone: "+237 6 99 00 00 00",
-  duc: "CFC-2026-DUC-04829",
-  reference: "DUC-2026-04829",
-  date: "12 mars 2026",
-  lien: "https://cfc.cm/portail-client",
-  montant: "5 000 000 FCFA",
-  taux: "6,5 %",
-  echeance: "145 000 FCFA",
-  duree: "30 minutes",
-  motif: "Photocopie de la CNI illisible — une version lisible est requise.",
-  document: "Photocopie de la CNI biométrique",
-  decision: "Accord sous réserve de la production des pièces définitives",
-};
-
-/** Valeur d'exemple pour une variable inconnue du dictionnaire. */
-function sampleFor(name: string): string {
-  return SAMPLE_VALUES[name] ?? `« ${name} »`;
-}
 
 interface EmailTemplateEditorProps {
   /** Modèle courant. */
@@ -103,11 +80,7 @@ export function EmailTemplateEditor({
 
   /** Valeurs injectées dans l'aperçu. */
   const previewVariables = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const name of variables) {
-      map[name] = samples[name] ?? sampleFor(name);
-    }
-    return map;
+    return emailPreviewValues(variables, samples);
   }, [variables, samples]);
 
   /** Aperçu rendu par le moteur réel. */
@@ -336,7 +309,7 @@ export function EmailTemplateEditor({
                       </Label>
                       <Input
                         id={`sample-${name}`}
-                        value={samples[name] ?? sampleFor(name)}
+                        value={samples[name] ?? ""}
                         onChange={(event) =>
                           setSamples((current) => ({ ...current, [name]: event.target.value }))
                         }

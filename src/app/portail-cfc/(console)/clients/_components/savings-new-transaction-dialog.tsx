@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import type { SavingsChannel, SavingsTransactionType } from "@/domain/entities/client";
+import type { SavingsChannel } from "@/domain/entities/client";
 
 const CHANNELS: { value: SavingsChannel; label: string; icon: React.ReactNode }[] = [
   { value: "Guichet CFC", label: "Guichet CFC", icon: <Landmark className="size-3.5" /> },
@@ -44,18 +44,20 @@ const CHANNELS: { value: SavingsChannel; label: string; icon: React.ReactNode }[
 ];
 
 export interface NewTransactionPayload {
-  type: SavingsTransactionType;
+  type: "Dépôt" | "Retrait";
   amount: number;
   channel: SavingsChannel;
   description: string;
   reference: string;
+  idempotencyKey: string;
 }
 
 interface SavingsNewTransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (payload: NewTransactionPayload) => void;
+  onSubmit: (payload: NewTransactionPayload) => Promise<boolean>;
   clientName: string;
+  canWithdraw: boolean;
 }
 
 export function SavingsNewTransactionDialog({
@@ -63,12 +65,19 @@ export function SavingsNewTransactionDialog({
   onOpenChange,
   onSubmit,
   clientName,
+  canWithdraw,
 }: SavingsNewTransactionDialogProps) {
   const [txType, setTxType] = React.useState<"Dépôt" | "Retrait">("Dépôt");
   const [amount, setAmount] = React.useState("");
   const [channel, setChannel] = React.useState<SavingsChannel>("Guichet CFC");
   const [description, setDescription] = React.useState("");
   const [reference, setReference] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const transactionIntent = React.useRef<{ fingerprint: string; key: string } | null>(null);
+
+  React.useEffect(() => {
+    if (!canWithdraw && txType === "Retrait") setTxType("Dépôt");
+  }, [canWithdraw, txType]);
 
   const resetForm = () => {
     setTxType("Dépôt");
@@ -76,9 +85,10 @@ export function SavingsNewTransactionDialog({
     setChannel("Guichet CFC");
     setDescription("");
     setReference("");
+    transactionIntent.current = null;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const numericAmount = parseFloat(amount.replace(/\s/g, "").replace(/,/g, "."));
     if (isNaN(numericAmount) || numericAmount <= 0) {
@@ -87,20 +97,27 @@ export function SavingsNewTransactionDialog({
       return;
     }
 
-    const autoRef =
-      reference ||
-      `REF-${channel.includes("MTN") ? "MTN" : channel.includes("Orange") ? "ORG" : channel.includes("SWIFT") ? "SWF" : channel.includes("SYSTAC") ? "SYS" : channel.includes("Employeur") ? "EMP" : channel.includes("Virement") ? "VIR" : "GCH"}-${Date.now().toString(36).toUpperCase()}`;
-
-    onSubmit({
-      type: txType,
-      amount: numericAmount,
-      channel,
-      description: description || `${txType} ${channel}`,
-      reference: autoRef,
-    });
-
-    resetForm();
-    onOpenChange(false);
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        type: txType,
+        amount: numericAmount,
+        channel,
+        description: description || `${txType} ${channel}`,
+        reference: reference.trim(),
+      };
+      const fingerprint = JSON.stringify(payload);
+      if (!transactionIntent.current || transactionIntent.current.fingerprint !== fingerprint) {
+        transactionIntent.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const saved = await onSubmit({ ...payload, idempotencyKey: transactionIntent.current.key });
+      if (saved) {
+        resetForm();
+        onOpenChange(false);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const isValid = (() => {
@@ -150,12 +167,14 @@ export function SavingsNewTransactionDialog({
                     Dépôt (Versement)
                   </span>
                 </SelectItem>
-                <SelectItem value="Retrait">
-                  <span className="flex items-center gap-2">
-                    <ArrowUpRight className="size-3 text-rose-600" />
-                    Retrait
-                  </span>
-                </SelectItem>
+                {canWithdraw && (
+                  <SelectItem value="Retrait">
+                    <span className="flex items-center gap-2">
+                      <ArrowUpRight className="size-3 text-rose-600" />
+                      Retrait
+                    </span>
+                  </SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -249,7 +268,7 @@ export function SavingsNewTransactionDialog({
             <Button
               type="submit"
               size="sm"
-              disabled={!isValid}
+              disabled={!isValid || isSubmitting}
               className={
                 txType === "Dépôt"
                   ? "bg-emerald-600 hover:bg-emerald-700"

@@ -29,11 +29,16 @@ export async function resolveRoleForUser(
 ): Promise<AppRole | null> {
   if (!supabase) return null;
 
+  const now = new Date().toISOString();
+
   const { data } = await supabase
     .from("staff_assignments")
     .select("role")
     .eq("actor_id", userId)
     .is("deleted_at", null)
+    .lte("starts_at", now)
+    .or(`ends_at.is.null,ends_at.gt.${now}`)
+    .order("starts_at", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

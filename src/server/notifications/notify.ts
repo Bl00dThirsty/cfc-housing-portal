@@ -46,7 +46,8 @@ export type NotificationType =
   | "payoff.statement"
   | "mainlevee.ready"
   | "support.message"
-  | "dossier.updated";
+  | "dossier.updated"
+  | "dossier.assigned";
 
 export interface NotifyInput {
   /** Destinataire. */
@@ -169,6 +170,18 @@ export const DOMAIN_EVENT_NOTIFICATIONS: Record<string, NotificationSignal> = {
   DOSSIER_UPDATED: {
     type: "dossier.updated",
     body: "Votre dossier a progressé : consultez les pièces restantes.",
+  },
+  /**
+   * L'affectation d'un dossier à un conseiller.
+   *
+   * C'est le seul signal du catalogue qui s'adresse à un **agent** : le
+   * demandeur n'a rien à savoir de l'affectation interne, le conseiller
+   * tout. Le destinataire est donc fourni explicitement — le dossier ne
+   * désigne qu'un citoyen.
+   */
+  DOSSIER_ASSIGNED: {
+    type: "dossier.assigned",
+    body: "Un dossier vous est attribué : il est à instruire dans votre portefeuille.",
   },
 };
 

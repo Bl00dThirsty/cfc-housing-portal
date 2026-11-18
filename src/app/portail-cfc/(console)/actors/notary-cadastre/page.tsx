@@ -1,14 +1,13 @@
+import { OperationalRegisterPage } from "@/server/queries/operational-register-page";
 import { PoleKpiStrip } from "@/components/portail-cfc/pole-kpi-strip";
-import { NotaireCadastreActorPage } from "./notaire-console";
 
 export const dynamic = "force-dynamic";
 
-/**
- * L'écran du pôle.
- *
- * La page est un composant **serveur** : elle mesure les indicateurs dans le
- * périmètre de l'agent et les passe à l'écran, qui est un composant client.
- */
-export default function Page() {
-  return <NotaireCadastreActorPage kpi={<PoleKpiStrip />} />;
+export default async function Page() {
+  const register = await OperationalRegisterPage({
+    register: "notary-instruments",
+    title: "Notariat & garanties",
+    description: "Actes et conventions enregistrés dans le registre notarial, sans données fictives.",
+  });
+  return <div className="flex flex-col gap-5"><PoleKpiStrip />{register}</div>;
 }

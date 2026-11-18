@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  advisorForSequence,
   CFC_CLIENT_ANCENNETE_MOIS,
   citizenKycBadge,
-  DEMO_ADVISORS,
   missingRequiredFields,
   PRIOR_CLIENT_CASES,
   validateKycProfile,
@@ -69,19 +67,6 @@ describe("parcours — les cas « déjà client »", () => {
 
   it("exige six mois d'ancienneté CFC", () => {
     expect(CFC_CLIENT_ANCENNETE_MOIS).toBe(6);
-  });
-});
-
-describe("parcours — les conseillers", () => {
-  it("connaît quatre conseillers de démonstration, dont un inactif", () => {
-    expect(DEMO_ADVISORS).toHaveLength(4);
-    expect(DEMO_ADVISORS.filter((a) => a.active)).toHaveLength(3);
-  });
-
-  it("ne s'arrête jamais sur le conseiller inactif", () => {
-    for (let index = 0; index < 12; index += 1) {
-      expect(advisorForSequence(index).active).toBe(true);
-    }
   });
 });
 

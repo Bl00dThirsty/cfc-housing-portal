@@ -3,17 +3,51 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ClientsTable } from "@/components/clients/table/clients-table";
-import { clientsData } from "@/domain/entities/client";
+import type { ClientItem } from "@/domain/entities/client";
 import { useDataTableStore } from "@/stores/data-table-store";
 
 beforeEach(() => {
   useDataTableStore.setState({ byTable: {} });
 });
 
+const clients: ClientItem[] = ["ABANDA Eric", "FOKAM Emmanuel"].map((name, index) => ({
+  id: `test-${index}`,
+  ducId: `DUC-TEST-${index}`,
+  name,
+  avatarTone: "",
+  email: "test@example.cm",
+  phone: "—",
+  region: "Centre",
+  agency: "Agence de test",
+  profession: "—",
+  employer: "—",
+  projectType: "—",
+  loanAmount: "—",
+  savingsTarget: "—",
+  savingsCurrent: "—",
+  savingsPercent: 0,
+  monthlyIncome: "—",
+  monthlyPayment: "—",
+  debtRatio: "—",
+  landTitle: "—",
+  durationYears: 0,
+  rate: "—",
+  accountNumber: "—",
+  notaryAssigned: "—",
+  betAssigned: "—",
+  officer: "—",
+  phase: "Épargne & KYC",
+  status: "Ouvert",
+  lastActivity: "—",
+  completionPercent: 0,
+  documents: [],
+  visas: [],
+}));
+
 function renderTable() {
   return render(
     <ClientsTable
-      clients={clientsData}
+      clients={clients}
       selectedClientId=""
       onSelectClient={() => {}}
       onOpenKanban={() => {}}

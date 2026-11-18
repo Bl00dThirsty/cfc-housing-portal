@@ -1,7 +1,8 @@
 # Configuration Supabase — CFC Housing Portal
 #
-# Instance locale (`supabase start`) alignée sur le projet distant
-# yyqfqsmsfaccsstwlpog (Crédit Foncier du Cameroun).
+# Instance locale (`supabase start`). Les cibles distantes et leurs secrets
+# proviennent exclusivement des variables de l'environnement et des commandes
+# explicites `system:staging` / `system:production`.
 #
 # Les migrations de `supabase/migrations/` sont la source de vérité du schéma.
 # `supabase/seed.sql` porte le référentiel déclarable (natures, types de
@@ -35,21 +36,6 @@ port = 54324
 [storage]
 enabled = true
 file_size_limit = "20MiB"
-# L'image de l'API Storage est épinglée à la version dont le schéma de
-# migrations correspond à celui de la base locale.
-#
-# Pourquoi : le schéma `storage` de la base locale est au migration 79
-# (`lifecycle-writer-coordination`), qui a supprimé l'index unique
-# `bucketid_objname` sur `(bucket_id, name)`. Depuis, les index d'unicité
-# sont partiels (`idx_objects_current_version`, `idx_objects_null_version`).
-# Or storage-api v1.72.1 écrit toujours `ON CONFLICT (name, bucket_id)`,
-# forme qui n'infère plus aucun index → PostgreSQL répond `42P10` et **aucun
-# dépôt ne passe**. v1.89.13 teste la présence de la migration
-# `objects-current-version-index` et choisit alors
-# `ON CONFLICT (bucket_id, name COLLATE "C") WHERE archived_at IS NULL`,
-# qui s'infère. Les deux versions doivent donc rester alignées sur le
-# schéma : la base est migrée par le conteneur, c'est l'image qui décide.
-image = "public.ecr.aws/supabase/storage-api:v1.89.13"
 
 [auth]
 enabled = true
@@ -64,7 +50,7 @@ refresh_token_reuse_interval = 10
 enable_signup = true
 
 [auth.email]
-enable_signup = true
+enabled = true
 double_confirm_changes = true
 enable_confirmations = true
 
@@ -91,7 +77,7 @@ content_path = "./supabase/templates/email_change.html"
 [auth.email.notification.password_changed]
 enabled = true
 subject = "Modification du mot de passe de votre compte CFC Habitat"
-content_path = "./supabase/templates/password_changed.html"
+content_path = "./templates/password_changed.html"
 
 [auth.email.notification.email_changed]
 enabled = true
