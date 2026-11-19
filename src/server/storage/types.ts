@@ -6,7 +6,7 @@
  * serveur dans le paquet du navigateur.
  */
 
-import type { Role } from "@/domain/policies/capabilities";
+import type { Capability, Role } from "@/domain/policies/capabilities";
 
 /** Motifs d'échec du dépôt, stables et sérialisables. */
 export type StorageErrorCode =
@@ -30,6 +30,8 @@ export interface UploadActor {
   id: string;
   /** Rôle effectif (métier ou citoyen). */
   role: Role;
+  /** Current persisted grants; an empty list fails closed. */
+  capabilities?: readonly Capability[];
   /** Agence de rattachement de l'acteur. */
   agencyId: string | null;
   /** L'acteur sert-il le guichet diaspora ? */

@@ -23,6 +23,7 @@ import { getAdminClient } from "@/server/supabase/admin";
 import { getEmailProvider } from "./provider";
 import { renderTemplate } from "./render";
 import { getActiveTemplate } from "./templates";
+import { safeEmailDeliveryPayload } from "./payload";
 import type { EmailDeliveryStatus, EmailDeliveryRow, EmailVariables } from "./types";
 
 /** Entrée de la chaîne d'envoi. */
@@ -180,7 +181,7 @@ export async function sendTemplatedEmail(input: SendEmailInput): Promise<SendEma
 
   // 2. Résolution du modèle.
   const { template } = await getActiveTemplate(input.templateCode, { service: true });
-  const payload = serialiseVariables(input.variables);
+  const payload = safeEmailDeliveryPayload(input.templateCode, serialiseVariables(input.variables));
 
   // 2 bis. Modèle désactivé : on journalise, on n'envoie pas.
   if (!template.isActive) {

@@ -45,7 +45,7 @@ async function requireCapability(capability: Capability) {
     throw new Error("Session requise : reconnectez-vous pour continuer.");
   }
 
-  if (!hasCapability(profile.role, capability)) {
+  if (!hasCapability(profile.role, capability, profile.capabilities)) {
     throw new Error(`Habilitation insuffisante : « ${capability} » est requis.`);
   }
 
@@ -54,7 +54,7 @@ async function requireCapability(capability: Capability) {
 
 /** Catalogue courant : une ligne par code. */
 export async function listEmailTemplatesAction(): Promise<CatalogueEntry[]> {
-  await requireCapability("catalogue:read");
+  await requireCapability("email:read");
   return listCatalogue();
 }
 
@@ -64,7 +64,7 @@ export async function getEmailTemplateAction(code: string): Promise<{
   history: EmailTemplateContent[];
   isFallback: boolean;
 }> {
-  await requireCapability("catalogue:read");
+  await requireCapability("email:read");
 
   const resolved = await getActiveTemplate(code);
   const history = await getTemplateHistory(code);
@@ -87,7 +87,7 @@ export async function previewEmailTemplateAction(
   missing: string[];
   undeclared: string[];
 }> {
-  await requireCapability("catalogue:read");
+  await requireCapability("email:read");
 
   const variables = toVariables(input.variables);
 
@@ -131,7 +131,7 @@ export async function previewEmailTemplateAction(
 export async function upsertEmailTemplateAction(
   input: EmailTemplateUpsertInput,
 ): Promise<EmailActionResult & { version: number | null }> {
-  await requireCapability("catalogue:write");
+  await requireCapability("email:manage");
 
   const code = input.code.trim().toUpperCase();
   if (!code) {
@@ -196,7 +196,7 @@ export async function toggleEmailTemplateAction(
   code: string,
   isActive: boolean,
 ): Promise<EmailActionResult & { version: number | null }> {
-  await requireCapability("catalogue:write");
+  await requireCapability("email:manage");
 
   const normalised = code.trim().toUpperCase();
   const history = await getTemplateHistory(normalised);
@@ -245,7 +245,7 @@ export async function toggleEmailTemplateAction(
 export async function listEmailDeliveriesAction(
   filter: { status?: string | null; templateCode?: string | null; limit?: number } = {},
 ): Promise<EmailDeliveryRow[]> {
-  await requireCapability("catalogue:read");
+  await requireCapability("email:read");
 
   const supabase = await createServerSupabaseClient();
   let query = supabase
@@ -270,7 +270,7 @@ export async function listEmailDeliveriesAction(
  * branches métier qui ne passent pas par un événement.
  */
 export async function sendEmailAction(input: EmailSendInput): Promise<SendEmailResult> {
-  const profile = await requireCapability("catalogue:write");
+  const profile = await requireCapability("email:send");
 
   const to = input.to.trim();
   if (!to) {
@@ -298,7 +298,7 @@ export async function sendEmailAction(input: EmailSendInput): Promise<SendEmailR
 export async function resendEmailDeliveryAction(
   deliveryId: string,
 ): Promise<SendEmailResult & { ok: boolean; message: string }> {
-  const profile = await requireCapability("catalogue:write");
+  const profile = await requireCapability("email:send");
 
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
@@ -324,6 +324,20 @@ export async function resendEmailDeliveryAction(
 
   const delivery = data as EmailDeliveryRow;
   const payload = (delivery.payload ?? {}) as Record<string, unknown>;
+
+  if (["MAGIC_LINK", "RESET_PASSWORD", "STAFF_INVITATION"].includes(delivery.template_code)) {
+    return {
+      ok: false,
+      message: "Un lien d’authentification expirant ne peut pas être rejoué depuis le journal. Produisez un nouveau lien depuis la gestion des comptes.",
+      status: "failed",
+      templateCode: delivery.template_code,
+      deliveryId: delivery.id,
+      provider: delivery.provider,
+      subject: delivery.subject ?? "",
+      error: "auth_link_must_be_regenerated",
+      missingVariables: [],
+    };
+  }
 
   const result = await sendTemplatedEmail({
     templateCode: delivery.template_code,

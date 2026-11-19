@@ -99,7 +99,9 @@ describe("modèles d'e-mail par défaut", () => {
     const reachable = new Set(Object.values(DOMAIN_EVENT_TEMPLATES));
 
     for (const template of Object.values(DEFAULT_EMAIL_TEMPLATES)) {
-      expect(reachable.has(template.code)).toBe(true);
+      // Transport tests are deliberately initiated by the protected admin
+      // action and are not bound to a borrower or staff business event.
+      expect(reachable.has(template.code) || template.code === "SYSTEM_TEST").toBe(true);
     }
 
     // Et l'inverse : un événement qui a un modèle doit avoir un modèle par

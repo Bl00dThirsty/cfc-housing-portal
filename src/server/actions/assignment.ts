@@ -30,7 +30,7 @@ export async function reassignDossierAction(input: unknown): Promise<Reassignmen
   if (!parsed.success) return { ok: false, error: "Choisissez un gestionnaire et indiquez un motif d’au moins 10 caractères." };
 
   const profile = await getServerProfile();
-  if (!profile || !hasCapability(profile.role, "admin:users")) {
+  if (!profile || !hasCapability(profile.role, "admin:users", profile.capabilities)) {
     return { ok: false, error: "Cette action est réservée à l’administrateur." };
   }
 

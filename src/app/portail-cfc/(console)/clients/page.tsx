@@ -28,14 +28,15 @@ export default async function ClientsPage() {
 
   const result = await getStaffDossiers();
   const savingsCapabilities = {
-    canCredit: hasCapability(profile.role, "savings:credit"),
-    canDebit: hasCapability(profile.role, "savings:debit"),
-    canValidate: hasCapability(profile.role, "savings:validate"),
-    canReverse: hasCapability(profile.role, "savings:reverse"),
+    canCredit: hasCapability(profile.role, "savings:credit", profile.capabilities),
+    canDebit: hasCapability(profile.role, "savings:debit", profile.capabilities),
+    canValidate: hasCapability(profile.role, "savings:validate", profile.capabilities),
+    canReverse: hasCapability(profile.role, "savings:reverse", profile.capabilities),
   };
   return (
     <ClientWorkspaceHub
       clients={result.ok ? result.dossiers : []}
+      phases={result.ok ? result.phases : []}
       loadError={result.ok ? undefined : result.error}
       savingsCapabilities={savingsCapabilities}
       canOpenProfile

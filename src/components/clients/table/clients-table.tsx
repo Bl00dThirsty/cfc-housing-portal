@@ -6,8 +6,10 @@ import { DataTable } from "@/components/data-table/data-table";
 import { useDataTable } from "@/components/data-table/use-data-table";
 import { Button } from "@/components/ui/button";
 import { DataTableToolbar } from "@/components/ui/data-table-toolbar";
+import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle";
 import { downloadCsv } from "@/lib/csv";
 
+import { ClientCard } from "./client-card";
 import { ClientRow } from "./client-row";
 import {
   CLIENT_COLUMNS,
@@ -46,6 +48,7 @@ export function ClientsTable({
   onOpenEpargne,
 }: ClientsTableProps) {
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+  const [view, setView] = React.useState<ViewMode>("list");
 
   /**
    * Les lignes **visibles** : celles que le moteur laisse passer.
@@ -86,7 +89,7 @@ export function ClientsTable({
       "emprunteurs-cfc.csv",
       [
         ["DUC", "Emprunteur", "Agence", "Phase", "Statut", "Montant", "Épargne", "Avancement %"],
-        ...clients.map((client) => [
+        ...visibleClients.map((client) => [
           client.ducId,
           client.name,
           client.agency,
@@ -110,6 +113,7 @@ export function ClientsTable({
         searchPlaceholder="Rechercher un emprunteur, un DUC ou une agence..."
         onExport={handleExport}
       >
+        <ViewModeToggle value={view} onValueChange={setView} />
         {/* L'action de sélection : la barre canonique n'a pas de case à
             cocher d'en-tête, elle accueille une action d'écran. */}
         <Button
@@ -123,35 +127,69 @@ export function ClientsTable({
         </Button>
       </DataTableToolbar>
 
-      <DataTable
-        tableId={TABLE_ID}
-        columns={CLIENT_COLUMNS}
-        rows={visibleClients}
-        getRowId={(client) => client.id}
-        emptyLabel="Aucun emprunteur ne correspond aux filtres appliqués."
-        tableClassName={CLIENT_TABLE_GRID_CLASS}
-        rowClassName={CLIENT_TABLE_ROW_CLASS}
-        cellClassName={CLIENT_TABLE_CELL_CLASS}
-        renderRow={({ row, cell }) => (
-          <ClientRow
-            client={row}
-            cell={cell}
-            selected={selectedIds.includes(row.id)}
-            active={row.id === selectedClientId}
-            onToggle={(id) =>
-              setSelectedIds((current) =>
-                current.includes(id)
-                  ? current.filter((selected) => selected !== id)
-                  : [...current, id],
-              )
-            }
-            onOpen={() => onSelectClient(row)}
-            onOpenKanban={() => onOpenKanban(row)}
-            onOpenDuc={() => onOpenDuc(row)}
-            onOpenEpargne={() => onOpenEpargne(row)}
-          />
-        )}
-      />
+      {view === "grid" ? (
+        visibleClients.length > 0 ? (
+          <ul
+            role="list"
+            aria-label="Emprunteurs en grille"
+            className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+          >
+            {visibleClients.map((client) => (
+              <ClientCard
+                key={client.id}
+                client={client}
+                selected={selectedIds.includes(client.id)}
+                active={client.id === selectedClientId}
+                onToggle={(id) =>
+                  setSelectedIds((current) =>
+                    current.includes(id)
+                      ? current.filter((selected) => selected !== id)
+                      : [...current, id],
+                  )
+                }
+                onOpen={() => onSelectClient(client)}
+                onOpenKanban={() => onOpenKanban(client)}
+                onOpenDuc={() => onOpenDuc(client)}
+                onOpenEpargne={() => onOpenEpargne(client)}
+              />
+            ))}
+          </ul>
+        ) : (
+          <div className="rounded-lg border border-dashed bg-card px-6 py-12 text-center text-sm text-muted-foreground">
+            Aucun emprunteur ne correspond aux filtres appliqués.
+          </div>
+        )
+      ) : (
+        <DataTable
+          tableId={TABLE_ID}
+          columns={CLIENT_COLUMNS}
+          rows={visibleClients}
+          getRowId={(client) => client.id}
+          emptyLabel="Aucun emprunteur ne correspond aux filtres appliqués."
+          tableClassName={CLIENT_TABLE_GRID_CLASS}
+          rowClassName={CLIENT_TABLE_ROW_CLASS}
+          cellClassName={CLIENT_TABLE_CELL_CLASS}
+          renderRow={({ row, cell }) => (
+            <ClientRow
+              client={row}
+              cell={cell}
+              selected={selectedIds.includes(row.id)}
+              active={row.id === selectedClientId}
+              onToggle={(id) =>
+                setSelectedIds((current) =>
+                  current.includes(id)
+                    ? current.filter((selected) => selected !== id)
+                    : [...current, id],
+                )
+              }
+              onOpen={() => onSelectClient(row)}
+              onOpenKanban={() => onOpenKanban(row)}
+              onOpenDuc={() => onOpenDuc(row)}
+              onOpenEpargne={() => onOpenEpargne(row)}
+            />
+          )}
+        />
+      )}
     </div>
   );
 }

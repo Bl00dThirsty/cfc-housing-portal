@@ -97,7 +97,7 @@ async function readRows(key: OperationalRegisterKey, supabase: Awaited<ReturnTyp
       return supabase.from("disbursement_schedules")
         .select("id, dossier_id, due_date, amount, status, paid_at")
         .is("deleted_at", null).order("due_date", { ascending: true });
-    case "reconciliation-runs": case "systac-runs":
+    case "reconciliation-runs":
       return supabase.from("reconciliation_runs")
         .select("id, run_date, channel, records_total, records_matched, records_mismatch, amount_total, discrepancy_amount, status")
         .is("deleted_at", null).order("run_date", { ascending: false });

@@ -86,6 +86,16 @@ function cta(label: string, href: string): string {
 
 /** Modèles par défaut, indexés par code métier. */
 export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = {
+  SYSTEM_TEST: {
+    code: "SYSTEM_TEST",
+    label: "Test du relais de messagerie",
+    eventType: "MAIL_TRANSPORT_TEST",
+    audience: "staff",
+    variables: [],
+    subject: "Test du relais de messagerie CFC Habitat",
+    html: "<main style=\"font-family:Arial,Helvetica,sans-serif;color:#3f2d22;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e8ded2;border-top:4px solid #e59819;border-radius:8px\"><h1 style=\"font-size:20px;color:#7b2e15\">Test du relais de messagerie</h1><p>Ce message confirme que le service de messagerie CFC Habitat a traité un envoi de test.</p><p>Aucune donnée client ou opération de crédit n’est incluse dans ce message.</p><p style=\"font-size:12px;color:#7a6a5e\">Crédit Foncier du Cameroun · Direction Générale</p></main>",
+    text: "Test du relais de messagerie CFC Habitat\n\nCe message confirme que le service de messagerie a traité un envoi de test. Aucune donnée client ou opération de crédit n’est incluse.\n\nCrédit Foncier du Cameroun · Direction Générale",
+  },
   WELCOME: {
     code: "WELCOME",
     label: "Bienvenue — création de compte",
@@ -136,6 +146,33 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
       "Se connecter : {{lien}}",
       "",
       "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.",
+    ].join("\n"),
+  },
+
+  STAFF_INVITATION: {
+    code: "STAFF_INVITATION",
+    label: "Invitation d’un membre du personnel",
+    eventType: "STAFF_INVITATION_SENT",
+    audience: "staff",
+    variables: ["prenom", "nom", "lien", "date", "duree", "logo", "siege"],
+    subject: "Votre accès à la plateforme CFC Habitat",
+    html: wrapHtml(
+      "Votre espace professionnel CFC",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Votre compte professionnel CFC a été préparé. Utilisez ce lien unique avant son expiration pour confirmer votre adresse et choisir votre mot de passe.</p>",
+        cta("Activer mon compte", "{{lien}}"),
+        "<p style=\"margin:16px 0 0 0;font-size:12px;color:#6b7280;\">Si vous n’attendiez pas cette invitation, contactez votre administrateur CFC. Ne transférez pas ce lien.</p>",
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Votre compte professionnel CFC a été préparé. Utilisez ce lien unique avant son expiration pour confirmer votre adresse et choisir votre mot de passe.",
+      "",
+      "Activer mon compte : {{lien}}",
+      "",
+      "Le lien expire dans {{duree}}. Ne le transférez pas.",
     ].join("\n"),
   },
 

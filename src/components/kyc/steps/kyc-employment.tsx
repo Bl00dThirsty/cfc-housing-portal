@@ -21,14 +21,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  EMPLOYMENT_STATUSES,
-  INCOME_BANDS,
-  INCOME_ORIGINS,
   type KycEmployment,
 } from "@/domain/entities/kyc";
+import type { KycOption } from "@/domain/entities/kyc-options";
 
 export interface KycEmploymentStepProps {
   employment: KycEmployment;
+  employmentStatusOptions: readonly KycOption[];
+  incomeBandOptions: readonly KycOption[];
+  incomeOriginOptions: readonly KycOption[];
   onChange: (values: Partial<KycEmployment>) => void;
   /** Le refus, rattaché à son champ. */
   errors: Record<string, string>;
@@ -36,6 +37,9 @@ export interface KycEmploymentStepProps {
 
 export function KycEmploymentStep({
   employment,
+  employmentStatusOptions,
+  incomeBandOptions,
+  incomeOriginOptions,
   onChange,
   errors,
 }: KycEmploymentStepProps) {
@@ -50,16 +54,16 @@ export function KycEmploymentStep({
         <Select
           value={employment.status ?? ""}
           onValueChange={(value) =>
-            onChange({ status: value as KycEmployment["status"] })
+            onChange({ status: value || null })
           }
         >
           <SelectTrigger id="kyc-employment-status">
             <SelectValue placeholder="Choisir" />
           </SelectTrigger>
           <SelectContent>
-            {EMPLOYMENT_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status}
+            {employmentStatusOptions.map((option) => (
+              <SelectItem key={option.code} value={option.code}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -143,40 +147,48 @@ export function KycEmploymentStep({
         />
       </Field>
 
-      <Field label="Tranche de revenu" htmlFor="kyc-income-band">
+      <Field
+        label="Tranche de revenu"
+        htmlFor="kyc-income-band"
+        error={errors["employment.incomeBand"]}
+      >
         <Select
           value={employment.incomeBand ?? ""}
           onValueChange={(value) =>
-            onChange({ incomeBand: value as KycEmployment["incomeBand"] })
+            onChange({ incomeBand: value || null })
           }
         >
           <SelectTrigger id="kyc-income-band">
             <SelectValue placeholder="Choisir" />
           </SelectTrigger>
           <SelectContent>
-            {INCOME_BANDS.map((band) => (
-              <SelectItem key={band} value={band}>
-                {band}
+            {incomeBandOptions.map((option) => (
+              <SelectItem key={option.code} value={option.code}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </Field>
 
-      <Field label="Origine du revenu" htmlFor="kyc-income-origin">
+      <Field
+        label="Origine du revenu"
+        htmlFor="kyc-income-origin"
+        error={errors["employment.incomeOrigin"]}
+      >
         <Select
           value={employment.incomeOrigin ?? ""}
           onValueChange={(value) =>
-            onChange({ incomeOrigin: value as KycEmployment["incomeOrigin"] })
+            onChange({ incomeOrigin: value || null })
           }
         >
           <SelectTrigger id="kyc-income-origin">
             <SelectValue placeholder="Choisir" />
           </SelectTrigger>
           <SelectContent>
-            {INCOME_ORIGINS.map((origin) => (
-              <SelectItem key={origin} value={origin}>
-                {origin}
+            {incomeOriginOptions.map((option) => (
+              <SelectItem key={option.code} value={option.code}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>

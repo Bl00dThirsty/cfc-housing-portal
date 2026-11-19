@@ -1,6 +1,7 @@
-import nextEnv from "@next/env";
+import { createRequire } from "node:module";
 
-const { loadEnvConfig } = nextEnv;
+const require = createRequire(import.meta.url);
+const { loadEnvConfig } = require("@next/env");
 
 /** Load the repository's development env files without replacing caller overrides. */
 export function loadLocalEnvironment(cwd = process.cwd()) {

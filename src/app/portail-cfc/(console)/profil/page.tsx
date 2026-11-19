@@ -1,4 +1,5 @@
 import { ProfilePanel } from "@/components/profile/profile-panel";
+import { ProfileEditor } from "@/components/profile/profile-editor";
 import type { Role } from "@/domain/policies/capabilities";
 import { ROLE_SCOPES } from "@/domain/policies/scope";
 import { getServerProfile } from "@/server/auth/profile";
@@ -58,6 +59,22 @@ export default async function AgentProfilePage() {
           jobTitle: (staff as { job_title: string | null } | null)?.job_title ?? null,
         }}
       />
+
+      {profile ? (
+        <div className="mt-4">
+          <ProfileEditor
+            fullName={profile.fullName}
+            email={profile.email}
+            pendingEmail={profile.pendingEmail}
+            phone={profile.phone}
+            avatarUrl={profile.avatarUrl}
+            canEditLegalName
+            isCitizen={false}
+            correctionRequests={[]}
+            correctionDossiers={[]}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

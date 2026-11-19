@@ -130,4 +130,17 @@ describe("répertoire des emprunteurs", () => {
       screen.getByText("Aucun emprunteur ne correspond aux filtres appliqués."),
     ).toBeInTheDocument();
   });
+
+  it("bascule vers la grille sans perdre le résultat de recherche", async () => {
+    const user = userEvent.setup();
+
+    renderTable();
+
+    await user.type(screen.getByLabelText("Rechercher"), "fokam");
+    await user.click(screen.getByRole("button", { name: "Vue en grille" }));
+
+    const cards = screen.getByRole("list", { name: "Emprunteurs en grille" });
+    expect(cards).toHaveTextContent("FOKAM Emmanuel");
+    expect(cards).not.toHaveTextContent("ABANDA Eric");
+  });
 });

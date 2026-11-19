@@ -32,7 +32,10 @@ import {
 } from "@/components/ui/dialog";
 import { reportAction } from "@/lib/action-feedback";
 import { cn } from "@/lib/utils";
-import { saveServiceAction, setPriorClientCaseAction } from "@/server/actions/onboarding";
+import {
+  saveServiceAction,
+  setPriorClientCaseAction,
+} from "@/server/actions/borrower-requests";
 import {
   CFC_CLIENT_ANCENNETE_MOIS,
   PRIOR_CLIENT_CASES,
@@ -42,6 +45,8 @@ import type { ServiceSummary } from "@/domain/entities/services";
 
 type ServicePickerProps = {
   services: ServiceSummary[];
+  dossierId: string | null;
+  onSuspended?: () => void;
   onNext: () => void;
   saving: boolean;
   setSaving: (saving: boolean) => void;
@@ -49,6 +54,8 @@ type ServicePickerProps = {
 
 export function ServicePicker({
   services,
+  dossierId,
+  onSuspended,
   onNext,
   saving,
   setSaving,
@@ -60,12 +67,16 @@ export function ServicePicker({
 
   /** Le service choisi est **attaché** au dossier avant la question. */
   const openCaseWindow = async (service: ServiceSummary) => {
+    if (!dossierId) {
+      setError("Ouvrez une demande depuis votre espace avant de choisir un service.");
+      return;
+    }
     setSelected(service);
     setError(null);
     setSaving(true);
 
     try {
-      const result = await saveServiceAction(service.code);
+      const result = await saveServiceAction(service.code, dossierId);
 
       if (!result.ok) {
         reportAction(result);
@@ -80,12 +91,16 @@ export function ServicePicker({
 
   const choose = async (priorClientCase: PriorClientCase) => {
     if (!selected) return;
+    if (!dossierId) {
+      setError("Ouvrez une demande depuis votre espace avant de continuer.");
+      return;
+    }
 
     setError(null);
     setSaving(true);
 
     try {
-      const result = await setPriorClientCaseAction({ priorClientCase });
+      const result = await setPriorClientCaseAction({ priorClientCase, dossierId });
 
       if (!result.ok) {
         reportAction(result);
@@ -283,7 +298,10 @@ export function ServicePicker({
               type="button"
               variant="cfc"
               size="sm"
-              onClick={() => setSuspension(null)}
+              onClick={() => {
+                setSuspension(null);
+                onSuspended?.();
+              }}
               className="gap-1.5 text-xs"
             >
               {saving ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}

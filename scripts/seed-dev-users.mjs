@@ -70,6 +70,7 @@ const CITIZENS = [
     ducCode: "CFC-DEV-0001",
     serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
     phase: "kyc_savings",
+    currentStep: "CRD-01",
     plan: {
       projectCost: 9000000,
       apportPercentage: 20,
@@ -100,6 +101,7 @@ const CITIZENS = [
     ducCode: "CFC-DEV-0002",
     serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
     phase: "risk_bet",
+    currentStep: "CRD-04",
     plan: {
       projectCost: 18000000,
       apportPercentage: 25,
@@ -131,6 +133,7 @@ const CITIZENS = [
     ducCode: "CFC-DEV-0003",
     serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
     phase: "kyc_savings",
+    currentStep: "CRD-02",
     plan: {
       projectCost: 12000000,
       apportPercentage: 20,
@@ -147,6 +150,72 @@ const CITIZENS = [
     timeline: [
       { type: "KYC_SUBMITTED", role: "CITIZEN", payload: { note: "Dossier transmis au guichet." } },
       { type: "DOCUMENT_UPLOADED", role: "CITIZEN", payload: { document: "CNI biométrique" } },
+    ],
+  },
+  {
+    email: "emprunteur.comite@cfc.cm",
+    name: "MANGA Solange",
+    affiliation: "cfc_existing",
+    diaspora: false,
+    agencyCode: "CFC-YDE-CENTRE",
+    ducCode: "CFC-DEV-0004",
+    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
+    phase: "committees",
+    currentStep: "CRD-07",
+    committeeCode: "CGR",
+    plan: { projectCost: 24000000, apportPercentage: 25, durationMonths: 48, monthlyIncome: 1600000, loanDurationYears: 20, annualInterestRate: 0.05 },
+    savingsMonthsPaid: 48,
+    onboardingState: "active",
+    priorClientCase: "deja_au_cfc",
+    ducStatus: "active",
+    kycState: "approved",
+    timeline: [
+      { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Dossier conforme, fixture locale." } },
+      { type: "DOSSIER_UPDATED", role: "RISQUES_BET", payload: { note: "Évaluation technique transmise au comité." } },
+    ],
+  },
+  {
+    email: "emprunteur.notaire@cfc.cm",
+    name: "TCHINDA Roland",
+    affiliation: "cfc_existing",
+    diaspora: false,
+    agencyCode: "CFC-DLA-BONANJO",
+    ducCode: "CFC-DEV-0005",
+    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
+    phase: "notary_mortgage",
+    currentStep: "CRD-11",
+    committeeCode: "CGR",
+    plan: { projectCost: 32000000, apportPercentage: 25, durationMonths: 48, monthlyIncome: 2200000, loanDurationYears: 20, annualInterestRate: 0.05 },
+    savingsMonthsPaid: 48,
+    onboardingState: "active",
+    priorClientCase: "deja_au_cfc",
+    ducStatus: "active",
+    kycState: "approved",
+    timeline: [
+      { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Dossier conforme, fixture locale." } },
+      { type: "DOSSIER_UPDATED", role: "COMITE", payload: { note: "Offre acceptée; constitution des garanties à suivre." } },
+    ],
+  },
+  {
+    email: "emprunteur.deblocage@cfc.cm",
+    name: "NGONO Mireille",
+    affiliation: "cfc_existing",
+    diaspora: false,
+    agencyCode: "CFC-YDE-CENTRE",
+    ducCode: "CFC-DEV-0006",
+    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
+    phase: "disbursements",
+    currentStep: "CRD-12",
+    committeeCode: "CGR",
+    plan: { projectCost: 28000000, apportPercentage: 30, durationMonths: 48, monthlyIncome: 1900000, loanDurationYears: 20, annualInterestRate: 0.05 },
+    savingsMonthsPaid: 48,
+    onboardingState: "active",
+    priorClientCase: "deja_au_cfc",
+    ducStatus: "active",
+    kycState: "approved",
+    timeline: [
+      { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Dossier conforme, fixture locale." } },
+      { type: "DOSSIER_UPDATED", role: "NOTAIRE", payload: { note: "Garantie enregistrée; première tranche planifiée." } },
     ],
   },
 ];
@@ -268,6 +337,7 @@ async function seedDossier(citizen, citizenId, agency, staffByRegion) {
     region: agency.region,
     service_code: citizen.serviceCode,
     current_phase: citizen.phase,
+    current_step: citizen.currentStep ?? null,
     status: "open",
     // La situation du parcours : elle dit si le dossier attend une décision.
     onboarding_state: citizen.onboardingState,
@@ -474,6 +544,155 @@ async function ensureDemoSavingsAccount(ducCode, dossierId, managerId) {
   if (eventError) throw eventError;
 }
 
+function dateOffset(days) {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+async function findFixtureRow(table, filters) {
+  let query = admin.from(table).select("id").is("deleted_at", null);
+  for (const [column, value] of Object.entries(filters)) query = query.eq(column, value);
+  const { data, error } = await query.order("created_at", { ascending: true }).limit(1).maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+async function persistFixtureRow(table, existing, values) {
+  if (existing) {
+    const { error } = await admin.from(table).update(values).eq("id", existing.id);
+    if (error) throw error;
+    return existing.id;
+  }
+  const { data, error } = await admin.from(table).insert(values).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+/** Populate only downstream workflow registers that have an active schema. */
+async function ensureOperationalStageFixture(citizen, dossierId, staffIds) {
+  if (!["committees", "notary_mortgage", "disbursements"].includes(citizen.phase)) return [];
+  const fixtureTag = `Données synthétiques ${SEED_TARGET} — ${citizen.ducCode}; sans portée juridique.`;
+  const committeeUserId = staffIds.get("comite@cfc.cm");
+  if (!committeeUserId) throw new Error("The COMITE development account is required for downstream workflow fixtures.");
+  const isCommitteeComplete = ["notary_mortgage", "disbursements"].includes(citizen.phase);
+  const deliberation = await findFixtureRow("committee_deliberations", {
+    dossier_id: dossierId,
+    committee_code: citizen.committeeCode,
+  });
+  const deliberationId = await persistFixtureRow("committee_deliberations", deliberation, {
+    dossier_id: dossierId,
+    committee_code: citizen.committeeCode,
+    session_date: dateOffset(isCommitteeComplete ? -5 : 5),
+    status: isCommitteeComplete ? "deliberated" : "scheduled",
+    quorum_met: isCommitteeComplete,
+    secretary_id: committeeUserId,
+    notes: fixtureTag,
+  });
+  const seeded = ["committee_deliberations"];
+
+  if (isCommitteeComplete) {
+    const line = await findFixtureRow("deliberation_lines", { deliberation_id: deliberationId, signer_id: committeeUserId });
+    await persistFixtureRow("deliberation_lines", line, {
+      deliberation_id: deliberationId,
+      dossier_id: dossierId,
+      signer_id: committeeUserId,
+      signer_role: "COMITE",
+      vote: "approve",
+      comment: fixtureTag,
+      signed_at: new Date().toISOString(),
+      signature_hash: null,
+    });
+    seeded.push("deliberation_lines");
+
+    const plan = calculateHousingPlan(citizen.plan);
+    const offer = await findFixtureRow("loan_offers", { dossier_id: dossierId });
+    await persistFixtureRow("loan_offers", offer, {
+      dossier_id: dossierId,
+      deliberation_id: deliberationId,
+      offer_amount: plan.loanAmount,
+      apport_amount: plan.apportTotal,
+      rate: plan.annualInterestRate * 100,
+      duration_years: plan.loanDurationYears,
+      monthly_payment: Math.round(plan.monthlyLoanRepayment),
+      valid_until: dateOffset(30),
+      status: "accepted",
+      issued_by: committeeUserId,
+      issued_at: dateOffset(-3),
+    });
+    seeded.push("loan_offers");
+
+    const titleNumber = `DEV-TF-${citizen.ducCode.replace(/[^A-Z0-9]/gi, "")}`;
+    const title = await findFixtureRow("land_titles", { dossier_id: dossierId, title_number: titleNumber });
+    const titleId = await persistFixtureRow("land_titles", title, {
+      dossier_id: dossierId,
+      title_number: titleNumber,
+      land_title_registry: "CFC-DEV",
+      land_title_type: "urban",
+      issuing_authority: "Fixture locale — conservation foncière",
+      issue_date: dateOffset(-120),
+      registration_date: dateOffset(-90),
+      area_sqm: 350,
+      mortgage_rank: 1,
+      is_principal_title: true,
+    });
+    seeded.push("land_titles");
+
+    const instrument = await findFixtureRow("notary_instruments", { dossier_id: dossierId, instrument_type: "mortgage_convention" });
+    await persistFixtureRow("notary_instruments", instrument, {
+      dossier_id: dossierId,
+      land_title_id: titleId,
+      instrument_type: "mortgage_convention",
+      notary_number: `DEV-NOT-${citizen.ducCode}`,
+      deed_date: dateOffset(-60),
+      registration_date: dateOffset(-45),
+      registration_number: `DEV-REG-${citizen.ducCode}`,
+      mortgage_rank: 1,
+      amount_guaranteed: plan.loanAmount,
+      status: "registered",
+    });
+    seeded.push("notary_instruments");
+
+    if (citizen.phase === "disbursements") {
+      const tranche = await findFixtureRow("disbursements", { dossier_id: dossierId, tranche_number: 1 });
+      await persistFixtureRow("disbursements", tranche, {
+        dossier_id: dossierId,
+        tranche_number: 1,
+        amount: Math.round(plan.loanAmount * 0.35),
+        release_date: dateOffset(5),
+        value_available_date: dateOffset(6),
+        method: "systac_transfer",
+        payment_reference: `DEV-DISB-${citizen.ducCode}`,
+        status: "planned",
+        authorized_by: null,
+        released_by: null,
+      });
+      seeded.push("disbursements");
+    }
+  }
+
+  return seeded;
+}
+
+async function reportStageCoverage() {
+  const { data, error } = await admin
+    .schema("ref")
+    .from("process_phase")
+    .select("code, label, sort_order")
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  const counts = new Map();
+  for (const citizen of CITIZENS) counts.set(citizen.phase, (counts.get(citizen.phase) ?? 0) + 1);
+  console.log("\nScénarios par phase du référentiel Supabase :");
+  console.table((data ?? []).map((phase) => ({
+    phase: phase.label,
+    code: phase.code,
+    scenarios: counts.get(phase.code) ?? 0,
+    coverage: counts.has(phase.code) ? "seeded" : "not seeded",
+  })));
+  if (!counts.has("closing_release")) {
+    console.log("La clôture/mainlevée reste sans fixture : le schéma courant ne possède pas de cycle de contrat et de remboursement permettant une clôture cohérente.");
+  }
+}
+
 async function main() {  const { data: roles, error: rolesError } = await admin
     .schema("ref")
     .from("role")
@@ -493,6 +712,7 @@ async function main() {  const { data: roles, error: rolesError } = await admin
   if (!defaultAgency) throw new Error("The CFC-YDE-CENTRE agency is missing from the reference seed.");
 
   const created = [];
+  const staffIds = new Map();
   /** Région → agents GESTIONNAIRE actifs, en ordre stable pour les fixtures. */
   const staffByRegion = new Map();
 
@@ -532,6 +752,7 @@ async function main() {  const { data: roles, error: rolesError } = await admin
       `staff_profiles(${member.email})`,
     );
     if (profileError) continue;
+    staffIds.set(member.email, userId);
 
     /**
      * L'affectation est upsertée par **suppression puis insertion**.
@@ -598,7 +819,7 @@ async function main() {  const { data: roles, error: rolesError } = await admin
         affiliation_status: citizen.affiliation,
         email: citizen.email,
         is_diaspora: citizen.diaspora,
-        kyc_state: citizen.diaspora ? "enhanced_due_diligence" : "identity_capture",
+        kyc_state: citizen.kycState ?? (citizen.diaspora ? "enhanced_due_diligence" : "identity_capture"),
       },
       { onConflict: "id" },
     );
@@ -606,14 +827,20 @@ async function main() {  const { data: roles, error: rolesError } = await admin
     const citizenAgency = agencyByCode.get(citizen.agencyCode) ?? defaultAgency;
     const dossier = await seedDossier(citizen, userId, citizenAgency, staffByRegion);
     await ensureDemoSavingsAccount(citizen.ducCode, dossier.dossierId, dossier.advisorId);
+    const stageRegisters = await ensureOperationalStageFixture(citizen, dossier.dossierId, staffIds);
 
     created.push({
       type: "emprunteur",
       email: citizen.email,
       role: "CITIZEN",
       affiliation: citizen.affiliation,
+      phase: citizen.phase,
+      dossier: citizen.ducCode,
+      registers: stageRegisters.join(", ") || "dossier & épargne",
     });
   }
+
+  await reportStageCoverage();
 
   console.log(`\n${created.length} comptes de démonstration provisionnés :\n`);
   console.table(created);

@@ -15,7 +15,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calculator, FileText, HelpCircle, ShieldCheck } from "lucide-react";
+import { Calculator, FileText, FolderKanban, HelpCircle, ShieldCheck } from "lucide-react";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { PortalHeader } from "@/components/layout/portal-header";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 /** Onglets du portail client — l'unique source de la navigation. */
 const TABS = [
   { href: "/portail-client", label: "Mon dossier", icon: FileText },
+  { href: "/portail-client/demandes", label: "Mes demandes", icon: FolderKanban },
   { href: "/simulator", label: "Simulateur", icon: Calculator },
   { href: "/tracking", label: "Suivi DUC", icon: ShieldCheck },
   { href: "/faq", label: "FAQ", icon: HelpCircle },
@@ -67,7 +68,9 @@ export function ClientHeader() {
         className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-muted/40 p-1 text-xs font-medium"
       >
         {TABS.map((tab) => {
-          const active = pathname.startsWith(tab.href);
+          const active = tab.href === "/portail-client"
+            ? pathname === tab.href
+            : pathname.startsWith(tab.href);
           const Icon = tab.icon;
           return (
             <Link

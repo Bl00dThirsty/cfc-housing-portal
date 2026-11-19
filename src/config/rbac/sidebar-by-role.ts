@@ -26,11 +26,12 @@
  */
 
 import {
+  STAFF_ROLES,
   type Capability,
   type Role,
   type StaffRole,
 } from "@/domain/policies/capabilities";
-import { hasCapability } from "@/domain/policies/permissions";
+import { capabilitiesFor, hasCapability } from "@/domain/policies/permissions";
 import { type ChemiseCode, canReadChemise } from "@/domain/policies/chemise";
 import { type AppRole } from "@/lib/auth-data";
 
@@ -78,6 +79,11 @@ export const LANDING_BY_ROLE: Record<StaffRole, string> = {
   NOTAIRE: "/portail-cfc/actors/notary-cadastre",
   COMITE: "/portail-cfc/actors/credit-committees",
   DIASPORA: "/portail-cfc/actors/agency/diaspora",
+  PMO: "/portail-cfc/settings/workflow",
+  ANALYSTE: "/portail-cfc/actors/credit-committees",
+  RECOUVREMENT: "/portail-cfc/actors/disbursements/recovery",
+  ARCHIVISTE: "/portail-cfc/dossiers",
+  AUDIT: "/portail-cfc/dossiers",
   ADMIN: "/portail-cfc/analytics",
 };
 
@@ -91,23 +97,31 @@ export function landingPathForRole(role: AppRole): string {
 }
 
 /** Le rôle peut-il voir cette entrée de navigation ? */
-export function canSeeNavItem(role: Role, item: NavItem | NavSubItem): boolean {
-  if (item.capability && !hasCapability(role, item.capability)) return false;
+export function canSeeNavItem(
+  role: Role,
+  item: NavItem | NavSubItem,
+  assignedCapabilities?: readonly Capability[],
+): boolean {
+  if (item.capability && !hasCapability(role, item.capability, assignedCapabilities)) return false;
   if (item.chemises && item.chemises.length > 0) {
     return item.chemises.every((chemise) => canReadChemise(role, chemise));
   }
   return true;
 }
 
-function filterSections(role: Role, sections: NavSection[]): NavSection[] {
+function filterSections(
+  role: Role,
+  sections: NavSection[],
+  assignedCapabilities?: readonly Capability[],
+): NavSection[] {
   return sections
     .map((section) => ({
       ...section,
       items: section.items
-        .filter((item) => canSeeNavItem(role, item))
+        .filter((item) => canSeeNavItem(role, item, assignedCapabilities))
         .map((item) => ({
           ...item,
-          subItems: item.subItems?.filter((subItem) => canSeeNavItem(role, subItem)),
+          subItems: item.subItems?.filter((subItem) => canSeeNavItem(role, subItem, assignedCapabilities)),
         })),
     }))
     .filter((section) => section.items.length > 0);
@@ -118,12 +132,51 @@ function filterSections(role: Role, sections: NavSection[]): NavSection[] {
  *
  * Un citoyen n'a pas de console d'administration : la liste est vide.
  */
-export function getSidebarSectionsForRole(role: AppRole): NavSection[] {
+export function getSidebarSectionsForRole(
+  role: AppRole,
+  assignedCapabilities?: readonly Capability[],
+): NavSection[] {
   if (role === "CITIZEN") return [];
-  return filterSections(role, NAV_SECTIONS_BY_ROLE[role] ?? []);
+  const effectiveCapabilities = assignedCapabilities ?? capabilitiesFor(role);
+  const sections = filterSections(role, NAV_SECTIONS_BY_ROLE[role] ?? [], effectiveCapabilities);
+
+  const existingHrefs = new Set(sections.flatMap((section) => section.items.map((item) => item.href)));
+  const additionalItems: NavItem[] = [];
+  for (const sourceRole of STAFF_ROLES) {
+    for (const section of NAV_SECTIONS_BY_ROLE[sourceRole] ?? []) {
+      for (const item of section.items) {
+        if (item.capability && item.href && canSeeNavItem(role, item, effectiveCapabilities) && !existingHrefs.has(item.href)) {
+          existingHrefs.add(item.href);
+          additionalItems.push({
+            ...item,
+            id: `granted-${sourceRole}-${item.id}`,
+            groupCode: "Habilitations supplémentaires",
+            subItems: item.subItems?.filter((subItem) => canSeeNavItem(role, subItem, effectiveCapabilities)),
+          });
+        }
+        for (const subItem of item.subItems ?? []) {
+          if (!subItem.href || !subItem.capability || !canSeeNavItem(role, subItem, effectiveCapabilities) || existingHrefs.has(subItem.href)) continue;
+          existingHrefs.add(subItem.href);
+          additionalItems.push({
+            id: `granted-${sourceRole}-${subItem.id}`,
+            title: subItem.title,
+            href: subItem.href,
+            badge: subItem.badge,
+            groupCode: "Habilitations supplémentaires",
+            capability: subItem.capability,
+          });
+        }
+      }
+    }
+  }
+
+  if (additionalItems.length > 0) {
+    sections.push({ title: "Habilitations supplémentaires", items: additionalItems });
+  }
+  return sections;
 }
 
-const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
+const NAV_SECTIONS_BY_ROLE: Partial<Record<StaffRole, NavSection[]>> = {
   // ---------------------------------------------------------------------------
   // G1 — Guichetier & Accueil : enrôler, contrôler, constituer l'épargne.
   // ---------------------------------------------------------------------------
@@ -544,15 +597,61 @@ const NAV_SECTIONS_BY_ROLE: Record<StaffRole, NavSection[]> = {
               id: "settings-email",
               title: "Modèles de Courriels",
               href: "/portail-cfc/settings/email",
-              capability: "catalogue:write",
+              capability: "email:manage",
             },
             {
               id: "settings-email-deliveries",
               title: "Journal des Envois",
               href: "/portail-cfc/settings/email/deliveries",
-              capability: "catalogue:write",
+              capability: "email:manage",
+            },
+            {
+              id: "settings-email-provider",
+              title: "Relais & état de santé",
+              href: "/portail-cfc/settings/email/provider",
+              capability: "email:manage",
             },
           ],
+        },
+        {
+          id: "settings-users",
+          title: "Comptes & Affectations du Personnel",
+          href: "/portail-cfc/settings/users",
+          badge: "Accès",
+          groupCode: "Paramétrage & Journalisation",
+          capability: "admin:users",
+        },
+        {
+          id: "settings-roles",
+          title: "Rôles & habilitations",
+          href: "/portail-cfc/settings/roles",
+          badge: "Sécurité",
+          groupCode: "Paramétrage & Journalisation",
+          capability: "admin:roles",
+        },
+        {
+          id: "settings-groups",
+          title: "Pôles & Agences",
+          href: "/portail-cfc/settings/groups",
+          badge: "Organisation",
+          groupCode: "Paramétrage & Journalisation",
+          capability: "admin:groups",
+        },
+        {
+          id: "settings-workflow",
+          title: "Étapes & workflows",
+          href: "/portail-cfc/settings/workflow",
+          badge: "Processus",
+          groupCode: "Paramétrage & Journalisation",
+          capability: "workflow:manage",
+        },
+        {
+          id: "settings-audit",
+          title: "Journal & état du système",
+          href: "/portail-cfc/settings/audit",
+          badge: "Audit",
+          groupCode: "Paramétrage & Journalisation",
+          capability: "admin:audit",
         },
       ],
     },

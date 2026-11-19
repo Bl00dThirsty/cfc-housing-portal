@@ -30,6 +30,7 @@ import {
   initialsFromName,
   isStaffRole,
 } from "@/lib/auth-data";
+import { isCapability, type Capability } from "@/domain/policies/capabilities";
 import { getBrowserClient } from "@/lib/supabase/client";
 import {
   requestMagicLinkAction,
@@ -93,6 +94,7 @@ const ANONYMOUS_USER: AdminUser = {
   agency: "",
   avatarTone: "bg-muted text-muted-foreground",
   initials: "—",
+  avatarUrl: null,
   phone: "",
   description: ROLE_DESCRIPTIONS.CITIZEN,
 };
@@ -172,6 +174,21 @@ async function fetchProfile(user: User): Promise<AuthProfile | null> {
   const actorType: ActorType = actor?.actor_type ?? "citizen";
 
   const email = user.email ?? "";
+  const pendingEmail = user.new_email ?? null;
+
+  const { data: media } = await supabase
+    .from("actor_profile_media")
+    .select("avatar_path")
+    .eq("actor_id", user.id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  let avatarUrl: string | null = null;
+  if (media?.avatar_path) {
+    const { data } = await supabase.storage
+      .from("profile-avatars")
+      .createSignedUrl(media.avatar_path, 300);
+    avatarUrl = data?.signedUrl ?? null;
+  }
 
   if (actorType !== "staff") {
     const { data: citizenData } = await supabase
@@ -194,6 +211,8 @@ async function fetchProfile(user: User): Promise<AuthProfile | null> {
       fullName,
       email,
       phone: citizen?.phone ?? null,
+      avatarUrl,
+      pendingEmail,
     };
   }
 
@@ -245,11 +264,19 @@ async function fetchProfile(user: User): Promise<AuthProfile | null> {
   }
 
   const fullName = staff?.full_name ?? email;
+  const { data: capabilityRows, error: capabilityError } = await supabase
+    .from("cfc_role_capabilities")
+    .select("capability")
+    .eq("role_code", role);
+  const capabilities: Capability[] = capabilityError
+    ? []
+    : [...new Set((capabilityRows ?? []).map((row) => row.capability).filter(isCapability))];
 
   return {
     actorId: user.id,
     actorType,
     role,
+    capabilities,
     roleLabel,
     pole: staff?.pole ?? null,
     agencyId,
@@ -257,6 +284,8 @@ async function fetchProfile(user: User): Promise<AuthProfile | null> {
     fullName,
     email,
     phone: staff?.phone ?? null,
+    avatarUrl,
+    pendingEmail,
   };
 }
 
@@ -337,6 +366,7 @@ export function AuthProvider({
       agency: profile.agencyLabel ?? "",
       avatarTone: ROLE_AVATAR_TONES[profile.role] ?? "bg-primary text-primary-foreground",
       initials: initialsFromName(profile.fullName),
+      avatarUrl: profile.avatarUrl,
       phone: profile.phone ?? "",
       description: ROLE_DESCRIPTIONS[profile.role] ?? "",
     };

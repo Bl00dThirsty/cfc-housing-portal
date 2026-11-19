@@ -5,7 +5,7 @@ import { roleHeaderConfigFor, visibleQuickActions } from "@/config/rbac/role-hea
 /**
  * L'en-tête — la configuration par rôle.
  *
- * Un en-tête identique pour les sept rôles ne dit rien de l'endroit où l'agent
+ * Un en-tête identique pour les rôles ne dit rien de l'endroit où l'agent
  * se trouve. Et une action rapide qu'un rôle ne peut pas accomplir ne doit
  * jamais lui être offerte.
  */

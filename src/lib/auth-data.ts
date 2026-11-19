@@ -1,3 +1,5 @@
+import type { Capability } from "@/domain/policies/capabilities";
+
 /**
  * Référentiel des rôles CFC — libellés et métadonnées, **jamais d'identités**.
  *
@@ -8,10 +10,10 @@
  */
 
 /**
- * Les sept rôles métier du back-office CFC.
+ * Les rôles métier du back-office déjà présents dans le référentiel Supabase.
  *
  * Le nom `STAFF_ROLES` est délibéré : ces rôles sont ceux **d'un agent**,
- * pas ceux « d'un administrateur ». `ADMIN` n'en est qu'un parmi sept — un
+ * pas ceux « d'un administrateur ». `ADMIN` n'en est qu'un parmi douze — un
  * agent de guichet n'est pas un administrateur, et le confondre a déjà fait
  * hériter les pleins pouvoirs à un agent sans affectation lisible.
  */
@@ -22,6 +24,11 @@ export const STAFF_ROLES = [
   "NOTAIRE",
   "COMITE",
   "DIASPORA",
+  "PMO",
+  "ANALYSTE",
+  "RECOUVREMENT",
+  "ARCHIVISTE",
+  "AUDIT",
   "ADMIN",
 ] as const;
 
@@ -43,6 +50,11 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   NOTAIRE: "Notaire Conventionné",
   COMITE: "Comité de Crédit",
   DIASPORA: "Chargé Diaspora & Non-Résidents",
+  PMO: "PMO transformation",
+  ANALYSTE: "Analyste crédit",
+  RECOUVREMENT: "Agent de recouvrement",
+  ARCHIVISTE: "Archiviste / GED",
+  AUDIT: "Auditeur",
   ADMIN: "Administrateur Système",
   CITIZEN: "Emprunteur",
 };
@@ -55,6 +67,11 @@ export const ROLE_DEPARTMENTS: Record<AppRole, string> = {
   NOTAIRE: "Notariat & Inscriptions Hypothécaires (G8)",
   COMITE: "Direction Générale & Arbitrage (G6)",
   DIASPORA: "Cellule Diaspora & Partenariats Internationaux",
+  PMO: "Pilotage de la transformation et des processus",
+  ANALYSTE: "Direction du Crédit · Analyse des demandes",
+  RECOUVREMENT: "Direction du Recouvrement et des Affaires Contentieuses",
+  ARCHIVISTE: "Service de Documentation et d’Archivage",
+  AUDIT: "Audit interne · Accès en lecture seule",
   ADMIN: "Direction des Systèmes d'Information & Sécurité",
   CITIZEN: "Portail Citoyen · Épargne Habitat",
 };
@@ -73,6 +90,11 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
     "Délibérations collégiales, accords de prêts et résolutions de crédit.",
   DIASPORA:
     "Dossiers des Camerounais de l'étranger, virements SWIFT et procurations.",
+  PMO: "Pilotage des circuits de traitement, du catalogue et des indicateurs autorisés.",
+  ANALYSTE: "Analyse de crédit, préparation des offres et contribution aux décisions autorisées.",
+  RECOUVREMENT: "Suivi des impayés et actions de recouvrement autorisées.",
+  ARCHIVISTE: "Classement, contrôle documentaire et restitution des pièces autorisées.",
+  AUDIT: "Consultation des dossiers et éléments d’audit, sans administration des comptes.",
   ADMIN:
     "Supervision globale, gestion des habilitations, audit et paramétrage DUC.",
   CITIZEN:
@@ -87,6 +109,11 @@ export const ROLE_POLES: Record<AppRole, string> = {
   NOTAIRE: "G8",
   COMITE: "G6",
   DIASPORA: "DIASPORA",
+  PMO: "DG",
+  ANALYSTE: "DCR",
+  RECOUVREMENT: "DRAC",
+  ARCHIVISTE: "SDA",
+  AUDIT: "SDA-AUDIT",
   ADMIN: "ADMIN",
   CITIZEN: "CITIZEN",
 };
@@ -112,7 +139,7 @@ const STAFF_ROLE_SET: ReadonlySet<string> = new Set<string>(STAFF_ROLES);
 
 const APP_ROLE_SET: ReadonlySet<string> = new Set<string>([...STAFF_ROLES, CITIZEN_ROLE]);
 
-/** La valeur désigne-t-elle l'un des sept rôles d'agent ? */
+/** La valeur désigne-t-elle l'un des rôles d'agent connus ? */
 export function isStaffRole(value: string): value is StaffRole {
   return STAFF_ROLE_SET.has(value);
 }
@@ -147,6 +174,8 @@ export interface AdminUser {
   avatarTone: string;
   /** Initiales affichées dans l'avatar. */
   initials: string;
+  /** URL signée de courte durée, `null` si aucune photo n'est définie. */
+  avatarUrl: string | null;
   /** Numéro de téléphone professionnel. */
   phone: string;
   /** Description du périmètre métier. */
@@ -161,6 +190,11 @@ export const ROLE_AVATAR_TONES: Record<AppRole, string> = {
   NOTAIRE: "bg-indigo-600 text-white",
   COMITE: "bg-purple-600 text-white",
   DIASPORA: "bg-cyan-600 text-white",
+  PMO: "bg-sky-700 text-white",
+  ANALYSTE: "bg-orange-700 text-white",
+  RECOUVREMENT: "bg-rose-700 text-white",
+  ARCHIVISTE: "bg-stone-700 text-white",
+  AUDIT: "bg-slate-600 text-white",
   ADMIN: "bg-slate-800 text-white",
   CITIZEN: "bg-teal-600 text-white",
 };
@@ -193,6 +227,8 @@ export interface AuthProfile {
   actorType: ActorType;
   /** Rôle effectif (métier ou citoyen). */
   role: AppRole;
+  /** Persisted role grants for staff; absent only in legacy pure-role consumers. */
+  capabilities?: readonly Capability[];
   /** Libellé du rôle. */
   roleLabel: string;
   /** Pôle organisationnel, `null` pour un citoyen. */
@@ -207,4 +243,8 @@ export interface AuthProfile {
   email: string;
   /** Téléphone professionnel. */
   phone: string | null;
+  /** URL signée de courte durée de sa propre photo. */
+  avatarUrl: string | null;
+  /** Nouvelle adresse en attente de confirmation Auth. */
+  pendingEmail: string | null;
 }

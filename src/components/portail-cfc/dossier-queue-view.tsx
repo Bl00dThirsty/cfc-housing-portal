@@ -8,6 +8,7 @@ import type { OperationalDossier } from "@/domain/entities/operational-dossier";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle";
 
 function displayDate(value: string | null): string {
   if (!value) return "—";
@@ -27,6 +28,7 @@ export function DossierQueueView({
   description: string;
 }) {
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<ViewMode>("list");
   const visibleDossiers = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("fr");
     if (!query) return dossiers;
@@ -51,16 +53,19 @@ export function DossierQueueView({
         </Badge>
       </header>
 
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Rechercher un numéro DUC, une agence ou une étape"
-          aria-label="Rechercher dans les dossiers affichés"
-          className="pl-9"
-        />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="relative max-w-md flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Rechercher un numéro DUC, une agence ou une étape"
+            aria-label="Rechercher dans les dossiers affichés"
+            className="pl-9"
+          />
+        </div>
+        <ViewModeToggle value={view} onValueChange={setView} />
       </div>
 
       {visibleDossiers.length === 0 ? (
@@ -74,10 +79,18 @@ export function DossierQueueView({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-card">
-          <div className="divide-y">
-            {visibleDossiers.map((dossier) => (
-              <article key={dossier.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <ul
+          role="list"
+          aria-label={`Dossiers en ${view === "grid" ? "grille" : "liste"}`}
+          className={view === "grid"
+            ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+            : "divide-y overflow-hidden rounded-lg border bg-card"}
+        >
+          {visibleDossiers.map((dossier) => (
+            <li key={dossier.id} className="list-none">
+              <article className={view === "grid"
+                ? "flex h-full flex-col gap-3 rounded-lg border bg-card p-4"
+                : "flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"}>
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-mono text-sm font-semibold">{dossier.ducCode}</h2>
@@ -95,9 +108,9 @@ export function DossierQueueView({
                   </Link>
                 </Button>
               </article>
-            ))}
-          </div>
-        </div>
+            </li>
+          ))}
+        </ul>
       )}
     </section>
   );

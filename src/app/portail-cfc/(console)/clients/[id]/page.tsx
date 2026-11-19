@@ -37,7 +37,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const dossier = result.dossiers[0];
   if (!dossier) notFound();
 
-  const isAssignmentAdmin = profile?.role === "ADMIN" && hasCapability(profile.role, "admin:users");
+  const isAssignmentAdmin = profile?.role === "ADMIN" && hasCapability(profile.role, "admin:users", profile.capabilities);
   if (!isAssignmentAdmin) {
     return <OperationalDossierDetail dossier={dossier} events={result.events ?? []} />;
   }

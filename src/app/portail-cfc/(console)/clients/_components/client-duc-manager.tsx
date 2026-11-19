@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle";
 import type { ClientDocument, ClientItem } from "@/domain/entities/client";
 import { cn } from "@/lib/utils";
 import { DucDocumentViewerDialog } from "./duc-document-viewer-dialog";
@@ -59,6 +60,7 @@ export function ClientDucManager({ client }: ClientDucManagerProps) {
   const router = useRouter();
   const [search, setSearch] = React.useState("");
   const [category, setCategory] = React.useState("all");
+  const [view, setView] = React.useState<ViewMode>("list");
   const [uploadOpen, setUploadOpen] = React.useState(false);
   const [preview, setPreview] = React.useState<ClientDocument | null>(null);
   const documents = React.useMemo(() => client?.documents ?? [], [client?.documents]);
@@ -104,7 +106,7 @@ export function ClientDucManager({ client }: ClientDucManagerProps) {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -124,42 +126,103 @@ export function ClientDucManager({ client }: ClientDucManagerProps) {
             {categories.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
           </SelectContent>
         </Select>
+        <ViewModeToggle value={view} onValueChange={setView} className="self-end sm:self-auto" />
       </div>
 
-      <div className="overflow-hidden rounded-lg border bg-card">
-        <div className="grid grid-cols-[minmax(0,1fr)_130px_120px_90px] gap-3 border-b bg-muted/30 px-4 py-2 text-[10px] font-medium text-muted-foreground max-sm:hidden">
+      {view === "list" && (
+        <div className="grid grid-cols-[minmax(0,1fr)_130px_120px_90px] gap-3 rounded-t-lg border border-b-0 bg-muted/30 px-4 py-2 text-[10px] font-medium text-muted-foreground max-sm:hidden">
           <span>Pièce et nom du fichier</span><span>Catégorie</span><span>État</span><span className="text-right">Action</span>
         </div>
-        {visibleDocuments.length > 0 ? visibleDocuments.map((document) => (
-          <div key={document.id} className="grid grid-cols-1 items-center gap-2 border-b px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_130px_120px_90px] sm:gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <FileText className="size-4 shrink-0 text-primary" />
-              <div className="min-w-0">
-                <p className="truncate text-xs font-medium">{document.name}</p>
-                <p className="truncate text-[10px] text-muted-foreground">
-                  {document.fileName || "Nom de fichier non renseigné"} · {document.date}
-                  {document.fileSize ? ` · ${document.fileSize}` : ""}
-                </p>
-              </div>
-            </div>
-            <span className="truncate text-xs text-muted-foreground">{document.category}</span>
-            <Badge variant="outline" className={cn("w-fit text-[10px]", statusTone[document.status])}>{document.status}</Badge>
-            <div className="flex justify-start sm:justify-end">
-              <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setPreview(document)}>
-                Ouvrir
-              </Button>
-            </div>
-          </div>
-        )) : (
-          <div className="px-4 py-12 text-center">
-            <FolderOpen className="mx-auto mb-3 size-7 text-muted-foreground/60" />
-            <p className="text-sm font-medium">{documents.length === 0 ? "Aucune pièce enregistrée" : "Aucune pièce ne correspond à la recherche"}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {documents.length === 0 ? "Les documents déposés au coffre apparaîtront ici après leur enregistrement." : "Essayez un autre terme ou une autre catégorie."}
-            </p>
-          </div>
-        )}
-      </div>
+      )}
+      {visibleDocuments.length > 0 ? (
+        <ul
+          role="list"
+          aria-label={`Pièces du DUC en ${view === "grid" ? "grille" : "liste"}`}
+          className={view === "grid"
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+            : "overflow-hidden rounded-b-lg border bg-card"}
+        >
+          {visibleDocuments.map((document) => (
+            <li key={document.id} className="list-none">
+              {view === "grid" ? (
+                <article className="flex h-full flex-col gap-3 rounded-lg border bg-card p-4">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-primary">
+                      <FileText aria-hidden className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-sm font-medium">{document.name}</p>
+                      <p className="mt-1 truncate text-[10px] text-muted-foreground">
+                        {document.fileName || "Nom de fichier non renseigné"}
+                      </p>
+                    </div>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-3 border-y py-3 text-xs">
+                    <div className="min-w-0">
+                      <dt className="text-[10px] text-muted-foreground">Catégorie</dt>
+                      <dd className="truncate">{document.category}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-[10px] text-muted-foreground">Déposé le</dt>
+                      <dd className="truncate">{document.date}</dd>
+                    </div>
+                    {document.fileSize ? (
+                      <div>
+                        <dt className="text-[10px] text-muted-foreground">Taille</dt>
+                        <dd>{document.fileSize}</dd>
+                      </div>
+                    ) : null}
+                    {document.ref ? (
+                      <div className="min-w-0">
+                        <dt className="text-[10px] text-muted-foreground">Référence</dt>
+                        <dd className="truncate font-mono">{document.ref}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <div className="mt-auto flex items-center justify-between gap-2">
+                    <Badge variant="outline" className={cn("w-fit text-[10px]", statusTone[document.status] ?? "border-line-strong bg-muted text-muted-foreground")}>
+                      {document.status}
+                    </Badge>
+                    <Button type="button" size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setPreview(document)}>
+                      Ouvrir
+                    </Button>
+                  </div>
+                </article>
+              ) : (
+                <div className="grid grid-cols-1 items-center gap-2 border-b px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_130px_120px_90px] sm:gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <FileText className="size-4 shrink-0 text-primary" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium">{document.name}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {document.fileName || "Nom de fichier non renseigné"} · {document.date}
+                        {document.fileSize ? ` · ${document.fileSize}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="truncate text-xs text-muted-foreground">{document.category}</span>
+                  <Badge variant="outline" className={cn("w-fit text-[10px]", statusTone[document.status] ?? "border-line-strong bg-muted text-muted-foreground")}>
+                    {document.status}
+                  </Badge>
+                  <div className="flex justify-start sm:justify-end">
+                    <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" onClick={() => setPreview(document)}>
+                      Ouvrir
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="rounded-lg border border-dashed bg-card px-4 py-12 text-center">
+          <FolderOpen className="mx-auto mb-3 size-7 text-muted-foreground/60" />
+          <p className="text-sm font-medium">{documents.length === 0 ? "Aucune pièce enregistrée" : "Aucune pièce ne correspond à la recherche"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {documents.length === 0 ? "Les documents déposés au coffre apparaîtront ici après leur enregistrement." : "Essayez un autre terme ou une autre catégorie."}
+          </p>
+        </div>
+      )}
 
       <DucUploadDialog
         open={uploadOpen}

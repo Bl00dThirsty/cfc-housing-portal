@@ -24,12 +24,15 @@ Current repository findings (implementation snapshot):
 - KYC profile/evidence reads and decisions are scoped to the citizen or the currently assigned regional GESTIONNAIRE. Queue/detail projections for administrators and other staff contain safe dossier metadata; they do not include KYC profile fields. RLS and Storage policies are part of the boundary, not just component visibility.
 - Central role and agency resolution now honors each staff assignment's start/end validity window. Profile, landing, and client auth-context reads use the same active-window rule; local pgTAP cases reject expired and future assignments.
 - The savings passbook reads persisted accounts/transactions; submission, approval, rejection, and full compensating reversals use transaction-safe database functions. The database controls balances and maintains the ledger. Exhaustive financial concurrency and reconciliation coverage remain follow-up items.
-- Client queues, Kanban, dossier details, analytics, and actor workspaces no longer substitute demo records. Analytics uses one security-invoker RPC that returns aggregates. Supported actor registers read existing tables under RLS. Where no persistence schema or workflow exists yet, the page states that explicitly rather than displaying invented records.
+- Client queues, Kanban, dossier details, analytics, and actor workspaces no longer substitute demo records. Both Kanban views load phase codes, labels, and order from `cfc_process_phases`; a missing catalogue is surfaced as an error/empty state. Analytics uses one security-invoker RPC that returns aggregates. Supported actor registers read existing tables under RLS. Where no persistence schema or workflow exists yet, the page states that explicitly rather than displaying invented records.
 - The borrower progress tracker and analytics labels now read phase and step catalogues from Supabase. Email-template preview fields are blank until staff enter preview values; fictional customer identities and amounts are not supplied by the editor.
 - The local stack is available for verification. Migrations through `20261118190000` have been applied locally. Local pgTAP coverage currently passes 14 tests. No hosted migration, production seed, or cloud data cleanup has been run.
-- Next's cached production webpack resolver retained a request for the removed notary mock component. Source imports were clean; `npm run build` now clears only stale production webpack caches before compilation and leaves active development caches untouched.
+- Next's cached production webpack resolver retained a request for the removed notary mock component. Source imports were clean; `npm run build` clears only stale production webpack caches before compilation and leaves active development caches untouched.
+- Local and staging dev startup now clears the project-owned `.next` output immediately before launching Next. This rebuilds client/server Webpack manifests and HMR chunks together after branch changes; the cleanup test confirms sibling files such as `.tmp-build-check` are untouched. The tooltip source export and installed Radix provider exports resolve correctly, and the clean build plus local route smoke checks pass.
 
 The implementation is still a foundation, not a claim that every menu route is a complete business workflow. The route inventory below distinguishes persisted registers from modules that still need an approved schema and CRUD/decision flow. A codebase-wide fixture scan and route-by-route UI review remain release checks.
+
+The commercial-counter lifecycle and the administration surface are now documented separately in [the commercial workflow specification](2026-11-19-commercial-counter-workflow.md) and [the admin governance specification](2026-11-19-admin-governance-console.md). The latter records current view toggles, the missing admin routes, secure account recovery, SMTP secret boundaries, and the local/staging fixture coverage contract. These documents refine this system-completion design and do not mark unfinished workflows as implemented.
 
 ## 3. Design choices
 
@@ -226,7 +229,7 @@ sequenceDiagram
   App-->>Dev: Portal ready; local Supabase remains running
 ```
 
-**Command contract:** `system:local` installs declared Node dependencies if absent, verifies Docker and the pinned CLI, starts the local stack, applies pending migrations without resetting the database, loads `.env.local` privately, idempotently seeds local-only test identities/data, and runs the app. It never links a hosted project. `db:reset` remains a separate explicitly destructive command.
+**Command contract:** `system:local` installs declared Node dependencies if absent, verifies Docker and the pinned CLI, starts the local stack, applies pending migrations without resetting the database, loads `.env.local` privately, idempotently seeds local-only test identities/data, clears the generated `.next` output, and runs the app. It never links a hosted project. `db:reset` remains a separate explicitly destructive command.
 
 ### Staging and production
 
@@ -248,7 +251,7 @@ flowchart TD
 | Command | Target requirements | Schema/data behavior | App behavior |
 |---|---|---|---|
 | `npm run system:local` | Docker, pinned Supabase CLI, `.env.local` public and local secret keys | Start local stack; apply pending migrations without reset; guarded local identities and fixtures | Run Next.js against loopback |
-| `npm run system:staging` | Staging ref, distinct production ref, stage URL/keys, scoped Supabase access and DB credentials | Link the staging ref; preview/push migrations including `seed.sql`; then seed staging-only identities | Run Next.js against staging config |
+| `npm run system:staging` | Staging ref, distinct production ref, stage URL/keys, scoped Supabase access and DB credentials | Link the staging ref; preview/push migrations including `seed.sql`; then seed staging-only identities | Clear generated `.next` output, then run Next.js against staging config |
 | `npm run system:production` | Production ref/URL/public key, access token and DB credentials | Link the production ref; preview/push migrations after the CLI's confirmation; no demo users/records | Prepare production database only; hosting deployment remains a separate provider workflow |
 
 Staging and production refs are environment configuration, never fixture constants. The staging command refuses a missing ref, a ref equal to production, or an HTTPS URL whose host does not exactly match the configured ref. Every remote database command includes the chosen explicit ref so a stale local link cannot redirect a migration. The CLI project link is also explicit. Production never passes `--include-seed`, invokes a fixture seeder, or resets the remote database. `system:production` does not build the app because deployment is independently controlled by the hosting provider; the current repository has a Vercel production URL but no deploy command/credential contract in the system orchestrator.
@@ -416,6 +419,73 @@ Lists, detail pages, Kanban cards, counters, charts, and notification badges mus
 
 Every data-bearing page uses a server query with authenticated scope and a typed result. Client components receive serialized query results and call server actions for mutations. Pages expose loading, empty, forbidden, and error states; they do not invent records. Static lookup enums that must be shared by TypeScript and Postgres are generated/validated against the database catalogue. Fixture seeding is explicit, idempotent, restricted by target URL/project ref, and reports counts without printing secrets.
 
+### First-pass hardcoded catalogue audit (incomplete)
+
+The runtime fixture scan found no remaining `DEMO_*`/`MOCK_*` operational collections or the deleted `DEMO_ADVISORS` roster. It did find code-owned reference and policy values that are not fake client records but still need a single database source before the no-hardcoding acceptance criterion is met:
+
+| Source | Current values | Required follow-up |
+|---|---|---|
+| `src/domain/entities/kyc.ts` / `src/server/queries/kyc-options.ts` | Family, employment, income, identity-document, housing-occupancy, and PEP options | **Completed locally:** values live in versioned `ref.kyc_option` seed rows; the onboarding route reads `public.cfc_kyc_option`; the submission RPC rejects values that are not currently effective. Stable category identifiers remain in TypeScript because they define the KYC JSON field contract. |
+| `src/domain/entities/kyc-profile.ts` | Three KYC document codes and labels | Derive required KYC evidence from the existing effective `ref.document_type` catalogue and avoid a second document list. |
+| `src/domain/entities/onboarding.ts` | Affiliation descriptions and policy consequences | Persist editable labels/help and consequence codes; keep consequential eligibility logic in database-backed policy/action code. |
+| `src/domain/entities/address.ts` | Cameroon place/region/chef-lieu suggestions | Move the curated offline place catalogue into versioned seed data, then read it from a restricted public view; record its authoritative source and update cadence. |
+| `src/domain/workflows/recovery.ts` | Arrears stages, month thresholds, obligations, procedure references, and SLAs | Obtain Recovery/Legal ownership, model the lifecycle and policies in the database, then replace the incomplete client-side policy list. |
+| `src/domain/entities/services.ts` and `src/server/queries/pole-kpis.ts` | Requirement-stage labels and state-group filters | Reconcile against workflow/reference catalogues and use database-owned stage/state groupings where they affect eligibility or reported counts. |
+| `src/server/email/defaults.ts` and `src/server/email/templates.ts` | Template definitions used by a publish script and as runtime fallbacks | Keep one canonical template seed source; runtime sends and editor rows must fail visibly when the seeded, effective database template is absent. |
+| `src/domain/policies/permissions.ts` | UI capability map paralleling `ref.role_capability` | Have the session context read the effective capability catalogue; SQL remains the authorization boundary and the UI must not maintain a second decision matrix. |
+| `src/server/queries/staff-dossiers.ts` and savings forms | Status translations and operation-channel choices | Compare with database state/channel catalogues; keep localized display strings separate from allowable values. |
+
+The Kanban phase arrays were a duplicate of the database-owned process phases and have now been removed from both views. The first-pass scan is evidence for the backlog, not proof that all routes and constants have been audited. Empty/unavailable reference data must stay visible as an error or empty state:
+
+```mermaid
+flowchart LR
+  Seed[Versioned reference seed] --> Ref[(Supabase ref tables)]
+  Ref --> View[Public security-invoker views]
+  View --> Query[Scoped server query]
+  Query --> Model[Typed read model]
+  Model --> UI[Route and shadcn components]
+  View -. missing or unavailable .-> Error[Explicit error / empty state]
+  Error -. never .-> Fake[Invented runtime values]
+```
+
+KYC choices follow the same contract. Seeded values preserve the legacy stored codes, while labels can evolve independently. Expired or deleted choices disappear from the form; the submission RPC checks the persisted code again, so a stale browser cannot submit an option that is no longer effective.
+
+```mermaid
+flowchart LR
+  Seed[Versioned KYC option rows] --> Table[(ref.kyc_option)]
+  Table -->|RLS + security invoker| View[public.cfc_kyc_option]
+  View --> Query[listKycOptions]
+  Query --> Page[Server onboarding route]
+  Page --> Form[KYC form and selects]
+  Form --> Action[submitKycAction]
+  Action --> RPC[submit_kyc_profile dossier ID]
+  RPC --> Validate[private effective-option validation]
+  Validate -->|valid| Persist[Persist submission and dossier event]
+  Validate -->|stale or fabricated code| Error[Return field error; do not submit]
+  Query -. unavailable or incomplete .-> Visible[Visible catalogue error; submission disabled]
+```
+
+```mermaid
+sequenceDiagram
+  actor Borrower
+  participant Route as Onboarding route
+  participant Ref as Supabase reference view
+  participant Form as KYC form
+  participant RPC as Submission RPC
+
+  Route->>Ref: Load effective options by category
+  Ref-->>Route: code, label and order
+  Route->>Form: Pass typed option groups
+  Borrower->>Form: Select current catalogue values
+  Form->>RPC: Submit explicit dossier and stored KYC profile
+  RPC->>Ref: Validate every selected code against current effective rows
+  alt All selected codes are current
+    RPC-->>Borrower: Submit KYC and append dossier event atomically
+  else A code expired or is unknown
+    RPC-->>Borrower: Reject with the affected field; keep KYC unsubmitted
+  end
+```
+
 ## 7. Experience guidance and accessibility
 
 - Use concise inline field descriptions for persistent instructions and accessible tooltip help for icon-only actions or specialized terms. A tooltip is supplementary and must not hide required information from keyboard, touch, or assistive-technology users.
@@ -478,6 +548,7 @@ Every data-bearing page uses a server query with authenticated scope and a typed
 
 - Client list/detail, DUC document view, Kanban, assignment queue, safe staff dashboards, and analytics read actual records. No operational view falls back to seeded identities or fabricated chart series.
 - Existing committee, notary, disbursement, reconciliation, mobile-money, and risk records use scoped database-backed registers. Routes with no backing table explicitly report that persistence is unavailable.
+- The two dossier Kanban views use the Supabase process-phase catalogue for phase names and order; duplicate UI arrays have been removed.
 - Analytics reads one security-invoker aggregate RPC and does not fetch customer profiles for charts. Individual savings and simulation analytics routes do not expose financial/customer data without a persisted, authorized record.
 - Remaining product work: define and migrate missing promoter/expert/notary-directory/recovery/subsidy workflows, add their authorized create/update/decision actions, and finish a route-level responsive/error/empty-state review.
 
@@ -501,12 +572,12 @@ Every data-bearing page uses a server query with authenticated scope and a typed
 | Area | Runtime source | Current behavior | Work still required |
 |---|---|---|---|
 | Borrower onboarding and tracking | `dossiers`, `dossier_events`, `dossier_documents`, reference views | Own dossier only; phase and process steps come from Supabase catalogue | Complete end-to-end borrower journey review, including no-config and failed-catalog states |
-| Staff client queue and DUC detail | Safe dossier projection plus assigned-manager-only profile query | Other roles see operational summary; assigned GESTIONNAIRE opens the protected profile/KYC workspace | Verify former-assignee revocation and every document storage path |
+| Staff client queue and DUC detail | Safe dossier projection plus assigned-manager-only profile query | Borrower register switches between database-backed cards and table; DUC cabinet switches between database-backed grid and list; assigned GESTIONNAIRE opens the protected profile/KYC workspace | Verify former-assignee revocation and every document storage path |
 | Admin assignment | Regional staff roster RPC and assignment RPC | Same-region active GESTIONNAIRE selection, mandatory reason, persisted history and notification | Add staff invitation/activation; exercise empty-region, reassignment revocation, and duplicate-submit cases; availability/caseload policy is not yet modeled |
-| Kanban and actor dossier queues | `dossiers` and safe event fields under caller RLS | No fabricated cards; list/detail remain within role scope | Add persistent board actions only where their domain transitions are defined |
+| Kanban and actor dossier queues | `dossiers` and safe event fields under caller RLS | No fabricated records; role queue supports grid/list over the same scoped, searchable result set; detail remains within role scope | Add persistent board actions only where their domain transitions are defined |
 | Savings passbook | Savings accounts and transaction ledger | Persisted rows; pending, approve, reject, retry-safe submission, and reasoned linked reversals | Concurrent race coverage, provider-reference reconciliation, statement/export/analytics reconciliation, and finance sign-off |
 | Operations analytics | `get_cfc_analytics_rollup()` under invoker RLS | Aggregate metrics only; no customer identity/profile fetch in analytics | Verify numbers against report owners and expose supported reporting periods/filters |
-| Agency, mobile money, committees, notary, disbursement, reconciliation, risk | Existing operational tables and scoped registers | Existing persisted rows only; search and detail are based on actual records | Add create/edit/decision flows only after domain owners approve state transitions and permissions |
+| Agency, mobile money, committees, notary, disbursement, reconciliation, risk | Existing operational tables and scoped registers | Existing persisted rows only; supported registers switch between grid and list over the same searchable records | Add create/edit/decision flows only after domain owners approve state transitions and permissions |
 | Promoter/expert/notary directories, recovery, subsidies | No authoritative persistent table/workflow found | Explicit “not persisted yet” state, without a fake directory or register | Define schema, data owner, lifecycle, permissions, audit, and migration before implementation |
 | Saver/simulation analytics details | No authorized persisted analytics record is available | Individual detail paths fail closed; simulation history is described as non-persistent | Add an opt-in persistence model and retention/consent policy before history pages |
 
@@ -527,6 +598,46 @@ flowchart TD
 ```
 
 `supabase/seed.sql` owns repeatable reference content needed by a clean database. Auth-dependent synthetic accounts and operational examples stay in the target-guarded local/staging seeder. Production account provisioning is an explicit real-identity workflow. A route must not import a seed factory or test fixture. Labels and state-machine code may live in TypeScript; mutable/reference facts that administrators need to govern must be read from the selected Supabase project.
+
+### Shared view modes
+
+Cards and tables are two renderers over the same authorized, filtered read model. A view switch changes presentation only; it must not add a query, widen dossier scope, clear search/category filters, or change the action's server authorization. The current reusable mode control is applied to the staff borrower register, operational dossier queues, DUC document cabinet, and supported operational registers.
+
+```mermaid
+flowchart LR
+  DB[(Supabase rows)] --> RLS[Caller RLS and safe projection]
+  RLS --> Query[One page read model]
+  Query --> Search[Search and current filters]
+  Search --> Results[Same visible result set]
+  Results --> Table[Table or compact list]
+  Results --> Cards[Grid cards]
+  Table --> Action[Existing authorized route/action]
+  Cards --> Action
+```
+
+The implementation is covered by UI tests that search first, change to grid, and verify that the visible records and destination data remain the same. A future persisted view preference may be added without persisting or duplicating business data.
+
+### Specialist workflow boundary
+
+Non-manager roles have safe queue/detail views and document capabilities, but the current data model does not yet safely identify an assigned notary or BET account: `dossiers.notary_assigned` and `dossiers.bet_assigned` are free-text fields. Document requirements are versioned by service and a requirement stage (`NOTARY`, `MORTGAGE`, etc.), while `ref.process_phase` uses its own codes (`notary_mortgage`, `risk_bet`, etc.) and has no catalogued crosswalk. Do not expose generic upload or decision controls to those queues until a database-owned phase-to-requirement mapping and normalized specialist assignment model can drive both server checks and UI affordances.
+
+```mermaid
+sequenceDiagram
+  participant Admin as System admin
+  participant DB as Supabase workflow data
+  participant Staff as Assigned specialist
+  participant App as Role workspace
+  Admin->>DB: Assign dossier to a staff identity for a specialist lane
+  DB->>DB: Check active role, region/scope, phase, and record audit history
+  DB-->>Staff: Persist an in-app assignment notification
+  Staff->>App: Open assigned dossier workspace
+  App->>DB: Read only lane-approved records and current-stage document rules
+  DB-->>App: Return scoped document checklist and safe metadata
+  App-->>Staff: Offer only stage-valid upload/review actions
+  Staff->>DB: Submit decision or document through authorized action
+  DB->>DB: Recheck assignee, role, phase, requirement, and RLS
+  DB-->>App: Return persisted state and audit event
+```
 
 ### Assignment notification interaction
 

@@ -32,6 +32,7 @@ export const REFERENCE_VIEWS = {
   email_settings: "cfc_email_settings",
   process_step: "cfc_process_steps",
   process_phase: "cfc_process_phases",
+  kyc_option: "cfc_kyc_option",
 } as const;
 
 /** Une table du référentiel. */

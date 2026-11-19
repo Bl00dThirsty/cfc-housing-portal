@@ -3,7 +3,7 @@
  *
  * L'en-tête est le **premier** écran que l'agent voit : il doit dire où il
  * est, ce qu'il peut faire, et où chercher. Un en-tête identique pour les
- * sept rôles ne dit rien de tout cela.
+ * rôles ne dit rien de tout cela.
  *
  * Cette configuration est le **seul** propriétaire de ces informations. Elle
  * s'appuie sur la politique de capacité existante (`hasCapability`), donc une
@@ -44,6 +44,13 @@ const CITIZEN_CONFIG: RoleHeaderConfig = {
     { id: "citizen-deposit", label: "Déposer une pièce", href: "/portail-client", icon: "Upload" },
   ],
   showSupport: false,
+};
+
+const GENERIC_STAFF_CONFIG: RoleHeaderConfig = {
+  contextLabel: "Espace agent",
+  search: { placeholder: "Rechercher un dossier autorisé…", scope: "Affectations" },
+  quickActions: [],
+  showSupport: true,
 };
 
 const STAFF_CONFIGS: Record<string, RoleHeaderConfig> = {
@@ -115,7 +122,7 @@ const STAFF_CONFIGS: Record<string, RoleHeaderConfig> = {
 /** La configuration d'en-tête d'un rôle. */
 export function roleHeaderConfigFor(role: AppRole): RoleHeaderConfig {
   if (role === "CITIZEN") return CITIZEN_CONFIG;
-  return STAFF_CONFIGS[role] ?? CITIZEN_CONFIG;
+  return STAFF_CONFIGS[role] ?? GENERIC_STAFF_CONFIG;
 }
 
 /**
@@ -124,10 +131,13 @@ export function roleHeaderConfigFor(role: AppRole): RoleHeaderConfig {
  * Une action qui exige une capacité que le rôle n'a pas est retirée : elle
  * ne doit pas être offerte à quelqu'un qui ne peut pas la faire.
  */
-export function visibleQuickActions(role: AppRole): QuickAction[] {
+export function visibleQuickActions(
+  role: AppRole,
+  assignedCapabilities?: readonly Capability[],
+): QuickAction[] {
   if (role === "CITIZEN") return CITIZEN_CONFIG.quickActions;
 
   return roleHeaderConfigFor(role).quickActions.filter(
-    (action) => !action.capability || hasCapability(role, action.capability),
+    (action) => !action.capability || hasCapability(role, action.capability, assignedCapabilities),
   );
 }

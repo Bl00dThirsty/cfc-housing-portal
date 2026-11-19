@@ -16,6 +16,7 @@ import {
   type OnboardingStepId,
 } from "@/domain/entities/onboarding";
 import type { ServiceSummary } from "@/domain/entities/services";
+import type { KycOptionGroups } from "@/domain/entities/kyc-options";
 
 import { KycWizard } from "@/components/kyc/kyc-wizard";
 import { ServiceDocuments } from "@/components/onboarding/service-documents";
@@ -39,23 +40,36 @@ type OnboardingWizardProps = {
   services: ServiceSummary[];
   initialDraft: OnboardingDraft;
   signedIn: boolean;
+  /** Derived from the persisted actor-level KYC submission timestamp. */
+  kycSubmitted: boolean;
   /** Les pièces déjà fournies au KYC : elles ne sont jamais demandées deux fois. */
   providedCodes: readonly string[];
   /** Les pièces déjà envoyées par le demandeur. */
   sentCodes: readonly string[];
+  /** Les choix KYC lus depuis le catalogue Supabase. */
+  kycOptions: KycOptionGroups;
+  /** L'erreur explicite si le catalogue est absent ou illisible. */
+  kycOptionsError: string | null;
 };
 
 export function OnboardingWizard({
   services,
   initialDraft,
   signedIn,
+  kycSubmitted,
   providedCodes,
   sentCodes,
+  kycOptions,
+  kycOptionsError,
 }: OnboardingWizardProps) {
   const router = useRouter();
-  const [step, setStep] = React.useState<OnboardingStepId>(() =>
-    resumeStepId(initialDraft),
+  const visibleSteps = React.useMemo(
+    () => kycSubmitted ? ONBOARDING_STEPS.filter((item) => item.id !== "kyc") : ONBOARDING_STEPS,
+    [kycSubmitted],
   );
+  const [step, setStep] = React.useState<OnboardingStepId>(() => kycSubmitted
+    ? initialDraft.serviceCode ? "documents" : "service"
+    : resumeStepId(initialDraft));
   const [draft, setDraft] = React.useState<OnboardingDraft>(initialDraft);
   const [saving, setSaving] = React.useState(false);
 
@@ -63,7 +77,7 @@ export function OnboardingWizard({
     setDraft((current) => ({ ...current, ...values }));
   }, []);
 
-  const stepIndex = ONBOARDING_STEPS.findIndex((item) => item.id === step);
+  const stepIndex = visibleSteps.findIndex((item) => item.id === step);
 
   /** Le service choisi — il porte les pièces exigées. */
   const service = React.useMemo(
@@ -83,23 +97,25 @@ export function OnboardingWizard({
 
   /** L'étape suivante : le parcours n'avance qu'après une écriture réussie. */
   const goNext = React.useCallback(() => {
-    const next = ONBOARDING_STEPS[stepIndex + 1];
+    const next = visibleSteps[stepIndex + 1];
     if (!next) return;
     setStep(next.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [stepIndex]);
+  }, [stepIndex, visibleSteps]);
 
   const goBack = React.useCallback(() => {
-    const previous = ONBOARDING_STEPS[stepIndex - 1];
+    const previous = visibleSteps[stepIndex - 1];
     if (!previous) return;
     setStep(previous.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [stepIndex]);
+  }, [stepIndex, visibleSteps]);
 
   const finish = React.useCallback(() => {
     setTransmitted(true);
-    router.push("/portail-client");
-  }, [router]);
+    router.push(draft.dossierId
+      ? `/portail-client/demandes/${encodeURIComponent(draft.dossierId)}`
+      : "/portail-client/demandes");
+  }, [draft.dossierId, router]);
 
   /** L'étape de reprise, pour le dire à l'utilisateur. */
   const resumed =
@@ -138,8 +154,9 @@ export function OnboardingWizard({
               Constituer votre dossier de prêt
             </h1>
             <p className="text-sm text-muted-foreground">
-              Trois étapes, et votre dossier est complet au CFC. Vous pouvez
-              revenir dessus à tout moment depuis votre portail.
+              {kycSubmitted
+                ? "Choisissez le service et complétez cette nouvelle demande. Vos informations KYC déjà transmises restent rattachées à votre compte."
+                : "Trois étapes, et votre dossier est complet au CFC. Vous pouvez revenir dessus à tout moment depuis votre portail."}
             </p>
             {resumed && (
               <p className="caption-style text-soft">
@@ -162,7 +179,7 @@ export function OnboardingWizard({
       </header>
 
       <ol className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-0">
-        {ONBOARDING_STEPS.map((item, index) => {
+        {visibleSteps.map((item, index) => {
           /**
            * L'état d'une étape vient des **réponses**, pas de l'ordre :
            * une étape est faite quand elle est valide, et accessible quand
@@ -173,10 +190,12 @@ export function OnboardingWizard({
           const isDone =
             item.id === "documents"
               ? transmitted
-              : done.includes(item.id);
+              : item.id === "service"
+                ? Boolean(draft.serviceCode)
+                : done.includes(item.id);
           const isReachable =
             index <= stepIndex &&
-            (index === stepIndex || done.includes(item.id));
+            (index === stepIndex || done.includes(item.id) || (kycSubmitted && item.id === "service" && Boolean(draft.serviceCode)));
           const state = isDone ? "done" : index === stepIndex ? "current" : "todo";
           const caption =
             item.id === "documents" && service
@@ -208,7 +227,7 @@ export function OnboardingWizard({
                   ) : !isReachable ? (
                     <Lock className="size-2.5" aria-hidden />
                   ) : (
-                    item.index
+                    index + 1
                   )}
                 </span>
                 <span className="flex flex-col">
@@ -223,7 +242,7 @@ export function OnboardingWizard({
                   <span className="caption-style text-soft">{caption}</span>
                 </span>
               </button>
-              {index < ONBOARDING_STEPS.length - 1 && (
+              {index < visibleSteps.length - 1 && (
                 <span
                   aria-hidden
                   className="hidden h-px flex-1 bg-line-strong sm:block"
@@ -246,12 +265,20 @@ export function OnboardingWizard({
             onAffiliationChange={(affiliation) => patch({ affiliation })}
             dossierId={draft.dossierId}
             providedCodes={providedCodes}
+            options={kycOptions}
+            optionsError={kycOptionsError}
             onNext={goNext}
           />
         )}
         {step === "service" && (
           <ServicePicker
             services={services}
+            dossierId={draft.dossierId}
+            onSuspended={() => {
+              if (draft.dossierId) {
+                router.push(`/portail-client/demandes/${encodeURIComponent(draft.dossierId)}`);
+              }
+            }}
             onNext={goNext}
             saving={saving}
             setSaving={setSaving}
@@ -291,7 +318,7 @@ export function OnboardingWizard({
           Précédent
         </Button>
         <span className="caption-style text-soft">
-          Étape {stepIndex + 1} sur {ONBOARDING_STEPS.length}
+          Étape {stepIndex + 1} sur {visibleSteps.length}
         </span>
       </footer>
     </div>

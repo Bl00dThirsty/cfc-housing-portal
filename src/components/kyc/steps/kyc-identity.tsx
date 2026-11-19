@@ -20,19 +20,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  FAMILY_STATUSES,
-  ID_DOCUMENT_TYPES,
   type KycIdentity,
 } from "@/domain/entities/kyc";
+import type { KycOption } from "@/domain/entities/kyc-options";
 
 export interface KycIdentityStepProps {
   identity: KycIdentity;
+  familyStatusOptions: readonly KycOption[];
+  idDocumentTypeOptions: readonly KycOption[];
   onChange: (values: Partial<KycIdentity>) => void;
   /** Le refus, rattaché à son champ. */
   errors: Record<string, string>;
 }
 
-export function KycIdentityStep({ identity, onChange, errors }: KycIdentityStepProps) {
+export function KycIdentityStep({
+  identity,
+  familyStatusOptions,
+  idDocumentTypeOptions,
+  onChange,
+  errors,
+}: KycIdentityStepProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Field
@@ -85,20 +92,24 @@ export function KycIdentityStep({ identity, onChange, errors }: KycIdentityStepP
         />
       </Field>
 
-      <Field label="Situation familiale" htmlFor="kyc-family-status">
+      <Field
+        label="Situation familiale"
+        htmlFor="kyc-family-status"
+        error={errors["identity.familyStatus"]}
+      >
         <Select
           value={identity.familyStatus ?? ""}
           onValueChange={(value) =>
-            onChange({ familyStatus: value as KycIdentity["familyStatus"] })
+            onChange({ familyStatus: value || null })
           }
         >
           <SelectTrigger id="kyc-family-status">
             <SelectValue placeholder="Choisir" />
           </SelectTrigger>
           <SelectContent>
-            {FAMILY_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status}
+            {familyStatusOptions.map((option) => (
+              <SelectItem key={option.code} value={option.code}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -114,16 +125,16 @@ export function KycIdentityStep({ identity, onChange, errors }: KycIdentityStepP
         <Select
           value={identity.idDocumentType ?? ""}
           onValueChange={(value) =>
-            onChange({ idDocumentType: value as KycIdentity["idDocumentType"] })
+            onChange({ idDocumentType: value || null })
           }
         >
           <SelectTrigger id="kyc-id-type">
             <SelectValue placeholder="Choisir" />
           </SelectTrigger>
           <SelectContent>
-            {ID_DOCUMENT_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
+            {idDocumentTypeOptions.map((option) => (
+              <SelectItem key={option.code} value={option.code}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>

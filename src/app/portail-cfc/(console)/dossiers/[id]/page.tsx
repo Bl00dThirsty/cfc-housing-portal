@@ -23,7 +23,7 @@ export default async function OperationalDossierPage({ params }: { params: Promi
 
   const [isAssignedManager, managerRoster] = await Promise.all([
     profile?.role === "GESTIONNAIRE" ? isDossierAssignedToActor(id, profile.actorId) : Promise.resolve(false),
-    profile?.role === "ADMIN" && hasCapability(profile.role, "admin:users")
+    profile?.role === "ADMIN" && hasCapability(profile.role, "admin:users", profile.capabilities)
       ? getRegionalManagersForDossier(id)
       : Promise.resolve(null),
   ]);

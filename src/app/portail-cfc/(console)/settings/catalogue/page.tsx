@@ -11,7 +11,7 @@ export default async function CatalogueSettingsPage() {
     );
   }
 
-  if (!hasCapability(profile.role, "catalogue:write")) {
+  if (!hasCapability(profile.role, "catalogue:write", profile.capabilities)) {
     return (
       <div className="flex flex-col gap-1 p-6">
         <h1 className="text-base font-semibold text-foreground">

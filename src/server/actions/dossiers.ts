@@ -72,7 +72,7 @@ export async function listDocumentTypesAction(): Promise<
 > {
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "document:request")) {
+  if (!hasCapability(profile.role, "document:request", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de demander une pièce." };
   }
 
@@ -115,7 +115,7 @@ const PENDING_ONBOARDING_STATES = ["suspension", "en_examen", "documents"] as co
 export async function listDossiersToOrientAction(): Promise<DossierQueueResult> {
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "dossier:read")) {
+  if (!hasCapability(profile.role, "dossier:read", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de consulter les dossiers." };
   }
 
@@ -251,7 +251,7 @@ export async function decideDucEligibilityAction(input: {
 }): Promise<DossierDecisionResult> {
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "dossier:decide")) {
+  if (!hasCapability(profile.role, "dossier:decide", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de décider sur un dossier." };
   }
 
@@ -315,7 +315,7 @@ export async function requestDossierDocumentAction(input: {
 }): Promise<DossierDecisionResult> {
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "document:request")) {
+  if (!hasCapability(profile.role, "document:request", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de demander une pièce." };
   }
 
@@ -401,7 +401,7 @@ export async function decideDossierDocumentAction(input: {
   const capability =
     input.decision === "validated" ? "document:validate" : "document:reject";
 
-  if (!hasCapability(profile.role, capability)) {
+  if (!hasCapability(profile.role, capability, profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de statuer sur cette pièce." };
   }
 

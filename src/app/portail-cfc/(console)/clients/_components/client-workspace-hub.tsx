@@ -34,16 +34,19 @@ import { ClientsCommandMenu } from "@/components/clients/command-menu/clients-co
 import { ClientDetailSheet } from "@/components/clients/detail/client-detail-sheet";
 import { ClientsTable } from "@/components/clients/table/clients-table";
 import { type ClientItem } from "@/domain/entities/client";
+import type { ProcessPhase } from "@/domain/entities/process-phase";
 
 type SavingsCapabilities = { canCredit: boolean; canDebit: boolean; canValidate: boolean; canReverse: boolean };
 
 export function ClientWorkspaceHub({
   clients,
+  phases = [],
   loadError,
   savingsCapabilities = { canCredit: false, canDebit: false, canValidate: false, canReverse: false },
   canOpenProfile = false,
 }: {
   clients: ClientItem[];
+  phases?: ProcessPhase[];
   loadError?: string;
   savingsCapabilities?: SavingsCapabilities;
   canOpenProfile?: boolean;
@@ -276,6 +279,7 @@ export function ClientWorkspaceHub({
         <TabsContent value="kanban" className="space-y-4 focus-visible:outline-none">
           <ClientKanban
             client={activeClient}
+            phases={phases}
             onOpenDuc={() => setActiveTab("duc")}
           />
         </TabsContent>

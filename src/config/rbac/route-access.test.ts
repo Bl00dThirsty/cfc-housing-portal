@@ -40,11 +40,15 @@ describe("contrôle d'accès aux routes de la console", () => {
   });
 
   it("refuse à un agent les écrans d'un autre pôle", () => {
-    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/analytics")).toBe(false);
-    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/settings/catalogue")).toBe(false);
-    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/kanban")).toBe(false);
-
+    // The analytics rollup is invoker/RLS-scoped and GUICHET has analytics:read.
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/analytics")).toBe(true);
     expect(canAgentOpenRoute("NOTAIRE", "/portail-cfc/analytics")).toBe(false);
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/settings/catalogue")).toBe(false);
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/settings/users")).toBe(false);
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/settings/groups")).toBe(false);
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/kanban")).toBe(true);
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/kanban", [])).toBe(false);
+
     expect(canAgentOpenRoute("NOTAIRE", "/portail-cfc/actors/disbursements")).toBe(false);
 
     expect(canAgentOpenRoute("COMITE", "/portail-cfc/actors/notary-cadastre")).toBe(false);
@@ -57,7 +61,13 @@ describe("contrôle d'accès aux routes de la console", () => {
   it("donne à l'administrateur tous les écrans de la Direction Générale", () => {
     expect(canAgentOpenRoute("ADMIN", "/portail-cfc/analytics")).toBe(true);
     expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/catalogue")).toBe(true);
+    expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/users")).toBe(true);
+    expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/roles")).toBe(true);
+    expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/groups")).toBe(true);
+    expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/workflow")).toBe(true);
     expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/email/deliveries")).toBe(true);
+    expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/email/provider")).toBe(true);
+    expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/audit")).toBe(true);
     expect(canAgentOpenRoute("ADMIN", "/portail-cfc/actors/disbursements/recovery")).toBe(true);
     expect(canAgentOpenRoute("ADMIN", "/portail-cfc/actors/mortgage-release")).toBe(true);
   });
@@ -81,8 +91,8 @@ describe("contrôle d'accès aux routes de la console", () => {
     for (const role of ["GUICHET", "NOTAIRE", "ADMIN"] as const) {
       expect(canAgentOpenRoute(role, "/portail-cfc")).toBe(true);
     }
-    // …mais elle n'ouvre aucune console par préfixe.
-    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/analytics")).toBe(false);
+    // …mais elle n'ouvre aucune console par préfixe sans une habilitation.
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/analytics", [])).toBe(false);
   });
 
   it("fait hériter une page de détail de son écran", () => {
@@ -93,6 +103,22 @@ describe("contrôle d'accès aux routes de la console", () => {
 
   it("ignore la chaîne de requête", () => {
     expect(canAgentOpenRoute("GUICHET", "/portail-cfc/clients?tab=duc")).toBe(true);
-    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/analytics?kpi=ca")).toBe(false);
+    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/analytics?kpi=ca")).toBe(true);
+  });
+
+  it("uses live grants to open or close a capability-gated route", () => {
+    expect(
+      canAgentOpenRoute("ADMIN", "/portail-cfc/settings/workflow", []),
+    ).toBe(false);
+    expect(
+      canAgentOpenRoute("ADMIN", "/portail-cfc/settings/workflow", ["workflow:manage"]),
+    ).toBe(true);
+    expect(canAgentOpenRoute("ADMIN", "/portail-cfc/settings/roles", [])).toBe(false);
+    expect(
+      canAgentOpenRoute("GUICHET", "/portail-cfc/settings/workflow", ["workflow:manage"]),
+    ).toBe(true);
+    expect(canAgentOpenRoute("PMO", "/portail-cfc/settings/workflow", ["workflow:manage"])).toBe(true);
+    expect(canAgentOpenRoute("AUDIT", "/portail-cfc/settings/roles", ["admin:audit"])).toBe(false);
+    expect(canAgentOpenRoute("AUDIT", "/portail-cfc/settings/audit", ["admin:audit"])).toBe(true);
   });
 });

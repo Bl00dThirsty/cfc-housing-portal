@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PEP_REASONS, type KycCompliance } from "@/domain/entities/kyc";
+import { type KycCompliance } from "@/domain/entities/kyc";
+import type { KycOption } from "@/domain/entities/kyc-options";
 import {
   AFFILIATION_OPTIONS,
   type AffiliationStatus,
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 
 export interface KycComplianceStepProps {
   compliance: KycCompliance;
+  pepReasonOptions: readonly KycOption[];
   onChange: (values: Partial<KycCompliance>) => void;
   /** La situation bancaire — elle vient du compte. */
   affiliation: AffiliationStatus | null;
@@ -42,6 +44,7 @@ export interface KycComplianceStepProps {
 
 export function KycComplianceStep({
   compliance,
+  pepReasonOptions,
   onChange,
   affiliation,
   onAffiliationChange,
@@ -84,20 +87,25 @@ export function KycComplianceStep({
           })}
         </div>
         {compliance.politicallyExposed && (
-          <Field label="Motif de l'exposition" htmlFor="kyc-pep-reason" className="mt-2">
+          <Field
+            label="Motif de l'exposition"
+            htmlFor="kyc-pep-reason"
+            className="mt-2"
+            error={errors["compliance.pepReason"]}
+          >
             <Select
               value={compliance.pepReason ?? ""}
               onValueChange={(value) =>
-                onChange({ pepReason: value as KycCompliance["pepReason"] })
+                onChange({ pepReason: value || null })
               }
             >
               <SelectTrigger id="kyc-pep-reason">
                 <SelectValue placeholder="Choisir" />
               </SelectTrigger>
               <SelectContent>
-                {PEP_REASONS.map((reason) => (
-                  <SelectItem key={reason} value={reason}>
-                    {reason}
+                {pepReasonOptions.map((option) => (
+                  <SelectItem key={option.code} value={option.code}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -75,7 +75,7 @@ export async function recordSavingsTransactionAction(input: unknown): Promise<Sa
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
   const capability = parsed.data.type === "deposit" ? "savings:credit" : "savings:debit";
-  if (!hasCapability(profile.role, capability)) {
+  if (!hasCapability(profile.role, capability, profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas d’enregistrer cette opération." };
   }
 
@@ -108,7 +108,7 @@ export async function reverseSavingsTransactionAction(input: unknown): Promise<S
 
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "savings:reverse")) {
+  if (!hasCapability(profile.role, "savings:reverse", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de contrepasser une opération d’épargne." };
   }
 
@@ -137,7 +137,7 @@ export async function decideSavingsTransactionAction(input: unknown): Promise<Sa
 
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "savings:validate")) {
+  if (!hasCapability(profile.role, "savings:validate", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de traiter les opérations d’épargne." };
   }
 

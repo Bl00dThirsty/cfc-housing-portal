@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { ClientDocument, ClientItem, ClientVisa, SavingsPassbook, SavingsTransaction } from "@/domain/entities/client";
+import type { ProcessPhase } from "@/domain/entities/process-phase";
 import { referenceView } from "@/server/queries/reference";
 import { createServerSupabaseClient } from "@/server/supabase/server";
 
@@ -248,6 +249,7 @@ export function mapStaffDossier(
 export type StaffDossiersResult = {
   ok: true;
   dossiers: ClientItem[];
+  phases: ProcessPhase[];
 } | {
   ok: false;
   error: string;
@@ -279,16 +281,23 @@ export async function getStaffDossiers(dossierId?: string): Promise<StaffDossier
   if (count !== null && count > dossierRows.length) {
     return { ok: false, error: "Le portefeuille dépasse la limite de lecture. Affinez-le par agence ou demandez une pagination." };
   }
-  if (dossierRows.length === 0) return { ok: true, dossiers: [] };
 
   const { data: phaseRows, error: phaseError } = await supabase
     .from(referenceView("process_phase"))
-    .select("code, label");
+    .select("code, label, sort_order")
+    .order("sort_order", { ascending: true });
   if (phaseError) return { ok: false, error: "Le catalogue des étapes du dossier est indisponible." };
-  const phaseLabels = new Map(((phaseRows ?? []) as unknown as Row[]).map((row) => [
-    String(row.code),
-    String(row.label),
+  const phases: ProcessPhase[] = ((phaseRows ?? []) as unknown as Row[]).map((row) => ({
+    code: String(row.code),
+    label: String(row.label),
+    sortOrder: Number(row.sort_order),
+  }));
+  const phaseLabels = new Map(phases.map((phase) => [
+    phase.code,
+    phase.label,
   ]));
+
+  if (dossierRows.length === 0) return { ok: true, dossiers: [], phases };
 
   const dossierIds = dossierRows.map((row) => String(row.id));
   const [documentsResult, eventsResult, accountsResult] = await Promise.all([
@@ -367,6 +376,7 @@ export async function getStaffDossiers(dossierId?: string): Promise<StaffDossier
 
   return {
     ok: true,
+    phases,
     dossiers: dossierRows.map((row) => mapStaffDossier({
       ...row,
       dossier_documents: documentsByDossier.get(String(row.id)) ?? [],

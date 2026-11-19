@@ -1,6 +1,7 @@
 import { getPublicEnv } from "@/server/env";
 import { createServerSupabaseClient } from "@/server/supabase/server";
 import { referenceView } from "@/server/queries/reference";
+import type { CitizenFinance, CitizenSpace, CitizenTracking } from "@/domain/entities/citizen-space";
 import type { CreditPhase, DossierEvent, ProcessStep } from "@/domain/entities/processes";
 import {
   checklistStatusFor,
@@ -10,79 +11,12 @@ import {
   currentStepOf,
   indexProcessSteps,
   processProgress,
-  type IndexedStep,
 } from "@/domain/workflows/tracking";
 
-/**
- * Espace citoyen : tout ce que l'emprunteur voit de son dossier.
- *
- * Une seule lecture, une seule requête par entité, et **une seule** source de
- * vérité : `public.dossier_events` est la chronologie, `public.dossiers` est
- * l'état courant, `public.dossier_documents` et `ref.service_document_requirement`
- * font la complétude.
- *
- * Les phases et étapes sont lues dans le catalogue Supabase ; cette couche
- * applique les règles d'avancement aux valeurs configurées.
- */
+/** Espace emprunteur lu intégralement depuis le dossier et les catalogues Supabase. */
+export type { CitizenFinance, CitizenSpace, CitizenTracking } from "@/domain/entities/citizen-space";
 
-export type CitizenSpace = {
-  dossierId: string;
-  ducCode: string;
-  serviceLabel: string | null;
-  currentPhase: string | null;
-  currentPhaseLabel: string | null;
-  completionPercent: number | null;
-  status: string | null;
-  /** L'avancement du parcours : KYC, service, pièces, examen, pause. */
-  onboardingState: string | null;
-  /** Le conseiller qui examine le dossier, s'il y en a un. */
-  advisor: string | null;
-  events: DossierEvent[];
-  checklist: ChecklistItem[];
-  documentCount: number;
-  unreadNotifications: number;
-  /** Situation financière du dossier — matière du tableau de bord. */
-  finance: CitizenFinance;
-  /** Étapes indexées du parcours de crédit. */
-  steps: IndexedStep[];
-  /** Étape en cours : l'ancrage par défaut des messages. */
-  currentStep: IndexedStep | null;
-};
-
-/** Situation financière du dossier, lue telle qu'elle est instruite. */
-export type CitizenFinance = {
-  loanAmount: number | null;
-  rate: number | null;
-  durationYears: number | null;
-  monthlyPayment: number | null;
-  savingsTarget: number | null;
-  savingsCurrent: number | null;
-  savingsPercent: number | null;
-  debtRatio: number | null;
-};
-
-/** Ce que l'emprunteur voit de l'avancement de son parcours. */
-export type CitizenTracking = {
-  dossierId: string;
-  ducCode: string;
-  currentPhase: string | null;
-  currentPhaseLabel: string | null;
-  /** Étapes indexées du circuit de crédit. */
-  steps: IndexedStep[];
-  /** Avancement du parcours, en pourcentage d'étapes franchies. */
-  progress: number;
-  /** Pièces attendues, avec leur état. */
-  checklist: ChecklistItem[];
-  /**
-   * Le journal du dossier.
-   *
-   * Il est déjà lu pour indexer les étapes : l'exposer évite une seconde
-   * lecture et permet au panneau d'étape de dire qui a fait quoi, quand.
-   */
-  events: DossierEvent[];
-};
-
-export async function getCitizenSpace(userId: string): Promise<{
+export async function getCitizenSpace(userId: string, requestedDossierId?: string): Promise<{
   ok: true;
   space: CitizenSpace | null;
 } | { ok: false; error: string }> {
@@ -90,16 +24,24 @@ export async function getCitizenSpace(userId: string): Promise<{
 
   const supabase = await createServerSupabaseClient();
 
-  const { data: dossier, error: dossierError } = await supabase
+  let dossierQuery = supabase
     .from("dossiers")
     .select(
       "id, duc_code, service_code, current_phase, completion_percent, status, onboarding_state, advisor, loan_amount, rate, duration_years, monthly_payment, savings_target, savings_current, savings_percent, debt_ratio",
     )
     .eq("citizen_id", userId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .is("deleted_at", null);
+
+  if (requestedDossierId) {
+    dossierQuery = dossierQuery.eq("id", requestedDossierId);
+  } else {
+    dossierQuery = dossierQuery
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1);
+  }
+
+  const { data: dossier, error: dossierError } = await dossierQuery.maybeSingle();
 
   if (dossierError) return { ok: false, error: dossierError.message };
   if (!dossier) return { ok: true, space: null };

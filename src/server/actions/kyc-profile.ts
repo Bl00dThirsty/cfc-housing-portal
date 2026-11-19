@@ -30,10 +30,21 @@ import {
   type KycProfile,
 } from "@/domain/entities/kyc-profile";
 import type { AffiliationStatus } from "@/domain/entities/onboarding";
+import type { KycOptionCategory } from "@/domain/entities/kyc-options";
 
 export type KycActionResult =
   | { ok: true; message?: string; state?: string }
   | { ok: false; error: string; errors?: Record<string, string> };
+
+const KYC_OPTION_FIELD_BY_CATEGORY: Record<KycOptionCategory, string> = {
+  family_status: "identity.familyStatus",
+  employment_status: "employment.status",
+  income_origin: "employment.incomeOrigin",
+  income_band: "employment.incomeBand",
+  id_document_type: "identity.idDocumentType",
+  occupation_status: "residence.occupationStatus",
+  pep_reason: "compliance.pepReason",
+};
 
 /** Le citoyen connecté, et rien d'autre. */
 async function currentCitizen(): Promise<{ id: string } | null> {
@@ -55,6 +66,22 @@ async function currentCitizen(): Promise<{ id: string } | null> {
   return { id: user.id };
 }
 
+async function ownedKycDossier(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  citizenId: string,
+  dossierId: string,
+) {
+  const { data } = await supabase
+    .from("dossiers")
+    .select("id")
+    .eq("id", dossierId)
+    .eq("citizen_id", citizenId)
+    .eq("onboarding_state", "kyc")
+    .is("deleted_at", null)
+    .maybeSingle();
+  return data;
+}
+
 /**
  * Enregistre le brouillon déclaré.
  *
@@ -63,6 +90,8 @@ async function currentCitizen(): Promise<{ id: string } | null> {
  */
 export async function saveKycDraftAction(input: {
   profile: KycProfile;
+  /** The exact request whose editable KYC draft is being completed. */
+  dossierId: string;
   /** Le téléphone de contact — il vient du compte, mais il reste modifiable. */
   phone?: string;
   /** La situation bancaire — elle vient du compte. */
@@ -75,7 +104,14 @@ export async function saveKycDraftAction(input: {
     return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
   }
 
+  if (!input.dossierId || !/^[0-9a-f-]{36}$/i.test(input.dossierId)) {
+    return { ok: false, error: "Sélectionnez un dossier valide avant d’enregistrer vos informations." };
+  }
+
   const supabase = await createServerSupabaseClient();
+  const dossier = await ownedKycDossier(supabase, citizen.id, input.dossierId);
+  if (!dossier) return { ok: false, error: "Ce dossier n’existe pas ou ne vous appartient pas." };
+
   const now = new Date().toISOString();
   const stored = toStoredProfile(input.profile);
 
@@ -119,35 +155,24 @@ export async function saveKycDraftAction(input: {
   // La **copie de travail** de la plateforme : le dossier est ce que l'agent
   // lit. Il porte les mêmes faits, et le revenu déclaré n'y entre pas — il
   // reste la déclaration du citoyen.
-  const { data: dossier } = await supabase
+  const { identity, residence, employment } = input.profile;
+
+  const { error: dossierError } = await supabase
     .from("dossiers")
-    .select("id")
-    .eq("citizen_id", citizen.id)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .update({
+      name: input.fullName?.trim() || null,
+      birth_date: identity.birthDate || null,
+      cni_raw: identity.idDocumentNumber?.trim().toUpperCase() || null,
+      address: residence.landmark || residence.city || null,
+      city: residence.city || null,
+      region: residence.region || null,
+      profession: employment.profession || null,
+      employer: employment.employer || null,
+      updated_at: now,
+    })
+    .eq("id", dossier.id);
 
-  if (dossier) {
-    const { identity, residence, employment } = input.profile;
-
-    const { error: dossierError } = await supabase
-      .from("dossiers")
-      .update({
-        name: input.fullName?.trim() || null,
-        birth_date: identity.birthDate || null,
-        cni_raw: identity.idDocumentNumber?.trim().toUpperCase() || null,
-        address: residence.landmark || residence.city || null,
-        city: residence.city || null,
-        region: residence.region || null,
-        profession: employment.profession || null,
-        employer: employment.employer || null,
-        updated_at: now,
-      })
-      .eq("id", dossier.id);
-
-    if (dossierError) return { ok: false, error: dossierError.message };
-  }
+  if (dossierError) return { ok: false, error: dossierError.message };
 
   return { ok: true, message: "Vos informations sont enregistrées." };
 }
@@ -161,12 +186,18 @@ export async function saveKycDraftAction(input: {
  */
 export async function submitKycAction(input: {
   profile: KycProfile;
+  /** The exact request whose KYC step is being submitted. */
+  dossierId: string;
   /** L'attestation sur l'honneur, acceptée par le demandeur. */
   honourAttestation: boolean;
 }): Promise<KycActionResult> {
   const citizen = await currentCitizen();
   if (!citizen) {
     return { ok: false, error: "Votre session a expiré. Reconnectez-vous pour continuer." };
+  }
+
+  if (!input.dossierId || !/^[0-9a-f-]{36}$/i.test(input.dossierId)) {
+    return { ok: false, error: "Sélectionnez un dossier valide avant de transmettre vos informations." };
   }
 
   const errors: Record<string, string> = {};
@@ -194,6 +225,9 @@ export async function submitKycAction(input: {
   }
 
   const supabase = await createServerSupabaseClient();
+  const ownedDossier = await ownedKycDossier(supabase, citizen.id, input.dossierId);
+  if (!ownedDossier) return { ok: false, error: "Ce dossier n’existe pas ou ne vous appartient pas." };
+
   const now = new Date().toISOString();
   const stored = toStoredProfile(input.profile);
 
@@ -220,7 +254,9 @@ export async function submitKycAction(input: {
   if (kycError) return { ok: false, error: kycError.message };
 
   // La soumission : horodatage et transition, **en une opération**.
-  const { data: state, error: submitError } = await supabase.rpc("submit_kyc_profile");
+  const { data: state, error: submitError } = await supabase.rpc("submit_kyc_profile", {
+    p_dossier_id: input.dossierId,
+  });
 
   if (submitError) {
     if (/kyc_not_submittable/.test(submitError.message)) {
@@ -232,6 +268,18 @@ export async function submitKycAction(input: {
     if (/not_a_citizen/.test(submitError.message)) {
       return { ok: false, error: "Session requise." };
     }
+    const invalidOption = submitError.message.match(/invalid_kyc_option:([a-z_]+)/)?.[1] as
+      | KycOptionCategory
+      | undefined;
+    if (invalidOption && invalidOption in KYC_OPTION_FIELD_BY_CATEGORY) {
+      return {
+        ok: false,
+        error: "Une option du formulaire n’est plus disponible. Choisissez une valeur actuelle et réessayez.",
+        errors: {
+          [KYC_OPTION_FIELD_BY_CATEGORY[invalidOption]]: "Cette valeur n’est plus disponible. Choisissez une option du catalogue actuel.",
+        },
+      };
+    }
     return { ok: false, error: submitError.message };
   }
 
@@ -239,10 +287,8 @@ export async function submitKycAction(input: {
     .from("dossiers")
     .select("id")
     .eq("citizen_id", citizen.id)
+    .eq("id", input.dossierId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(1)
     .maybeSingle();
 
   if (dossierError) {
@@ -347,7 +393,7 @@ export async function rejectKycAction(input: {
   // Le refus est une **décision** : elle appartient à un habilité. Un
   // citoyen qui l'appellerait pour lui-même n'obtiendrait rien — et le
   // contrôle est ici, pas seulement dans la politique de sécurité.
-  if (profile.role === "CITIZEN" || !hasCapability(profile.role, "kyc:decide")) {
+  if (profile.role === "CITIZEN" || !hasCapability(profile.role, "kyc:decide", profile.capabilities)) {
     return {
       ok: false,
       error: "Votre habilitation ne permet pas de décider sur un dossier KYC.",

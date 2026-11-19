@@ -32,6 +32,7 @@ import {
   type OnboardingDraft,
 } from "@/domain/entities/onboarding";
 import type { KycProfile } from "@/domain/entities/kyc";
+import type { KycOptionGroups } from "@/domain/entities/kyc-options";
 
 import { KycDocuments } from "@/components/kyc/kyc-documents";
 import { KycIdentityStep } from "./steps/kyc-identity";
@@ -71,6 +72,13 @@ const BLOCKING_BY_SCREEN: Record<string, readonly string[]> = {
   compliance: ["affiliation"],
 };
 
+const SCREEN_BY_FIELD: Record<string, number> = {
+  identity: 0,
+  residence: 1,
+  employment: 2,
+  compliance: 3,
+};
+
 /** Le délai d'enregistrement automatique. */
 const AUTOSAVE_DELAY_MS = 600;
 
@@ -90,6 +98,10 @@ export interface KycWizardProps {
   dossierId: string | null;
   /** Les pièces déjà fournies : elles ne sont jamais demandées deux fois. */
   providedCodes: readonly string[];
+  /** Les choix éditables du catalogue KYC Supabase. */
+  options: KycOptionGroups;
+  /** Visible quand la lecture du catalogue échoue ou qu'il est incomplet. */
+  optionsError: string | null;
   /** Le parcours passe à l'étape suivante. */
   onNext: () => void;
 }
@@ -104,6 +116,8 @@ export function KycWizard({
   onAffiliationChange,
   dossierId,
   providedCodes,
+  options,
+  optionsError,
   onNext,
 }: KycWizardProps) {
   /** L'écran courant : 0 à 3, puis le récapitulatif. */
@@ -149,6 +163,7 @@ export function KycWizard({
       setSaving(true);
       void saveKycDraftAction({
         profile,
+        dossierId: dossierId ?? "",
         phone,
         affiliation,
         fullName,
@@ -162,7 +177,7 @@ export function KycWizard({
     }, AUTOSAVE_DELAY_MS);
 
     return () => clearTimeout(timer);
-  }, [affiliation, fullName, phone, profile]);
+  }, [affiliation, dossierId, fullName, phone, profile]);
 
   const currentScreen = SCREENS[screen];
   const isSummary = screen >= SCREENS.length;
@@ -177,11 +192,15 @@ export function KycWizard({
 
     const result = await submitKycAction({
       profile,
+      dossierId: dossierId ?? "",
       honourAttestation: profile.compliance.honourAttestation,
     });
 
     if (!result.ok) {
       setErrors(result.errors ?? {});
+      const firstField = Object.keys(result.errors ?? {})[0];
+      const fieldScreen = firstField ? SCREEN_BY_FIELD[firstField.split(".")[0] ?? ""] : undefined;
+      if (fieldScreen !== undefined) setScreen(fieldScreen);
       reportAction({ ok: false, error: result.error });
       setSubmitting(false);
       return;
@@ -198,6 +217,15 @@ export function KycWizard({
 
   return (
     <div className="flex flex-col gap-5">
+      {optionsError && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {optionsError} Le formulaire reste enregistrable, mais sa transmission est suspendue.
+        </p>
+      )}
+
       {/* La progression ------------------------------------------------ */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
@@ -285,6 +313,8 @@ export function KycWizard({
         {!isSummary && screen === 0 && (
           <KycIdentityStep
             identity={profile.identity}
+            familyStatusOptions={options.family_status}
+            idDocumentTypeOptions={options.id_document_type}
             onChange={(values) =>
               onProfileChange({ ...profile, identity: { ...profile.identity, ...values } })
             }
@@ -295,6 +325,7 @@ export function KycWizard({
         {!isSummary && screen === 1 && (
           <KycResidenceStep
             residence={profile.residence}
+            occupationStatusOptions={options.occupation_status}
             onChange={(values) =>
               onProfileChange({ ...profile, residence: { ...profile.residence, ...values } })
             }
@@ -307,6 +338,9 @@ export function KycWizard({
         {!isSummary && screen === 2 && (
           <KycEmploymentStep
             employment={profile.employment}
+            employmentStatusOptions={options.employment_status}
+            incomeBandOptions={options.income_band}
+            incomeOriginOptions={options.income_origin}
             onChange={(values) =>
               onProfileChange({ ...profile, employment: { ...profile.employment, ...values } })
             }
@@ -317,6 +351,7 @@ export function KycWizard({
         {!isSummary && screen === 3 && (
           <KycComplianceStep
             compliance={profile.compliance}
+            pepReasonOptions={options.pep_reason}
             onChange={(values) =>
               onProfileChange({ ...profile, compliance: { ...profile.compliance, ...values } })
             }
@@ -367,7 +402,7 @@ export function KycWizard({
               type="button"
               variant="cfc"
               size="sm"
-              disabled={submitting}
+              disabled={submitting || optionsError !== null}
               onClick={handleSubmit}
               className="gap-1.5 text-xs"
             >

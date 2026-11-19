@@ -16,6 +16,36 @@
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
+-- Habilitations disponibles dans la console des rôles.
+-- Les premières capacités sont créées par les migrations historiques ; ces
+-- entrées complètent le catalogue afin que chaque grant actif soit éditable.
+-- ---------------------------------------------------------------------------
+
+insert into ref.capability (code, label, group_label, description, sort_order) values
+  ('analytics:read', 'Consulter les indicateurs', 'Pilotage', 'Lire les indicateurs autorisés par le périmètre du rôle.', 360),
+  ('analytics:export', 'Exporter les indicateurs', 'Pilotage', 'Exporter les indicateurs accessibles au rôle.', 370),
+  ('catalogue:read', 'Consulter les référentiels', 'Administration', 'Consulter les produits, services et référentiels actifs.', 380),
+  ('dossier:approve', 'Approuver un dossier', 'Dossiers', 'Approuver un dossier selon le circuit autorisé.', 390),
+  ('dossier:assign', 'Affecter un dossier', 'Dossiers', 'Affecter un dossier à un agent habilité.', 400),
+  ('dossier:delete', 'Retirer un dossier', 'Dossiers', 'Retirer un dossier selon la procédure et les contraintes de conservation.', 410),
+  ('dossier:export', 'Exporter un dossier', 'Dossiers', 'Exporter les données auxquelles le rôle a accès.', 420),
+  ('kyc:decide', 'Décider du contrôle KYC', 'Conformité', 'Valider ou rejeter le contrôle KYC dans le portefeuille affecté.', 430),
+  ('kyc:escalate', 'Escalader un dossier KYC', 'Conformité', 'Transmettre un cas de conformité à la fonction autorisée sans ouvrir le profil complet.', 440),
+  ('notary:draft', 'Préparer un acte', 'Notariat', 'Préparer un projet d’acte notarié.', 450),
+  ('notary:release', 'Publier un acte', 'Notariat', 'Libérer un acte après validation du circuit notarial.', 460),
+  ('recovery:manage', 'Gérer le recouvrement', 'Recouvrement', 'Mettre à jour les actions de recouvrement autorisées.', 470),
+  ('recovery:read', 'Consulter le recouvrement', 'Recouvrement', 'Consulter les informations de recouvrement autorisées.', 480),
+  ('savings:debit', 'Débiter un carnet', 'Épargne', 'Enregistrer un débit selon les contrôles applicables.', 490),
+  ('savings:reverse', 'Annuler une opération d’épargne', 'Épargne', 'Contrepasser une opération selon le circuit de validation.', 500)
+on conflict (code) do update
+  set label = excluded.label,
+      group_label = excluded.group_label,
+      description = excluded.description,
+      sort_order = excluded.sort_order,
+      deleted_at = null,
+      deleted_by = null;
+
+-- ---------------------------------------------------------------------------
 -- Pôles organisationnels
 -- ---------------------------------------------------------------------------
 
@@ -47,7 +77,12 @@ insert into ref.role (code, label, description, pole_code, scope, landing_path, 
   ('NOTAIRE',      'Notaire Conventionné',              'Rédaction des conventions, réquisition MINDCAF et publication des hypothèques.',                'G8',       'OWN_FILES',     '/admin/actors/notary-cadastre', 4),
   ('COMITE',       'Comité de Crédit',                  'Délibérations collégiales, accords de prêts et résolutions de crédit.',                        'G6',       'ALL',           '/admin/actors/credit-committees', 5),
   ('DIASPORA',     'Chargé Diaspora & Non-Résidents',   'Dossiers des Camerounais de l''étranger, virements SWIFT et procurations.',                    'DIASPORA', 'DIASPORA_FILES','/admin/actors/agency/diaspora', 6),
-  ('ADMIN',        'Administrateur Système',            'Supervision globale, gestion des habilitations, audit et paramétrage DUC.',                     'ADMIN',    'ALL',           '/admin/analytics', 7)
+  ('ADMIN',        'Administrateur Système',            'Supervision globale, gestion des habilitations, audit et paramétrage DUC.',                     'ADMIN',    'ALL',           '/admin/analytics', 7),
+  ('PMO',          'PMO transformation',                 'Pilotage des circuits, du catalogue et des indicateurs autorisés.',                             'DG',       'ALL',           '/portail-cfc/settings/workflow', 8),
+  ('ANALYSTE',     'Analyste crédit',                    'Analyse de crédit et préparation des décisions autorisées.',                                   'DCR',      'ALL',           '/portail-cfc/actors/credit-committees', 9),
+  ('RECOUVREMENT', 'Agent de recouvrement',              'Suivi des impayés et actions de recouvrement autorisées.',                                     'DRAC',     'ALL',           '/portail-cfc/actors/disbursements/recovery', 10),
+  ('ARCHIVISTE',   'Archiviste / GED',                   'Classement, contrôle documentaire et restitution des pièces autorisées.',                    'SDA',      'ALL',           '/portail-cfc/dossiers', 11),
+  ('AUDIT',        'Auditeur',                            'Consultation en lecture seule des éléments autorisés et de la piste d’audit.',                'SDA-AUDIT','ALL',           '/portail-cfc/dossiers', 12)
 on conflict (code) do update
   set label = excluded.label,
       description = excluded.description,
@@ -192,11 +227,70 @@ insert into ref.role_capability (role_code, capability) values
   ('ADMIN', 'recovery:manage'),
   ('ADMIN', 'catalogue:read'),
   ('ADMIN', 'catalogue:write'),
+  ('ADMIN', 'workflow:manage'),
   ('ADMIN', 'analytics:read'),
   ('ADMIN', 'analytics:export'),
   ('ADMIN', 'admin:users'),
+  ('ADMIN', 'admin:groups'),
   ('ADMIN', 'admin:roles'),
-  ('ADMIN', 'admin:audit')
+  ('ADMIN', 'admin:audit'),
+
+  -- Rôles de support spécialisés. Leur portée reste limitée aux droits métier
+  -- définis ici ; seul ADMIN administre les identités et la matrice des rôles.
+  ('PMO', 'dossier:read'),
+  ('PMO', 'catalogue:write'),
+  ('PMO', 'workflow:read'),
+  ('PMO', 'workflow:manage'),
+  ('PMO', 'workflow:execute'),
+  ('PMO', 'message:read'),
+  ('PMO', 'message:send'),
+  ('PMO', 'email:read'),
+  ('PMO', 'email:send'),
+  ('PMO', 'email:manage'),
+
+  ('ANALYSTE', 'dossier:read'),
+  ('ANALYSTE', 'dossier:update'),
+  ('ANALYSTE', 'document:read'),
+  ('ANALYSTE', 'document:validate'),
+  ('ANALYSTE', 'savings:read'),
+  ('ANALYSTE', 'loan_offer:read'),
+  ('ANALYSTE', 'loan_offer:create'),
+  ('ANALYSTE', 'loan_offer:issue'),
+  ('ANALYSTE', 'committee:read'),
+  ('ANALYSTE', 'committee:deliberate'),
+  ('ANALYSTE', 'disbursement:read'),
+  ('ANALYSTE', 'workflow:read'),
+  ('ANALYSTE', 'workflow:execute'),
+  ('ANALYSTE', 'message:read'),
+  ('ANALYSTE', 'message:send'),
+  ('ANALYSTE', 'email:read'),
+  ('ANALYSTE', 'email:send'),
+
+  ('RECOUVREMENT', 'dossier:read'),
+  ('RECOUVREMENT', 'document:read'),
+  ('RECOUVREMENT', 'savings:read'),
+  ('RECOUVREMENT', 'disbursement:read'),
+  ('RECOUVREMENT', 'recovery:read'),
+  ('RECOUVREMENT', 'recovery:manage'),
+  ('RECOUVREMENT', 'workflow:read'),
+  ('RECOUVREMENT', 'workflow:execute'),
+  ('RECOUVREMENT', 'message:read'),
+  ('RECOUVREMENT', 'message:send'),
+  ('RECOUVREMENT', 'email:read'),
+  ('RECOUVREMENT', 'email:send'),
+
+  ('ARCHIVISTE', 'dossier:read'),
+  ('ARCHIVISTE', 'document:read'),
+  ('ARCHIVISTE', 'document:validate'),
+  ('ARCHIVISTE', 'message:read'),
+  ('ARCHIVISTE', 'message:send'),
+
+  ('AUDIT', 'dossier:read'),
+  ('AUDIT', 'document:read'),
+  ('AUDIT', 'workflow:read'),
+  ('AUDIT', 'message:read'),
+  ('AUDIT', 'email:read'),
+  ('AUDIT', 'admin:audit')
 on conflict (role_code, capability) do update
   set deleted_at = null,
       deleted_by = null;
@@ -467,19 +561,8 @@ on conflict (code, effective_from) do update
 -- ---------------------------------------------------------------------------
 -- Seuils d'approbation
 -- ---------------------------------------------------------------------------
-
-insert into ref.approval_threshold (code, label, committee_code, min_amount, max_amount, required_signatures, effective_from) values
-  ('CGR_DELEGATION',  'Délégation CGR — jusqu''à 10 M',   'CGR',       0,        10000000, 1, current_date),
-  ('CRC_ARBITRAGE',  'Arbitrage CRC — de 10 à 25 M',    'CRC',       10000000, 25000000, 2, current_date),
-  ('PCA_INSTITUTIONNEL','Dossiers institutionnels — PCA', 'PCA',      25000000, null,      3, current_date)
-on conflict (code, effective_from) do update
-  set label = excluded.label,
-      committee_code = excluded.committee_code,
-      min_amount = excluded.min_amount,
-      max_amount = excluded.max_amount,
-      required_signatures = excluded.required_signatures,
-      deleted_at = null,
-      deleted_by = null;
+-- Aucun seuil n'est seedé tant que la délégation CFC signée et en vigueur
+-- n'a pas été rapprochée des comptes rendus et des informations publiques.
 
 -- ---------------------------------------------------------------------------
 -- Politique de conservation
@@ -636,6 +719,31 @@ Une réinitialisation de mot de passe a été demandée le {{date}} pour votre c
 Choisir un nouveau mot de passe : {{lien}}
 
 Si vous n'êtes pas à l'origine de cette demande, aucune action n'est requise : votre mot de passe actuel reste valable.
+
+--
+Crédit Foncier du Cameroun — Direction Générale$txt$
+  ),
+  (
+    'STAFF_INVITATION',
+    'Invitation d’un membre du personnel',
+    $s$Votre accès à la plateforme CFC Habitat$s$,
+    'STAFF_INVITATION_SENT',
+    'staff',
+    array['prenom', 'nom', 'lien', 'date', 'duree', 'logo', 'siege'],
+    $html$<p style="margin:0 0 16px 0;font-size:17px;font-weight:bold;color:#0f5132;">Votre espace professionnel CFC</p>
+<p style="margin:0 0 14px 0;">Bonjour {{prenom}} {{nom}},</p>
+<p style="margin:0 0 14px 0;">Votre compte professionnel CFC a été préparé. Utilisez ce lien unique avant son expiration pour confirmer votre adresse et choisir votre mot de passe.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 10px 0;"><tr><td style="background:#0f5132;border-radius:6px;"><a href="{{lien}}" style="display:inline-block;padding:13px 26px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Activer mon compte</a></td></tr></table>
+<p style="margin:0 0 14px 0;font-size:12px;color:#64748b;">Ce lien est à usage unique et expire dans {{duree}}. Ne le transférez pas. Si vous n’attendiez pas cette invitation, contactez votre administrateur CFC.</p>$html$,
+    $txt$Invitation à rejoindre CFC Habitat
+
+Bonjour {{prenom}} {{nom}},
+
+Votre compte professionnel CFC a été préparé. Utilisez ce lien unique avant son expiration pour confirmer votre adresse et choisir votre mot de passe.
+
+Activer mon compte : {{lien}}
+
+Ce lien est à usage unique et expire dans {{duree}}. Ne le transférez pas.
 
 --
 Crédit Foncier du Cameroun — Direction Générale$txt$

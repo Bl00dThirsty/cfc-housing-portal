@@ -124,7 +124,7 @@ export function ClientRow({
       </TableCell>
 
       <TableCell role="cell" className={cn(CLIENT_TABLE_CELL_CLASS, "justify-start")}>
-        <Tag tone={STATUS_TONE[client.status]} size="sm" className="text-xs">
+        <Tag tone={STATUS_TONE[client.status] ?? "neutral"} size="sm" className="text-xs">
           {cell("status")}
         </Tag>
       </TableCell>

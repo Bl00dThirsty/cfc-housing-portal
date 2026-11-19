@@ -23,6 +23,7 @@ describe("buildSystemCommandPlan", () => {
       "supabase migration up --include-all",
       "node scripts/lib/local-reference-seed.mjs",
       "npm run db:seed:users",
+      "node scripts/prepare-next-dev.mjs",
       "npm run dev",
     ]);
     assert.equal(commands.some((command) => /\blink\b|\breset\b/.test(command)), false);
@@ -42,6 +43,7 @@ describe("buildSystemCommandPlan", () => {
       "supabase db push --dry-run --include-all --remote=staging-ref",
       "supabase db push --include-all --include-seed --remote=staging-ref",
       "npm run db:seed:users",
+      "node scripts/prepare-next-dev.mjs",
       "npm run dev",
     ]);
     assert.equal(buildSystemCommandPlan("staging", {

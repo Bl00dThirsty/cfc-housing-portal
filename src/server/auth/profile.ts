@@ -8,6 +8,7 @@
 
 import "server-only";
 
+import { isCapability, type Capability } from "@/domain/policies/capabilities";
 import { type AuthProfile, ROLE_LABELS, isStaffRole } from "@/lib/auth-data";
 import { createServerSupabaseClient } from "@/server/supabase/server";
 
@@ -40,6 +41,36 @@ interface ActorRow {
   actor_type: "citizen" | "staff" | "service";
 }
 
+async function getOwnAvatarUrl(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  actorId: string,
+): Promise<string | null> {
+  const { data: media } = await supabase
+    .from("actor_profile_media")
+    .select("avatar_path")
+    .eq("actor_id", actorId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!media?.avatar_path) return null;
+
+  const { data } = await supabase.storage
+    .from("profile-avatars")
+    .createSignedUrl(media.avatar_path, 300);
+  return data?.signedUrl ?? null;
+}
+
+async function getAssignedCapabilities(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  role: string,
+): Promise<Capability[]> {
+  const { data, error } = await supabase
+    .from("cfc_role_capabilities")
+    .select("capability")
+    .eq("role_code", role);
+  if (error) return [];
+  return [...new Set((data ?? []).map((row) => row.capability).filter(isCapability))];
+}
+
 /**
  * Page d'atterrissage d'un utilisateur authentifié.
  *
@@ -69,7 +100,9 @@ export async function getServerProfile(): Promise<AuthProfile | null> {
   const actor = (actorData ?? null) as ActorRow | null;
   const actorType = actor?.actor_type ?? "citizen";
   const email = user.email ?? "";
+  const pendingEmail = user.new_email ?? null;
   const now = new Date().toISOString();
+  const avatarUrl = await getOwnAvatarUrl(supabase, user.id);
 
   if (actorType !== "staff") {
     const { data: citizenData } = await supabase
@@ -91,6 +124,8 @@ export async function getServerProfile(): Promise<AuthProfile | null> {
       fullName: citizen?.full_name ?? (user.user_metadata?.full_name as string) ?? email,
       email,
       phone: citizen?.phone ?? null,
+      avatarUrl,
+      pendingEmail,
     };
   }
 
@@ -132,19 +167,19 @@ export async function getServerProfile(): Promise<AuthProfile | null> {
   const agencyId = assignment.agency_id ?? staff?.agency_id ?? null;
 
   let agencyLabel: string | null = null;
-  if (agencyId) {
-    const { data: agencyData } = await supabase
-      .from("agencies")
-      .select("id, label")
-      .eq("id", agencyId)
-      .maybeSingle();
-    agencyLabel = ((agencyData ?? null) as AgencyRow | null)?.label ?? null;
-  }
+  const [agencyResult, capabilities] = await Promise.all([
+    agencyId
+      ? supabase.from("agencies").select("id, label").eq("id", agencyId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    getAssignedCapabilities(supabase, role),
+  ]);
+  agencyLabel = ((agencyResult.data ?? null) as AgencyRow | null)?.label ?? null;
 
   return {
     actorId: user.id,
     actorType,
     role,
+    capabilities,
     roleLabel: ROLE_LABELS[role],
     pole: staff?.pole ?? null,
     agencyId,
@@ -152,5 +187,7 @@ export async function getServerProfile(): Promise<AuthProfile | null> {
     fullName: staff?.full_name ?? email,
     email,
     phone: staff?.phone ?? null,
+    avatarUrl,
+    pendingEmail,
   };
 }

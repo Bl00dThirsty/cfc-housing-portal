@@ -5,15 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { OperationalDossier } from "@/domain/entities/operational-dossier";
 import { getOperationalDossiers } from "@/server/queries/operational-dossiers";
-
-const PIPELINE_STAGES = [
-  { code: "kyc_savings", label: "Épargne & KYC" },
-  { code: "risk_bet", label: "Risques & BET" },
-  { code: "committees", label: "Comités de crédit" },
-  { code: "notary_mortgage", label: "Notaire & hypothèque" },
-  { code: "disbursements", label: "Déblocages" },
-  { code: "closing_release", label: "Clôture & mainlevée" },
-] as const;
+import { getProcessPhases } from "@/server/queries/process-phases";
 
 function DossierCard({ dossier }: { dossier: OperationalDossier }) {
   return (
@@ -42,24 +34,31 @@ function DossierCard({ dossier }: { dossier: OperationalDossier }) {
   );
 }
 
-export default async function KanbanPage() {
-  const result = await getOperationalDossiers();
-  if (!result.ok) {
-    return (
-      <section className="mx-auto max-w-3xl rounded-lg border bg-card p-6" role="alert">
-        <div className="flex items-start gap-3">
-          <CircleAlert className="mt-0.5 size-5 text-destructive" aria-hidden />
-          <div>
-            <h1 className="font-semibold">Pipeline indisponible</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{result.error}</p>
-          </div>
+function PipelineError({ error }: { error: string }) {
+  return (
+    <section className="mx-auto max-w-3xl rounded-lg border bg-card p-6" role="alert">
+      <div className="flex items-start gap-3">
+        <CircleAlert className="mt-0.5 size-5 text-destructive" aria-hidden />
+        <div>
+          <h1 className="font-semibold">Pipeline indisponible</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
         </div>
-      </section>
-    );
-  }
+      </div>
+    </section>
+  );
+}
+
+export default async function KanbanPage() {
+  const [result, phasesResult] = await Promise.all([
+    getOperationalDossiers(),
+    getProcessPhases(),
+  ]);
+  if (!result.ok) return <PipelineError error={result.error} />;
+  if (!phasesResult.ok) return <PipelineError error={phasesResult.error} />;
 
   const dossiers = result.dossiers;
-  const unclassified = dossiers.filter((dossier) => !PIPELINE_STAGES.some((stage) => stage.code === dossier.phaseCode));
+  const phases = phasesResult.phases;
+  const unclassified = dossiers.filter((dossier) => !phases.some((phase) => phase.code === dossier.phaseCode));
 
   return (
     <section className="space-y-5" aria-labelledby="pipeline-title">
@@ -81,12 +80,12 @@ export default async function KanbanPage() {
         </div>
       ) : (
         <div className="grid gap-3 xl:grid-cols-3 2xl:grid-cols-6">
-          {PIPELINE_STAGES.map((stage) => {
-            const stageDossiers = dossiers.filter((dossier) => dossier.phaseCode === stage.code);
+          {phases.map((phase) => {
+            const stageDossiers = dossiers.filter((dossier) => dossier.phaseCode === phase.code);
             return (
-              <section key={stage.code} className="min-w-0 rounded-lg border bg-muted/20 p-2.5" aria-label={stage.label}>
+              <section key={phase.code} className="min-w-0 rounded-lg border bg-muted/20 p-2.5" aria-label={phase.label}>
                 <header className="mb-2.5 flex items-center justify-between gap-2 px-1">
-                  <h2 className="text-xs font-semibold">{stage.label}</h2>
+                  <h2 className="text-xs font-semibold">{phase.label}</h2>
                   <Badge variant="secondary" className="tabular-nums">{stageDossiers.length}</Badge>
                 </header>
                 <div className="flex flex-col gap-2">

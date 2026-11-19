@@ -71,7 +71,7 @@ const KYC_DECISION_EVENTS: Partial<Record<KycState, string>> = {
 export async function listKycQueueAction(): Promise<KycQueueResult> {
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "kyc:read")) {
+  if (!hasCapability(profile.role, "kyc:read", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de consulter le dossier KYC." };
   }
 
@@ -127,7 +127,7 @@ export async function advanceKycAction(input: {
 }): Promise<KycActionResult> {
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, "kyc:decide")) {
+  if (!hasCapability(profile.role, "kyc:decide", profile.capabilities)) {
     return { ok: false, error: "Votre habilitation ne permet pas de décider sur un dossier KYC." };
   }
 

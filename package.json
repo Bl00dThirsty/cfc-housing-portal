@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:system": "node --test scripts/lib/system-environments.test.mjs scripts/lib/seed-environment.test.mjs scripts/lib/local-env-loading.test.mjs scripts/lib/local-supabase-env.test.mjs scripts/lib/local-reference-seed.test.mjs scripts/supabase-config.test.mjs scripts/prepare-next-build.test.mjs scripts/system.test.mjs",
+    "test:system": "node --test scripts/lib/system-environments.test.mjs scripts/lib/seed-environment.test.mjs scripts/lib/local-env-loading.test.mjs scripts/lib/local-supabase-env.test.mjs scripts/lib/local-reference-seed.test.mjs scripts/supabase-config.test.mjs scripts/prepare-next-build.test.mjs scripts/prepare-next-dev.test.mjs scripts/system.test.mjs",
     "db:reset": "supabase db reset",
     "db:seed:users": "tsx scripts/seed-dev-users.mjs",
     "system:local": "node scripts/system.mjs local",

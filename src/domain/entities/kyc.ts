@@ -1,23 +1,12 @@
 /**
  * Les formes du parcours du demandeur — KYC et onboarding.
  *
- * Ce module ne porte que des **types** et des **listes fermées** : les règles
- * vivent dans `kyc-profile.ts`, l'état de la machine à états dans
- * `src/domain/workflows/kyc.ts`.
- *
- * Chaque liste est `readonly` et typée par son union : une valeur hors liste
- * ne peut pas se glisser dans un formulaire.
+ * Ce module porte la forme du profil. Les choix fermés sont lus depuis le
+ * catalogue effectif `ref.kyc_option`; ils ne sont pas dupliqués ici.
  */
 
-/** Situation matrimoniale déclarée. */
-export const FAMILY_STATUSES = [
-  "célibataire",
-  "marié(e)",
-  "divorcé(e)",
-  "veuf(ve)",
-] as const;
-
-export type FamilyStatus = (typeof FAMILY_STATUSES)[number];
+/** Valeur issue du catalogue KYC courant. */
+export type FamilyStatus = string;
 
 /**
  * Situation professionnelle déclarée.
@@ -26,74 +15,22 @@ export type FamilyStatus = (typeof FAMILY_STATUSES)[number];
  * un CDI, un CDD, ou une activité indépendante. C'est ce lien qui commande
  * l'ancienneté exigée par un prêt.
  */
-export const EMPLOYMENT_STATUSES = [
-  "CDI",
-  "CDD",
-  "indépendant",
-  "fonctionnaire",
-  "étudiant",
-  "retraité",
-  "sans emploi",
-] as const;
-
-export type EmploymentStatus = (typeof EMPLOYMENT_STATUSES)[number];
+export type EmploymentStatus = string;
 
 /** Nature du revenu déclaré. */
-export const INCOME_ORIGINS = [
-  "salaire",
-  "revenus fonciers",
-  "revenus commerciaux",
-  "revenus agricoles",
-  "transferts",
-  "pension",
-  "autre",
-] as const;
-
-export type IncomeOrigin = (typeof INCOME_ORIGINS)[number];
+export type IncomeOrigin = string;
 
 /** Tranche de revenu mensuel déclarée. */
-export const INCOME_BANDS = [
-  "moins de 100 000",
-  "100 000 – 400 000",
-  "400 000 – 800 000",
-  "800 000 – 1 500 000",
-  "1 500 000 – 3 000 000",
-  "plus de 3 000 000",
-] as const;
-
-export type IncomeBand = (typeof INCOME_BANDS)[number];
+export type IncomeBand = string;
 
 /** Nature de la pièce d'identité présentée. */
-export const ID_DOCUMENT_TYPES = [
-  "CNI",
-  "Carte de séjour",
-  "Passeport",
-  "Permis de conduire",
-  "Attestation administrative",
-] as const;
-
-export type IdDocumentType = (typeof ID_DOCUMENT_TYPES)[number];
+export type IdDocumentType = string;
 
 /** Statut d'occupation du logement. */
-export const OCCUPATION_STATUSES = [
-  "propriétaire",
-  "locataire",
-  "hébergé",
-  "logement de famille",
-  "logement de fonction",
-] as const;
-
-export type OccupationStatus = (typeof OCCUPATION_STATUSES)[number];
+export type OccupationStatus = string;
 
 /** Motif de la qualité de personne politiquement exposée. */
-export const PEP_REASONS = [
-  "personne politiquement exposée",
-  "membre de famille d'une PPE",
-  "mandataire d'une PPE",
-  "autre exposition",
-] as const;
-
-export type PepReason = (typeof PEP_REASONS)[number];
+export type PepReason = string;
 
 /** Le badge KYC affiché au demandeur — quatre valeurs, pas seize. */
 export type KycBadge = "incomplet" | "soumis" | "verifie" | "rejete";

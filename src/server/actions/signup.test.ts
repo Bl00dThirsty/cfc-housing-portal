@@ -36,7 +36,7 @@ import { signupAction } from "./signup";
 function chainable(result: Record<string, unknown>) {
   const chain: Record<string, unknown> = {};
 
-  for (const method of ["upsert", "insert", "update", "select", "eq", "is", "order", "limit"]) {
+  for (const method of ["upsert", "insert", "update", "select", "eq", "is", "neq", "order", "limit"]) {
     chain[method] = vi.fn(() => chain);
   }
 
@@ -97,7 +97,7 @@ describe("signupAction", () => {
       consent: true,
     });
 
-    expect(result).toMatchObject({ ok: true, redirectTo: "/onboarding" });
+    expect(result).toMatchObject({ ok: true, redirectTo: "/onboarding?dossier=citizen-1" });
 
     // Le compte est ouvert par la plateforme, et son adresse confirmée
     // d'emblée : l'inscription ne dépend d'aucun courriel.

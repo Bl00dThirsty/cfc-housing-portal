@@ -157,6 +157,71 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "catalogue:read",
   ],
 
+  PMO: [
+    "dossier:read",
+    "catalogue:write",
+    "workflow:read",
+    "workflow:manage",
+    "workflow:execute",
+    "message:read",
+    "message:send",
+    "email:read",
+    "email:send",
+    "email:manage",
+  ],
+
+  ANALYSTE: [
+    "dossier:read",
+    "dossier:update",
+    "document:read",
+    "document:validate",
+    "savings:read",
+    "loan_offer:read",
+    "loan_offer:create",
+    "loan_offer:issue",
+    "committee:read",
+    "committee:deliberate",
+    "disbursement:read",
+    "workflow:read",
+    "workflow:execute",
+    "message:read",
+    "message:send",
+    "email:read",
+    "email:send",
+  ],
+
+  RECOUVREMENT: [
+    "dossier:read",
+    "document:read",
+    "savings:read",
+    "disbursement:read",
+    "recovery:read",
+    "recovery:manage",
+    "workflow:read",
+    "workflow:execute",
+    "message:read",
+    "message:send",
+    "email:read",
+    "email:send",
+  ],
+
+  ARCHIVISTE: [
+    "dossier:read",
+    "document:read",
+    "document:validate",
+    "message:read",
+    "message:send",
+  ],
+
+  AUDIT: [
+    "dossier:read",
+    "document:read",
+    "workflow:read",
+    "message:read",
+    "email:read",
+    "admin:audit",
+  ],
+
   // DSI & Direction Générale : supervision transverse, paramétrage du
   // catalogue documentaire, gestion des habilitations et journal d'audit.
   ADMIN: ALL_CAPABILITIES.filter(
@@ -176,13 +241,21 @@ export const ROLE_CAPABILITIES: Record<Role, readonly Capability[]> = {
 };
 
 /** Capacités accordées à un rôle donné. */
-export function capabilitiesFor(role: Role): readonly Capability[] {
+export function capabilitiesFor(
+  role: Role,
+  assignedCapabilities?: readonly Capability[],
+): readonly Capability[] {
+  if (assignedCapabilities !== undefined) return assignedCapabilities;
   return ROLE_CAPABILITIES[role] ?? [];
 }
 
 /** Le rôle possède-t-il cette capacité ? */
-export function hasCapability(role: Role, capability: Capability): boolean {
-  const granted = ROLE_CAPABILITIES[role];
+export function hasCapability(
+  role: Role,
+  capability: Capability,
+  assignedCapabilities?: readonly Capability[],
+): boolean {
+  const granted = capabilitiesFor(role, assignedCapabilities);
   if (!granted) return false;
   return granted.includes(capability);
 }
@@ -191,16 +264,18 @@ export function hasCapability(role: Role, capability: Capability): boolean {
 export function hasAnyCapability(
   role: Role,
   capabilities: readonly Capability[],
+  assignedCapabilities?: readonly Capability[],
 ): boolean {
   if (capabilities.length === 0) return false;
-  return capabilities.some((capability) => hasCapability(role, capability));
+  return capabilities.some((capability) => hasCapability(role, capability, assignedCapabilities));
 }
 
 /** Le rôle possède-t-il toutes ces capacités ? */
 export function hasAllCapabilities(
   role: Role,
   capabilities: readonly Capability[],
+  assignedCapabilities?: readonly Capability[],
 ): boolean {
   if (capabilities.length === 0) return true;
-  return capabilities.every((capability) => hasCapability(role, capability));
+  return capabilities.every((capability) => hasCapability(role, capability, assignedCapabilities));
 }

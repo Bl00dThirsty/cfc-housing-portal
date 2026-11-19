@@ -33,9 +33,11 @@ import {
 
 import {
   loadOnboardingDraft,
+} from "@/server/actions/onboarding";
+import {
   saveServiceAction,
   setPriorClientCaseAction,
-} from "@/server/actions/onboarding";
+} from "@/server/actions/borrower-requests";
 import {
   saveKycDraftAction,
   submitKycAction,
@@ -151,7 +153,11 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // La session est ouverte **pour la requête suivante** : c'est exactement
     // le refus que l'emprunteur rencontrait (« votre session a expiré »)
     // quand le compte était créé dans le navigateur.
-    const draft = await loadOnboardingDraft();
+    const requestDossierId = new URL(created.redirectTo, "http://localhost").searchParams.get("dossier");
+    expect(requestDossierId).toBeTruthy();
+    if (!requestDossierId) return;
+
+    const draft = await loadOnboardingDraft(requestDossierId);
     expect(draft.phone).toBe("+237699000001");
     expect(draft.fullName).toBe("ABANDA Eric");
     expect(draft.profile.identity.idDocumentNumber).toBe("AB123456");
@@ -184,6 +190,7 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // Le demandeur déclare ses informations : elles sont **conservées**
     // immédiatement, et l'état du dossier n'est pas encore touché.
     const saved = await saveKycDraftAction({
+      dossierId: requestDossierId,
       profile: {
         identity: {
           birthDate: "1988-04-12",
@@ -241,6 +248,7 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // La soumission passe par la fonction de la base : elle horodate et fait
     // transitioned l'état **en une opération**.
     const submitted = await submitKycAction({
+      dossierId: requestDossierId,
       profile: {
         identity: {
           birthDate: "1988-04-12",
@@ -370,7 +378,7 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     expect(stillVerifying?.kyc_state).toBe("document_verification");
 
     // --- Étape 3 : le service --------------------------------------------
-    const service = await saveServiceAction("PRET_FONCIER_CLASSIQUE_ORDINAIRE");
+    const service = await saveServiceAction("PRET_FONCIER_CLASSIQUE_ORDINAIRE", requestDossierId);
 
     expect(service.ok, service.ok ? "" : service.error).toBe(true);
     if (!service.ok) return;
@@ -396,10 +404,11 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // Jamais servi : le dossier est mis en pause, un conseiller est affecté.
     const suspended = await setPriorClientCaseAction({
       priorClientCase: "premiere_fois",
+      dossierId: requestDossierId,
     });
 
     expect(suspended.ok, suspended.ok ? "" : suspended.error).toBe(true);
-    expect(suspended.advisor).toBeTruthy();
+    expect(suspended.ok && suspended.advisor).toBeTruthy();
 
     const { data: pausedDossier } = await admin
       .from("dossiers")
@@ -414,6 +423,7 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     // Déjà servi au CFC : la suite est le dépôt des pièces.
     const eligible = await setPriorClientCaseAction({
       priorClientCase: "deja_au_cfc",
+      dossierId: requestDossierId,
     });
 
     expect(eligible.ok, eligible.ok ? "" : eligible.error).toBe(true);
@@ -442,7 +452,7 @@ describe.skipIf(!process.env.CFC_E2E)("parcours d'inscription — bout en bout",
     expect(documentPhaseNotifications).toHaveLength(1);
 
     // --- La reprise : le parcours sait où l'emprunteur s'est arrêté -------
-    const resumed = await loadOnboardingDraft();
+    const resumed = await loadOnboardingDraft(requestDossierId);
     expect(resumed.fullName).toBe("ABANDA Eric");
     expect(resumed.serviceCode).toBe("PRET_FONCIER_CLASSIQUE_ORDINAIRE");
     expect(resumed.profile.employment.declaredIncome).toBe(850000);

@@ -21,8 +21,11 @@ import { APP_VERSION } from "@/config/app-version";
 
 export default function AdminSidebar() {
   const pathname = usePathname();
-  const { currentUser, signOut } = useAuth();
-  const navSections = React.useMemo(() => getSidebarSectionsForRole(currentUser.role), [currentUser.role]);
+  const { currentUser, profile, signOut } = useAuth();
+  const navSections = React.useMemo(
+    () => getSidebarSectionsForRole(currentUser.role, profile?.capabilities),
+    [currentUser.role, profile?.capabilities],
+  );
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r bg-card text-card-foreground">

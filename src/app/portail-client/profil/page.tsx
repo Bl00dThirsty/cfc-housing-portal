@@ -1,4 +1,6 @@
 import { ProfilePanel } from "@/components/profile/profile-panel";
+import { ProfileEditor } from "@/components/profile/profile-editor";
+import { listOwnNameCorrectionRequestsAction } from "@/server/actions/profile";
 import { getServerProfile } from "@/server/auth/profile";
 import { getAdminClient } from "@/server/supabase/admin";
 
@@ -23,6 +25,10 @@ export default async function CitizenProfilePage() {
         .maybeSingle()
     : { data: null };
 
+  const correctionRequests = profile
+    ? await listOwnNameCorrectionRequestsAction()
+    : { ok: true as const, requests: [] };
+
   const { data: dossier } = profile
     ? await admin
         .from("dossiers")
@@ -33,6 +39,16 @@ export default async function CitizenProfilePage() {
         .limit(1)
         .maybeSingle()
     : { data: null };
+
+  const { data: activeDossiers } = profile
+    ? await admin
+        .from("dossiers")
+        .select("id, duc_code")
+        .eq("citizen_id", profile.actorId)
+        .neq("status", "closed")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -56,6 +72,22 @@ export default async function CitizenProfilePage() {
           isDiaspora: (citizen as { is_diaspora: boolean } | null)?.is_diaspora ?? false,
         }}
       />
+
+      {profile ? (
+        <div className="mt-4">
+          <ProfileEditor
+            fullName={profile.fullName}
+            email={profile.email}
+            pendingEmail={profile.pendingEmail}
+            phone={profile.phone}
+            avatarUrl={profile.avatarUrl}
+            canEditLegalName={(citizen as { kyc_state: string | null } | null)?.kyc_state === "pre_boarding" || (citizen as { kyc_state: string | null } | null)?.kyc_state === "identity_capture"}
+            isCitizen
+            correctionRequests={correctionRequests.ok ? correctionRequests.requests : []}
+            correctionDossiers={(activeDossiers ?? []).map((row) => ({ id: row.id, ducCode: row.duc_code }))}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -193,7 +193,7 @@ export async function requestSignedUpload(
     throw new StorageError("invalid_input", "Empreinte SHA-256 absente ou mal formée.");
   }
   const chemiseCode = asChemiseCode(input.chemiseCode);
-  if (!hasCapability(actor.role, "document:upload")) {
+  if (!hasCapability(actor.role, "document:upload", actor.capabilities)) {
     throw new StorageError("forbidden", "Dépôt de document non autorisé pour ce rôle.");
   }
   if (!canWriteChemise(actor.role, chemiseCode)) {
@@ -428,7 +428,7 @@ export async function confirmUpload(
       "Empreinte SHA-256 incohérente entre l'annonce et la confirmation.",
     );
   }
-  if (document.uploaded_by !== actor.id && !hasCapability(actor.role, "document:upload")) {
+  if (document.uploaded_by !== actor.id && !hasCapability(actor.role, "document:upload", actor.capabilities)) {
     throw new StorageError("forbidden", "Confirmation réservée à l'auteur de la pièce.");
   }
 
@@ -574,7 +574,7 @@ export async function deleteDocument(
   if (document.deleted_at) {
     throw new StorageError("conflict", "Pièce déjà retirée.");
   }
-  if (document.uploaded_by !== actor.id && !hasCapability(actor.role, "admin:roles")) {
+  if (document.uploaded_by !== actor.id && !hasCapability(actor.role, "admin:roles", actor.capabilities)) {
     throw new StorageError("forbidden", "Retrait réservé à l'auteur de la pièce.");
   }
 

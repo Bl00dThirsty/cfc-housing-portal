@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import {
   recordKycDocumentAction,
 } from "@/server/actions/kyc-profile";
-import { submitServiceApplicationAction } from "@/server/actions/onboarding";
+import { submitServiceApplicationAction } from "@/server/actions/borrower-requests";
 import {
   DELAI_REPRISE_CONSEILLER_JOURS,
 } from "@/domain/entities/kyc-profile";
@@ -105,10 +105,14 @@ export function ServiceDocuments({
   ).length;
 
   const transmit = async () => {
+    if (!dossierId) {
+      setError("Ouvrez une demande depuis votre espace avant de la transmettre.");
+      return;
+    }
     setTransmitting(true);
     setError(null);
 
-    const result = await submitServiceApplicationAction();
+    const result = await submitServiceApplicationAction(dossierId);
 
     setTransmitting(false);
 

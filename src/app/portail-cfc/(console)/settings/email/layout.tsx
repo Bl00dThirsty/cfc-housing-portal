@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /**
  * Paramétrage de la messagerie — porte d'entrée serveur.
  *
- * Le contrôle est fait **côté serveur** : l'habilitation `catalogue:write`
+ * Le contrôle est fait **côté serveur** : l'habilitation `email:manage`
  * est exigée pour atteindre l'éditeur de modèles et le journal des
  * livraisons. Masquer le lien de navigation ne serait pas un contrôle.
  */
@@ -23,7 +23,7 @@ export default async function EmailSettingsLayout({
     redirect("/login");
   }
 
-  if (profile.role === "CITIZEN" || !hasCapability(profile.role, "catalogue:write")) {
+  if (profile.role === "CITIZEN" || !hasCapability(profile.role, "email:manage", profile.capabilities)) {
     redirect("/portail-cfc/analytics");
   }
 

@@ -74,7 +74,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
   const role = (profile?.role ?? "CITIZEN") as AppRole;
   const config = roleHeaderConfigFor(role);
-  const quickActions = visibleQuickActions(role);
+  const quickActions = visibleQuickActions(role, profile?.capabilities);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">

@@ -23,11 +23,13 @@ Make the portal a trustworthy operating system for local development, staging, a
 - [x] Keep staging and production refs isolated; production command plans contain no fixture seed/reset path.
 - [x] Correct the password-changed Auth notification template path and validate Supabase configuration.
 - [x] Clear stale Next production webpack resolver caches before `npm run build`, preserving development caches used by active local servers.
+- [x] Clear the project-owned `.next` output immediately before local/staging dev startup, so client/server Webpack manifests and HMR chunks are rebuilt together after branch changes.
 - [x] Replace sample adviser selection with regional GESTIONNAIRE eligibility, database-serialized round robin, assignment history, reasoned admin reassignment, and a durable in-app notification in the assignment transaction.
 - [x] Scope KYC/profile access to the citizen or current assigned GESTIONNAIRE; give other staff/admin a safe dossier projection.
 - [x] Replace fake client queues/Kanban, analytics values, and actor sample registers with Supabase reads or explicit persistence notices.
 - [x] Persist savings operation submission and approval/rejection; make balance changes database-controlled.
 - [x] Use database process phase/step labels for tracking and analytics; make email preview values operator-entered only.
+- [x] Load both Kanban views' phase labels and ordering from the process catalogue; show catalogue failures explicitly.
 - [x] Add the shared Tooltip component/provider and explain the audited same-region reassignment rule.
 - [x] Apply the analytics, process catalogue, and retry-safe savings-ledger migrations to the local Supabase stack.
 - [x] Make database role/agency resolution and app profile readers honor staff assignment start/end windows; verify future and expired rows are denied in local pgTAP.
@@ -46,6 +48,7 @@ Make the portal a trustworthy operating system for local development, staging, a
 ## Workstream 2 — Complete the database source-of-truth audit
 
 - [ ] Scan production modules for mock/sample/demo/fallback data, static record arrays, hard-coded sample identities, and client-only business mutations. Record every match with file, route, source table, and action.
+- [x] Record a first-pass inventory of remaining code-owned reference/policy values and distinguish them from operational mock records; full route and catalogue migration work remains open in the system specification.
 - [ ] Separate test fixtures, versioned reference seed inputs, UI copy, and operational data in the report; remove runtime operational fixtures and misleading demos.
 - [ ] Verify `supabase/seed.sql` owns reference data and the Auth-dependent seeder owns only local/staging fixtures. Ensure both are idempotent and produce a count/manifest without secret output.
 - [ ] Verify every data-bearing route distinguishes empty, forbidden, and query-error states. A missing schema or catalog must be reported; it must never be turned into fabricated rows or a silent empty success.
@@ -87,10 +90,10 @@ The current register pages only show persisted rows when a backing table exists.
 ## Workstream 6 — Reproducible system and release checks
 
 - [x] Run `npm run system:local` against the existing local database: apply pending migrations, refresh reference data, idempotently provision 14 local development accounts, and start Next.js. A clean reset/replay remains open.
-- [x] Run `npm run test:system` (38/38), the full Vitest suite (411 passed, 17 intentionally skipped), `npm run typecheck`, and `npm run lint`.
+- [x] Run `npm run test:system` (40/40), the full Vitest suite (415 passed, 17 intentionally skipped), `npm run typecheck`, and `npm run lint`.
 - [x] Run `npm run build`; the optimized Next.js 15.5.25 production build completed without errors after removing the stale resolver-cache entry.
 - [x] Apply migration `20261118190000_staff_assignment_validity.sql` and run local pgTAP (14/14).
-- [x] Run authenticated smoke checks across citizen, GESTIONNAIRE, GUICHET, notary, committee, and admin routes; all 76/76 checks passed, including role-specific CRM visibility and database-backed analytics.
+- [x] Restart `system:local` after a clean Next output rebuild; authenticated smoke checks across citizen, GESTIONNAIRE, GUICHET, notary, committee, and admin routes passed 76/76, including role-specific CRM visibility and database-backed analytics.
 - [ ] Re-run local migration status and replay from an empty database; inspect only local Supabase advisors for changed policies/functions/indexes.
 - [ ] Confirm staging credentials name a distinct configured staging project before running `npm run system:staging`. Run hosted staging only when that explicit target exists.
 - [ ] Review the complete diff and secret scan. Keep production untouched until an explicit release review; the production command migrates only after its target and operator confirmation are verified.

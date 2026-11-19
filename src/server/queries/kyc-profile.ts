@@ -29,6 +29,8 @@ export interface KycProfileView {
   profile: KycProfile;
   /** L'état de la machine à états. */
   kycState: string;
+  /** Whether actor-level KYC was already submitted. */
+  kycSubmitted: boolean;
   /** Le nom du demandeur — il vient du compte. */
   fullName: string;
   /** Le téléphone de contact, au format international. */
@@ -49,7 +51,7 @@ export interface KycProfileView {
  * Un dossier absent n'est pas une erreur : il rend un parcours vide, que
  * l'écran sait remplir.
  */
-export async function getKycProfileQuery(citizenId: string): Promise<KycProfileView> {
+export async function getKycProfileQuery(citizenId: string, dossierId: string): Promise<KycProfileView> {
   const supabase = await createServerSupabaseClient();
 
   const [profileResult, dossierResult, documentsResult] = await Promise.all([
@@ -62,9 +64,8 @@ export async function getKycProfileQuery(citizenId: string): Promise<KycProfileV
       .from("dossiers")
       .select("duc_code, onboarding_state")
       .eq("citizen_id", citizenId)
+      .eq("id", dossierId)
       .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
       .maybeSingle(),
     supabase
       .from("kyc_documents")
@@ -103,7 +104,7 @@ export async function getKycProfileQuery(citizenId: string): Promise<KycProfileV
   // de déclarations.
   const { data: kyc } = await supabase
     .from("kyc_profiles")
-    .select("identity, residence, employment, compliance")
+    .select("identity, residence, employment, compliance, submitted_at")
     .eq("citizen_id", citizenId)
     .maybeSingle();
 
@@ -112,11 +113,13 @@ export async function getKycProfileQuery(citizenId: string): Promise<KycProfileV
     residence: Record<string, unknown> | null;
     employment: Record<string, unknown> | null;
     compliance: Record<string, unknown> | null;
+    submitted_at: string | null;
   } | null;
 
   return {
     profile: fromStoredProfile(declared),
     kycState: citizen?.kyc_state ?? "pre_boarding",
+    kycSubmitted: declared?.submitted_at !== null && declared?.submitted_at !== undefined,
     fullName: citizen?.full_name ?? "",
     phone: citizen?.phone ?? "",
     affiliation: (citizen?.affiliation_status as AffiliationStatus | null) ?? null,

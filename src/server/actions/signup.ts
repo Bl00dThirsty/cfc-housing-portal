@@ -154,10 +154,22 @@ export async function signupAction(input: SignupInput): Promise<SignupResult> {
     return { ok: false, error: profileError.message };
   }
 
-  // Le dossier porte son code : la séquence le numérote, deux inscriptions
-  // simultanées ne peuvent pas obtenir le même.
-  const { data: code, error: codeError } = await supabase.rpc("next_duc_code");
-  if (codeError || typeof code !== "string" || code.length === 0) {
+  // Repeated signup attempts for an existing account resume its initial KYC
+  // request. A new DUC is opened only when this actor has no active KYC draft.
+  const { data: existingDraft, error: existingDraftError } = await supabase
+    .from("dossiers")
+    .select("id")
+    .eq("citizen_id", user.id)
+    .eq("onboarding_state", "kyc")
+    .is("service_code", null)
+    .is("deleted_at", null)
+    .neq("status", "closed")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let dossierId = existingDraft?.id ?? null;
+  if (existingDraftError) {
     return {
       ok: false,
       error:
@@ -165,26 +177,43 @@ export async function signupAction(input: SignupInput): Promise<SignupResult> {
     };
   }
 
-  const { error: dossierError } = await supabase.from("dossiers").insert({
-    duc_code: code,
-    citizen_id: user.id,
-    name: fullName,
-    email,
-    phone,
-    cni_raw: cniNumber,
-    status: "open",
-    current_phase: "kyc_savings",
-    duc_status: "non_active",
-    onboarding_state: "kyc",
-    updated_at: new Date().toISOString(),
-  });
+  if (!dossierId) {
+    // The sequence allocates a unique DUC code under concurrent signups.
+    const { data: code, error: codeError } = await supabase.rpc("next_duc_code");
+    if (codeError || typeof code !== "string" || code.length === 0) {
+      return {
+        ok: false,
+        error:
+          "Votre compte a été créé, mais votre dossier n'a pas pu être ouvert. Reconnectez-vous pour le reprendre.",
+      };
+    }
 
-  if (dossierError) {
-    return {
-      ok: false,
-      error:
-        "Votre compte a été créé, mais votre dossier n'a pas pu être ouvert. Reconnectez-vous pour le reprendre.",
-    };
+    const { data: dossier, error: dossierError } = await supabase
+      .from("dossiers")
+      .insert({
+        duc_code: code,
+        citizen_id: user.id,
+        name: fullName,
+        email,
+        phone,
+        cni_raw: cniNumber,
+        status: "open",
+        current_phase: "kyc_savings",
+        duc_status: "non_active",
+        onboarding_state: "kyc",
+        updated_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    if (dossierError || !dossier) {
+      return {
+        ok: false,
+        error:
+          "Votre compte a été créé, mais votre dossier n'a pas pu être ouvert. Reconnectez-vous pour le reprendre.",
+      };
+    }
+    dossierId = dossier.id;
   }
 
   // Le profil du parcours, avec le **consentement daté par le serveur**.
@@ -248,14 +277,14 @@ export async function signupAction(input: SignupInput): Promise<SignupResult> {
       nom: fullName.split(" ").slice(1).join(" "),
       email,
       date: new Date().toLocaleDateString("fr-FR", { dateStyle: "long" }),
-      lien: `${getSiteUrl()}/onboarding`,
+      lien: `${getSiteUrl()}/onboarding?dossier=${encodeURIComponent(dossierId)}`,
     },
     idempotencyKey: `PROFILE_CREATED:${user.id}`,
   });
 
   return {
     ok: true,
-    redirectTo: "/onboarding",
+    redirectTo: `/onboarding?dossier=${encodeURIComponent(dossierId)}`,
     message: "Votre compte est créé. Completons votre dossier.",
   };
 }

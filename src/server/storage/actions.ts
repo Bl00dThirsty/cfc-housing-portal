@@ -45,6 +45,7 @@ async function resolveActor(): Promise<UploadActor> {
   return {
     id: profile.actorId,
     role,
+    capabilities: profile.capabilities ?? [],
     agencyId: profile.agencyId,
     isDiaspora: role === "DIASPORA",
   };

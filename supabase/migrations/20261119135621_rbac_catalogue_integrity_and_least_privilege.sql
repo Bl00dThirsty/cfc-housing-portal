@@ -1,0 +1,2 @@
+-- Placeholder migration retained after the scaffold was applied locally.
+-- Role catalogue repairs are implemented in the next migration.

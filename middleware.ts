@@ -19,10 +19,11 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { resolveRoleForUser } from "@/server/auth/landing";
+import { resolveCapabilitiesForRole, resolveRoleForUser } from "@/server/auth/landing";
 import {
   ACCESS_DENIED_PATH,
   AGENT_PORTAL_ROOT,
+  accessibleLandingPath,
   canAgentOpenRoute,
 } from "@/config/rbac/route-access";
 import { CITIZEN_LANDING, landingPathForRole } from "@/config/rbac/sidebar-by-role";
@@ -50,7 +51,14 @@ export async function middleware(request: NextRequest) {
    */
   if (pathname === "/") {
     const role = user ? await resolveRoleForUser(supabase, user.id) : null;
-    const target = role ? landingPathForRole(role) : CITIZEN_LOGIN_PATH;
+    const capabilities = role && role !== "CITIZEN"
+      ? await resolveCapabilitiesForRole(supabase, role)
+      : undefined;
+    const target = role
+      ? role === "CITIZEN"
+        ? CITIZEN_LANDING
+        : accessibleLandingPath(role, capabilities)
+      : CITIZEN_LOGIN_PATH;
     const redirect = NextResponse.redirect(new URL(target, request.url));
     response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
     return redirect;
@@ -73,7 +81,12 @@ export async function middleware(request: NextRequest) {
 
   // Le rôle réel, lu dans le registre de référence : jamais codé en dur.
   const role = await resolveRoleForUser(supabase, user.id);
-  const landing = landingPathForRole(role ?? "CITIZEN");
+  const capabilities = role && role !== "CITIZEN"
+    ? await resolveCapabilitiesForRole(supabase, role)
+    : undefined;
+  const landing = role && role !== "CITIZEN"
+    ? accessibleLandingPath(role, capabilities)
+    : landingPathForRole(role ?? "CITIZEN");
   const isStaffLanding = landing.startsWith(AGENT_PORTAL_ROOT);
 
   /**
@@ -85,7 +98,7 @@ export async function middleware(request: NextRequest) {
    */
   if (isAdminRoute && !isAgentLogin) {
     const allowed =
-      role !== null && role !== "CITIZEN" && canAgentOpenRoute(role, pathname);
+      role !== null && role !== "CITIZEN" && canAgentOpenRoute(role, pathname, capabilities);
 
     if (!allowed) {
       const target =

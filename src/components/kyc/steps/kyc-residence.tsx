@@ -22,10 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { OCCUPATION_STATUSES, type KycResidence } from "@/domain/entities/kyc";
+import { type KycResidence } from "@/domain/entities/kyc";
+import type { KycOption } from "@/domain/entities/kyc-options";
 
 export interface KycResidenceStepProps {
   residence: KycResidence;
+  occupationStatusOptions: readonly KycOption[];
   onChange: (values: Partial<KycResidence>) => void;
   /** Le téléphone de contact — il vit sur le profil du compte. */
   phone: string;
@@ -39,6 +41,7 @@ const DEFAULT_COUNTRY = "Cameroun";
 
 export function KycResidenceStep({
   residence,
+  occupationStatusOptions,
   onChange,
   phone,
   onPhoneChange,
@@ -126,20 +129,24 @@ export function KycResidenceStep({
         />
       </Field>
 
-      <Field label="Statut d'occupation du logement" htmlFor="kyc-occupation">
+      <Field
+        label="Statut d'occupation du logement"
+        htmlFor="kyc-occupation"
+        error={errors["residence.occupationStatus"]}
+      >
         <Select
           value={residence.occupationStatus ?? ""}
           onValueChange={(value) =>
-            onChange({ occupationStatus: value as KycResidence["occupationStatus"] })
+            onChange({ occupationStatus: value || null })
           }
         >
           <SelectTrigger id="kyc-occupation">
             <SelectValue placeholder="Choisir" />
           </SelectTrigger>
           <SelectContent>
-            {OCCUPATION_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status}
+            {occupationStatusOptions.map((option) => (
+              <SelectItem key={option.code} value={option.code}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>

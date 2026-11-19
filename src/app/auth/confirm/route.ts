@@ -20,7 +20,7 @@ import { createServerSupabaseClient } from "@/server/supabase/server";
 const ERROR_PATH = "/login?error=email_confirmation";
 
 /** Les types de jeton que la plateforme connaît. */
-const OTP_TYPES: readonly EmailOtpType[] = ["magiclink", "signup", "recovery", "email"];
+const OTP_TYPES: readonly EmailOtpType[] = ["magiclink", "signup", "recovery", "email", "invite"];
 
 function isSafePath(value: string | null): value is string {
   return Boolean(value && value.startsWith("/") && !value.startsWith("//"));

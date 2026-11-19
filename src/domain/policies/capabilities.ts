@@ -55,13 +55,22 @@ export type Capability =
   | "recovery:manage"
   | "catalogue:read"
   | "catalogue:write"
+  | "email:read"
+  | "email:send"
+  | "email:manage"
+  | "message:read"
+  | "message:send"
+  | "workflow:read"
+  | "workflow:manage"
+  | "workflow:execute"
   | "analytics:read"
   | "analytics:export"
   | "admin:users"
+  | "admin:groups"
   | "admin:roles"
   | "admin:audit";
 
-/** Les sept rôles métier du back-office CFC. */
+/** Codes staff déjà présents dans le référentiel Supabase du projet. */
 export const STAFF_ROLES = [
   "GUICHET",
   "GESTIONNAIRE",
@@ -69,6 +78,11 @@ export const STAFF_ROLES = [
   "NOTAIRE",
   "COMITE",
   "DIASPORA",
+  "PMO",
+  "ANALYSTE",
+  "RECOUVREMENT",
+  "ARCHIVISTE",
+  "AUDIT",
   "ADMIN",
 ] as const;
 
@@ -92,6 +106,12 @@ export const POLE_CODES = [
   "G7",
   "G8",
   "DIASPORA",
+  "DG",
+  "DCM",
+  "DCR",
+  "DRAC",
+  "SDA",
+  "SDA-AUDIT",
   "ADMIN",
 ] as const;
 
@@ -111,6 +131,11 @@ export const ROLE_POLES: Record<StaffRole, PoleCode> = {
   NOTAIRE: "G8",
   COMITE: "G6",
   DIASPORA: "DIASPORA",
+  PMO: "DG",
+  ANALYSTE: "DCR",
+  RECOUVREMENT: "DRAC",
+  ARCHIVISTE: "SDA",
+  AUDIT: "SDA-AUDIT",
   ADMIN: "ADMIN",
 };
 
@@ -155,9 +180,18 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
   "recovery:manage",
   "catalogue:read",
   "catalogue:write",
+  "email:read",
+  "email:send",
+  "email:manage",
+  "message:read",
+  "message:send",
+  "workflow:read",
+  "workflow:manage",
+  "workflow:execute",
   "analytics:read",
   "analytics:export",
   "admin:users",
+  "admin:groups",
   "admin:roles",
   "admin:audit",
 ];

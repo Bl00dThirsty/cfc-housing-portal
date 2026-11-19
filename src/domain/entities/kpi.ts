@@ -65,6 +65,25 @@ export interface KpiDefinition {
   higherIsBetter: boolean;
 }
 
+const SUPPORT_STAFF_KPIS: readonly KpiDefinition[] = [
+  {
+    id: "dossiers_open",
+    title: "Dossiers visibles",
+    description: "Dossiers accessibles dans le périmètre défini par les habilitations.",
+    format: "count",
+    kind: "stock",
+    higherIsBetter: true,
+  },
+  {
+    id: "documents_pending",
+    title: "Pièces en cours de contrôle",
+    description: "Pièces en attente de contrôle dans le périmètre accessible.",
+    format: "count",
+    kind: "stock",
+    higherIsBetter: false,
+  },
+];
+
 /**
  * Les indicateurs de chaque pôle.
  *
@@ -329,6 +348,12 @@ export const POLE_KPIS: Record<PoleCode, readonly KpiDefinition[]> = {
 
   G4: [],
   G7: [],
+  DG: SUPPORT_STAFF_KPIS,
+  DCM: SUPPORT_STAFF_KPIS,
+  DCR: SUPPORT_STAFF_KPIS,
+  DRAC: SUPPORT_STAFF_KPIS,
+  SDA: SUPPORT_STAFF_KPIS,
+  "SDA-AUDIT": SUPPORT_STAFF_KPIS,
 };
 
 /** Les indicateurs d'un pôle, dans l'ordre d'affichage. */

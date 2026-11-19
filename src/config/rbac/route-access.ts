@@ -1,11 +1,10 @@
 /**
  * Contrôle d'accès aux routes de la console CFC.
  *
- * La navigation d'un agent est filtrée par rôle (`sidebar-by-role.ts`), mais
- * une entrée masquée **n'est pas une protection** : il faut que la route
- * elle-même refuse le passage. Ce module déduit les rôles autorisés
- * directement de la navigation : il n'y a donc qu'**une seule table** — ce
- * qu'un agent voit dans le menu est exactement ce qu'il peut ouvrir.
+ * La navigation d'un agent est filtrée par ses grants effectifs
+ * (`sidebar-by-role.ts`), mais une entrée masquée **n'est pas une protection** :
+ * la route elle-même doit refuser le passage. Cette politique déduit les
+ * routes permises de la navigation filtrée, à partir des grants Supabase.
  *
  * Le contrôle est fait dans le middleware, avant tout rendu : aucune page ne
  * peut être oubliée.
@@ -15,9 +14,9 @@
  * d'agent orpheline ne doit jamais rester accessible.
  */
 
-import { STAFF_ROLES, type StaffRole } from "@/domain/policies/capabilities";
+import { STAFF_ROLES, type Capability, type StaffRole } from "@/domain/policies/capabilities";
 import { hasCapability } from "@/domain/policies/permissions";
-import { getSidebarSectionsForRole } from "@/config/rbac/sidebar-by-role";
+import { getSidebarSectionsForRole, landingPathForRole } from "@/config/rbac/sidebar-by-role";
 
 /** Racine de la console CFC. */
 export const AGENT_PORTAL_ROOT = "/portail-cfc";
@@ -47,15 +46,20 @@ function routeOf(href: string): string {
 /**
  * Rôles autorisés sur chaque route, déduits de la navigation.
  *
- * La table est reconstruite à la demande : elle est petite (sept rôles) et
- * doit rester alignée sur la navigation, qui est la seule description des
- * écrans d'un pôle.
+ * La table est reconstruite à la demande : elle reste petite (douze rôles) et
+ * reste alignée sur les écrans et capacités de la navigation.
  */
-function rolesByRoute(): Map<string, Set<StaffRole>> {
+function rolesByRoute(
+  dynamicRole?: StaffRole,
+  assignedCapabilities?: readonly Capability[],
+): Map<string, Set<StaffRole>> {
   const map = new Map<string, Set<StaffRole>>();
 
   for (const role of STAFF_ROLES) {
-    for (const section of getSidebarSectionsForRole(role)) {
+    for (const section of getSidebarSectionsForRole(
+      role,
+      role === dynamicRole ? assignedCapabilities : undefined,
+    )) {
       for (const item of section.items) {
         const hrefs = [item.href, ...(item.subItems?.map((sub) => sub.href) ?? [])];
         for (const href of hrefs) {
@@ -96,7 +100,11 @@ export function isCommonAgentRoute(pathname: string): boolean {
  * pour qu'une sous-route précise ne soit pas ouverte par un préfixe plus
  * large.
  */
-export function canAgentOpenRoute(role: StaffRole, pathname: string): boolean {
+export function canAgentOpenRoute(
+  role: StaffRole,
+  pathname: string,
+  assignedCapabilities?: readonly Capability[],
+): boolean {
   const route = routeOf(pathname);
   if (isCommonAgentRoute(route)) return true;
 
@@ -104,10 +112,10 @@ export function canAgentOpenRoute(role: StaffRole, pathname: string): boolean {
   // detail route shows no KYC documents or full contact profile; row access
   // still passes through the dossier RLS policy.
   if (route.startsWith(`${AGENT_PORTAL_ROOT}/dossiers/`)) {
-    return hasCapability(role, "dossier:read");
+    return hasCapability(role, "dossier:read", assignedCapabilities);
   }
 
-  const map = rolesByRoute();
+  const map = rolesByRoute(role, assignedCapabilities);
 
   let bestRoute: string | null = null;
   let bestRoles: Set<StaffRole> | null = null;
@@ -121,4 +129,18 @@ export function canAgentOpenRoute(role: StaffRole, pathname: string): boolean {
   }
 
   return bestRoles ? bestRoles.has(role) : false;
+}
+
+/** Keep the assigned role's landing URL inside its current live grants. */
+export function accessibleLandingPath(
+  role: StaffRole,
+  assignedCapabilities?: readonly Capability[],
+): string {
+  const preferred = landingPathForRole(role);
+  if (canAgentOpenRoute(role, preferred, assignedCapabilities)) return preferred;
+
+  const firstAvailable = getSidebarSectionsForRole(role, assignedCapabilities)
+    .flatMap((section) => section.items)
+    .find((item) => item.href)?.href;
+  return firstAvailable ?? ACCESS_DENIED_PATH;
 }

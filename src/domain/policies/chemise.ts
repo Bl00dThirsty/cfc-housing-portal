@@ -43,6 +43,11 @@ export const ROLE_POLES: Record<StaffRole, PoleCode> = {
   NOTAIRE: "G8",
   COMITE: "G6",
   DIASPORA: "DIASPORA",
+  PMO: "DG",
+  ANALYSTE: "DCR",
+  RECOUVREMENT: "DRAC",
+  ARCHIVISTE: "SDA",
+  AUDIT: "SDA-AUDIT",
   ADMIN: "ADMIN",
 };
 
@@ -54,7 +59,7 @@ export const CHEMISES: Record<ChemiseCode, ChemiseDefinition> = {
       "Pièces d'identification du candidat : CNI ou passeport, justificatif de domicile, état civil, revenus, plan d'épargne et carnet d'épargne.",
     owningPole: "G1",
     readableByPoles: ["G1", "G2", "G6", "DIASPORA", "ADMIN"],
-    readableByRoles: ["GUICHET", "GESTIONNAIRE", "COMITE", "DIASPORA", "ADMIN"],
+    readableByRoles: ["GUICHET", "GESTIONNAIRE", "COMITE", "DIASPORA", "PMO", "ANALYSTE", "RECOUVREMENT", "ARCHIVISTE", "AUDIT", "ADMIN"],
     sortOrder: 1,
   },
   C2: {
@@ -64,7 +69,7 @@ export const CHEMISES: Record<ChemiseCode, ChemiseDefinition> = {
       "Dossier d'instruction technique : devis quantitatif estimatif, étude de sols, rapports de visite de chantier, solvabilité et scoring.",
     owningPole: "G3",
     readableByPoles: ["G1", "G3", "G6", "ADMIN"],
-    readableByRoles: ["GUICHET", "RISQUES_BET", "COMITE", "ADMIN"],
+    readableByRoles: ["GUICHET", "GESTIONNAIRE", "RISQUES_BET", "NOTAIRE", "COMITE", "DIASPORA", "PMO", "ANALYSTE", "ARCHIVISTE", "AUDIT", "ADMIN"],
     sortOrder: 2,
   },
   C3: {
@@ -74,7 +79,7 @@ export const CHEMISES: Record<ChemiseCode, ChemiseDefinition> = {
       "Pièces de garantie : titre foncier et son rang, conventions notariées, hypothèque de premier rang, polices d'assurance et oppositions.",
     owningPole: "G8",
     readableByPoles: ["G3", "G4", "G6", "G8", "ADMIN"],
-    readableByRoles: ["RISQUES_BET", "COMITE", "NOTAIRE", "ADMIN"],
+    readableByRoles: ["GESTIONNAIRE", "RISQUES_BET", "NOTAIRE", "COMITE", "PMO", "ANALYSTE", "RECOUVREMENT", "ARCHIVISTE", "AUDIT", "ADMIN"],
     sortOrder: 3,
   },
 };

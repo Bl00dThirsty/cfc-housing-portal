@@ -27,6 +27,7 @@ export function buildSystemCommandPlan(name, environment) {
         args: ["run", "db:seed:users"],
         env: { CFC_SEED_TARGET: "local" },
       },
+      { program: "node", args: ["scripts/prepare-next-dev.mjs"] },
       { program: "npm", args: ["run", "dev"] },
     ];
   }
@@ -62,6 +63,7 @@ export function buildSystemCommandPlan(name, environment) {
       args: ["run", "db:seed:users"],
       env: { CFC_SEED_TARGET: "staging" },
     });
+    plan.push({ program: "node", args: ["scripts/prepare-next-dev.mjs"] });
     plan.push({ program: "npm", args: ["run", "dev"] });
   } else {
     plan.push({ program: "supabase", args: ["db", "push", "--include-all", `--remote=${projectRef}`] });

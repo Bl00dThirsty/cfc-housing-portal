@@ -58,7 +58,7 @@ export type CatalogueSnapshot = {
 async function authorise(capability: Capability): Promise<CatalogueResult<null>> {
   const profile = await getServerProfile();
   if (!profile) return { ok: false, error: "Session requise." };
-  if (!hasCapability(profile.role, capability)) {
+  if (!hasCapability(profile.role, capability, profile.capabilities)) {
     return {
       ok: false,
       error: "Votre habilitation ne permet pas de modifier le catalogue.",

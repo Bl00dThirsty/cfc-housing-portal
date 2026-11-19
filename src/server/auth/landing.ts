@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { landingPathForRole } from "@/config/rbac/sidebar-by-role";
+import { isCapability, type Capability } from "@/domain/policies/capabilities";
 import { isStaffRole, type AppRole } from "@/lib/auth-data";
 
 /**
@@ -57,6 +58,20 @@ export async function resolveRoleForUser(
   return (actor as { actor_type?: string } | null)?.actor_type === "citizen"
     ? "CITIZEN"
     : null;
+}
+
+/** Live persisted grants for the effective staff role; errors fail closed. */
+export async function resolveCapabilitiesForRole(
+  supabase: SupabaseClient | null,
+  role: string,
+): Promise<Capability[]> {
+  if (!supabase || !isStaffRole(role)) return [];
+  const { data, error } = await supabase
+    .from("cfc_role_capabilities")
+    .select("capability")
+    .eq("role_code", role);
+  if (error) return [];
+  return [...new Set((data ?? []).map((row) => row.capability).filter(isCapability))];
 }
 
 /**

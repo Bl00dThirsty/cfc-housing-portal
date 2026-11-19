@@ -51,7 +51,7 @@ const actions = vi.hoisted(() => ({
   setPriorClientCase: vi.fn(),
 }));
 
-vi.mock("@/server/actions/onboarding", () => ({
+vi.mock("@/server/actions/borrower-requests", () => ({
   saveServiceAction: actions.saveService,
   setPriorClientCaseAction: actions.setPriorClientCase,
 }));
@@ -68,6 +68,8 @@ describe("le choix du service", () => {
     render(
       <ServicePicker
         services={services}
+        dossierId="00000000-0000-4000-8000-000000000001"
+        onSuspended={() => {}}
         onNext={() => {}}
         saving={false}
         setSaving={() => {}}
@@ -87,6 +89,8 @@ describe("le choix du service", () => {
     render(
       <ServicePicker
         services={services}
+        dossierId="00000000-0000-4000-8000-000000000001"
+        onSuspended={() => {}}
         onNext={() => {}}
         saving={false}
         setSaving={() => {}}
@@ -114,6 +118,8 @@ describe("le choix du service", () => {
     render(
       <ServicePicker
         services={services}
+        dossierId="00000000-0000-4000-8000-000000000001"
+        onSuspended={() => {}}
         onNext={onNext}
         saving={false}
         setSaving={() => {}}
@@ -127,6 +133,7 @@ describe("le choix du service", () => {
 
     expect(actions.setPriorClientCase).toHaveBeenCalledWith({
       priorClientCase: "deja_au_cfc",
+      dossierId: "00000000-0000-4000-8000-000000000001",
     });
     expect(onNext).toHaveBeenCalled();
   });
@@ -138,6 +145,8 @@ describe("le choix du service", () => {
     render(
       <ServicePicker
         services={services}
+        dossierId="00000000-0000-4000-8000-000000000001"
+        onSuspended={() => {}}
         onNext={onNext}
         saving={false}
         setSaving={() => {}}
@@ -151,6 +160,7 @@ describe("le choix du service", () => {
 
     expect(actions.setPriorClientCase).toHaveBeenCalledWith({
       priorClientCase: "premiere_fois",
+      dossierId: "00000000-0000-4000-8000-000000000001",
     });
     expect(onNext).not.toHaveBeenCalled();
 

@@ -18,7 +18,7 @@ export type RegionalManagersResult =
 /** The manager roster is read from the same active regional assignments used by the reassignment RPC. */
 export async function getRegionalManagersForDossier(dossierId: string): Promise<RegionalManagersResult> {
   const profile = await getServerProfile();
-  if (!profile || !hasCapability(profile.role, "admin:users")) {
+  if (!profile || !hasCapability(profile.role, "admin:users", profile.capabilities)) {
     return { ok: false, error: "La liste des gestionnaires est réservée à l’administrateur." };
   }
 
