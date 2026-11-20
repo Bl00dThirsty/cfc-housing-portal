@@ -425,6 +425,17 @@ on conflict (code) do update
       deleted_at = null,
       deleted_by = null;
 
+-- Backfill chemise_code for document types inserted/refreshed by seed without it
+-- (migrations backfill only rows present at migration time).
+update ref.document_type
+set chemise_code = case
+  when nature_code in ('IDENTITE', 'RESIDENCE', 'REVENU', 'REVENUS', 'BANCAIRE', 'PATRIMOINE', 'CONFORMITE', 'MANDAT') then 'C1'
+  when nature_code in ('TECHNIQUE', 'TRAVAUX') then 'C2'
+  when nature_code in ('FONCIER', 'GARANTIE', 'NOTARIE') then 'C3'
+  else chemise_code
+end
+where chemise_code is null;
+
 -- ---------------------------------------------------------------------------
 -- Produits et barèmes
 -- ---------------------------------------------------------------------------
