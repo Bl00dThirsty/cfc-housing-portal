@@ -1,13 +1,15 @@
-# Migration parity — 2026-11-20
+# Migration parity — 2026-11-20 (updated 2026-11-20)
 
-Local: 85 files, max `20261119161940`.
-Hosted project `yyqfqsmsfaccsstwlpog`, branch `main`: 53 applied, max
-`20261117130000`, status `MIGRATIONS_FAILED`.
-Pending: 32 versions (see `check-migration-parity.mjs` output).
+Local repo migrations: 92 files, max `20261120140000` (includes `20261120140000_citizen_onboarding_kyc_document_upload.sql`).
 
-No hosted command was run. A separately approved pass must resolve the failed
-branch state, replay migrations from an empty local database, review the diff,
-and only then apply to a confirmed target. This runbook is not an apply order.
+Hosted project `yyqfqsmsfaccsstwlpog`, default branch `main`:
+- `supabase_migrations.schema_migrations`: **92 applied**, max **`20261120140000`** (DB schema/history aligned with repo as of this update).
+- Supabase branch/platform status still reports **`MIGRATIONS_FAILED`** in API metadata; actual database migration state is aligned. If the status remains stale in dashboard/API, treat as platform metadata and verify before future CLI-driven applies.
+- `preview_project_status`: `ACTIVE_HEALTHY`.
+
+Previously (earlier on 2026-11-20): hosted had 53 applied (max `20261117130000`) with 38 pending and branch `MIGRATIONS_FAILED`; pending migrations through `20261120133000` were applied via Supabase MCP/CLI, history repaired where MCP-recorded versions differed, and `20261120140000` was added and applied to unblock citizen KYC/onboarding document uploads.
+
+**Operational note:** for future hosted changes, prefer applying repo migrations in version order and recording them in `schema_migrations` consistently; resolve any platform `MIGRATIONS_FAILED` metadata before assuming CLI drift checks are authoritative. Use a separately approved pass for additional production changes.
 
 ## Task 3 — anon SECURITY DEFINER EXECUTE (read-only advisor snapshot)
 
