@@ -590,6 +590,21 @@ const NAV_SECTIONS_BY_ROLE: Partial<Record<StaffRole, NavSection[]>> = {
             { id: "release-archive", title: "Clôture Définitive & Archivage DUC", href: "/portail-cfc/actors/mortgage-release/archive" },
           ],
         },
+        {
+          id: "registers",
+          title: "Registres métier",
+          href: "/portail-cfc/registres/promoters",
+          badge: "Registres",
+          groupCode: "Registres Métier",
+          capability: "register:read",
+          subItems: [
+            { id: "registers-promoters", title: "Partenaires immobiliers", href: "/portail-cfc/registres/promoters", capability: "register:read" },
+            { id: "registers-bet-experts", title: "Bureaux d'études techniques", href: "/portail-cfc/registres/bet-experts", capability: "register:read" },
+            { id: "registers-notary-offices", title: "Études notariales", href: "/portail-cfc/registres/notary-offices", capability: "register:read" },
+            { id: "registers-subsidies", title: "Subventions", href: "/portail-cfc/registres/subsidies", capability: "register:read" },
+            { id: "registers-recovery", title: "Recouvrement", href: "/portail-cfc/registres/recovery", capability: "register:read" },
+          ],
+        },
       ],
     },
     {

@@ -1,5 +1,17 @@
-import { PersistenceNotice } from "@/components/portail-cfc/persistence-notice";
+import { RegisterTable } from "@/components/registers/register-table";
+import { REGISTER_LABELS } from "@/domain/entities/registers";
+import { listRegisterRecords } from "@/server/queries/registers";
 
-export default function Page() {
-  return <PersistenceNotice title={"Partenaires immobiliers"} description={"Le dépôt actuel ne contient pas de registre opérationnel des promoteurs, programmes, disponibilités ou conventions. Les anciens exemples ont été retirés; cette page restera vide jusqu’à la mise en place du registre et de son flux d’administration."} />;
+export default async function Page() {
+  const key = "promoters" as const;
+  const result = await listRegisterRecords(key);
+  if (!result.ok) {
+    return <p role="alert" className="rounded-md border border-destructive/30 p-4 text-sm">{result.error}</p>;
+  }
+  return (
+    <section className="space-y-6">
+      <h1 className="text-xl font-semibold">{REGISTER_LABELS[key].title}</h1>
+      <RegisterTable registerKey={key} records={result.records} />
+    </section>
+  );
 }
