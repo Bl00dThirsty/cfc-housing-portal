@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -302,6 +302,17 @@ export function createSystemCommandEnvironment(name, target, command, sourceEnv 
   return env;
 }
 
+export function assertUnambiguousLocalLink(targetRef, root = PROJECT_ROOT) {
+  const linkFile = path.join(root, "supabase", ".temp", "project-ref");
+  if (!existsSync(linkFile)) return;
+  const linkedRef = readFileSync(linkFile, "utf8").trim();
+  if (!linkedRef || linkedRef === targetRef) return;
+  throw new Error(
+    `The local Supabase CLI is linked to a different project (${linkedRef}); ` +
+      `unlink it before targeting ${targetRef}.`,
+  );
+}
+
 async function runSystem(name) {
   await ensureDependencies();
 
@@ -311,6 +322,7 @@ async function runSystem(name) {
   if (name !== "local" && !environment.anonKey) {
     throw new Error(`The public Supabase key is required for ${name}; configure its anon or publishable key.`);
   }
+  if (name !== "local") assertUnambiguousLocalLink(environment.projectRef);
 
   const plan = buildSystemCommandPlan(name, environment);
   console.log(`Preparing the ${name} system for project ${environment.projectRef ?? "local"}.`);

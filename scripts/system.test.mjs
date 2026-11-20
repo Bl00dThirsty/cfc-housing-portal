@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, it, test } from "node:test";
 import {
+  assertUnambiguousLocalLink,
   buildSystemCommandPlan,
   createSystemChildEnvironment,
   createSystemCommandEnvironment,
@@ -222,4 +226,24 @@ describe("redactSensitiveOutput", () => {
     assert.match(redacted, /service_role key: \[REDACTED\]/i);
     assert.match(redacted, /SUPABASE_SERVICE_ROLE_KEY=\[REDACTED\]/);
   });
+});
+
+test("assertUnambiguousLocalLink rejects a different linked project ref", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cfc-link-"));
+  await mkdir(join(root, "supabase", ".temp"), { recursive: true });
+  await writeFile(join(root, "supabase", ".temp", "project-ref"), "production-ref\n");
+  assert.throws(
+    () => assertUnambiguousLocalLink("staging-ref", root),
+    /linked to a different project/,
+  );
+  await rm(root, { recursive: true, force: true });
+});
+
+test("assertUnambiguousLocalLink accepts a matching ref or no link", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cfc-link-"));
+  assert.doesNotThrow(() => assertUnambiguousLocalLink("staging-ref", root));
+  await mkdir(join(root, "supabase", ".temp"), { recursive: true });
+  await writeFile(join(root, "supabase", ".temp", "project-ref"), "staging-ref\n");
+  assert.doesNotThrow(() => assertUnambiguousLocalLink("staging-ref", root));
+  await rm(root, { recursive: true, force: true });
 });
