@@ -28,7 +28,7 @@ Liste complète et ordonnée des six migrations de la branche, appliquées en lo
 | --- | --- |
 | `npx supabase test db --local` (pgTAP) | **PASS** — `Files=18, Tests=151`, 0 échec. `20261120_register_rls.test.sql` et `20261120_notification_recipient_rls_alignment.test.sql` : ok. |
 | `npm run test:system` | **PASS** — `tests 50`, `suites 13`, `pass 50`, `fail 0`, `skipped 0`. |
-| `npm test` | **PASS** — `Test Files 95 passed | 5 skipped (100)` ; `Tests 530 passed | 17 skipped (547)`. |
+| `npm test` | **PASS** — `Test Files 95 passed | 5 skipped (100)` ; `Tests 531 passed | 17 skipped (548)`. |
 | `npm run typecheck` | **PASS** — `tsc --noEmit`, sortie vide, code 0. |
 | `npm run lint` | **PASS** — 0 erreur ; 1 avertissement préexistant (voir ci-dessous). |
 | `npm run build` | **PASS** — `Compiled successfully in 26.8s`, `Generating static pages (11/11)`, sortie de production générée, code 0. |
