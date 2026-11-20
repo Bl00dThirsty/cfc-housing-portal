@@ -1,14 +1,24 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Table — kit design language (`guichet-unque-cfc/components/_ui/table`).
+ *
+ * The app's API is preserved: `containerClassName` (scroll container wrapper)
+ * and forwarded refs on every part.
+ */
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  React.HTMLAttributes<HTMLTableElement> & { containerClassName?: string }
+>(({ className, containerClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto", containerClassName)}>
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
+      data-slot="table"
+      className={cn(
+        "w-full border-collapse text-[14px] leading-none",
+        className
+      )}
       {...props}
     />
   </div>
@@ -19,7 +29,12 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  <thead
+    ref={ref}
+    data-slot="table-header"
+    className={cn(className)}
+    {...props}
+  />
 ));
 TableHeader.displayName = "TableHeader";
 
@@ -29,7 +44,8 @@ const TableBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn("[&_tr:last-child]:border-0", className)}
+    data-slot="table-body"
+    className={cn(className)}
     {...props}
   />
 ));
@@ -41,8 +57,9 @@ const TableRow = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tr
     ref={ref}
+    data-slot="table-row"
     className={cn(
-      "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+      "border-b border-line-strong transition-colors duration-150 ease-power3-out",
       className
     )}
     {...props}
@@ -56,8 +73,9 @@ const TableHead = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <th
     ref={ref}
+    data-slot="table-head"
     className={cn(
-      "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
+      "caption-style h-[38px] px-3 text-left align-middle font-normal whitespace-nowrap text-subtle [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}
@@ -71,7 +89,11 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0", className)}
+    data-slot="table-cell"
+    className={cn(
+      "h-[42px] px-3 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+      className
+    )}
     {...props}
   />
 ));

@@ -1,279 +1,228 @@
-"use client";
-
-import * as React from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import {
-  Building2,
-  ArrowLeft,
-  DollarSign,
-  Globe,
-  HelpCircle,
-  QrCode,
-  Sparkles,
-  Home,
-} from "lucide-react";
+import { ArrowLeft, FileText, LogIn } from "lucide-react";
+
+import { DossierRequirements } from "@/components/portail-client/dossier-requirements";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MOCK_TRACKING_DOSSIERS, type TrackingDossier } from "@/lib/tracking-data";
+import { Tag } from "@/components/ui/tag";
+import { stageLabel } from "@/domain/entities/services";
+import { getCitizenTracking } from "@/server/queries/citizen-space";
+import { getPublicEnv } from "@/server/env";
+import { createServerSupabaseClient } from "@/server/supabase/server";
 
-import { TrackingSearchCard } from "./_components/tracking-search-card";
-import { TrackingTimelineStepper } from "./_components/tracking-timeline-stepper";
-import { TrackingPiecesAction } from "./_components/tracking-pieces-action";
-import { TrackingAdvisorCard } from "./_components/tracking-advisor-card";
-import { OfficialAttestationModal } from "./_components/official-attestation-modal";
+import { TrackingStepper } from "./_components/tracking-stepper";
 
-function TrackingPageContent() {
-  const searchParams = useSearchParams();
-  const initialId = searchParams.get("duc") || "DUC-2026-04829";
+export const dynamic = "force-dynamic";
 
-  const [currentDossierId, setCurrentDossierId] = React.useState<string>(initialId);
-  const [dossier, setDossier] = React.useState<TrackingDossier | null>(
-    MOCK_TRACKING_DOSSIERS[initialId] || MOCK_TRACKING_DOSSIERS["DUC-2026-04829"]
-  );
-  const [isSearching, setIsSearching] = React.useState(false);
-  const [isCertificateModalOpen, setIsCertificateModalOpen] = React.useState(false);
+export const metadata: Metadata = {
+  title: "Suivi de mon dossier | Crédit Foncier du Cameroun",
+  description:
+    "Suivez l'avancement de votre dossier de crédit : étapes du circuit CFC, phase en cours et pièces restant à fournir.",
+};
 
-  const handleSearch = (id: string) => {
-    setIsSearching(true);
-    setTimeout(() => {
-      const found =
-        MOCK_TRACKING_DOSSIERS[id.toUpperCase()] ||
-        Object.values(MOCK_TRACKING_DOSSIERS).find(
-          (d) =>
-            d.cniNumber.toLowerCase() === id.toLowerCase() ||
-            d.phone.includes(id) ||
-            d.clientName.toLowerCase().includes(id.toLowerCase())
-        );
+/**
+ * **Suivi du dossier** — la page personnelle de l'emprunteur.
+ *
+ * Elle ne cherche rien : elle montre **le dossier de l'emprunteur
+ * connecté**, indexé par la cartographie officielle des processus (CRD-01 à
+ * CRD-13, GAR-01), et les pièces qu'il doit encore fournir. Aucun dossier
+ * n'est interrogeable par un tiers.
+ */
+export default async function TrackingPage() {
+  if (!getPublicEnv()) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
+        <p className="text-sm text-muted-foreground">
+          Configuration Supabase absente : le suivi du dossier ne peut pas être servi pour le
+          moment.
+        </p>
+      </div>
+    );
+  }
 
-      if (found) {
-        setDossier(found);
-        setCurrentDossierId(found.ducId);
-      } else {
-        alert(
-          `Aucun dossier trouvé pour la référence « ${id} ». Vous pouvez essayer avec les références de démo DUC-2026-04829, DUC-2026-04750 ou DUC-2026-04912.`
-        );
-      }
-      setIsSearching(false);
-    }, 400);
-  };
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return <SignInRequired />;
+  }
+
+  const result = await getCitizenTracking(user.id);
+
+  if (!result.ok) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:py-16">
+        <div className="flex flex-col items-start gap-3 rounded-xl border border-line-strong bg-card p-6">
+          <Badge variant="cfc">Guichet Unique · Suivi du dossier</Badge>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+            Suivi momentanément indisponible
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Votre dossier n&apos;a pas pu être lu pour l&apos;instant. Réessayez dans quelques
+            instants, ou contactez votre conseiller.
+          </p>
+          <p className="caption-style text-soft">{result.error}</p>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/portail-client">
+              <ArrowLeft className="size-3.5" aria-hidden />
+              Retour au Portail Citoyen
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const tracking = result.tracking;
+
+  if (!tracking) {
+    return <NoDossier />;
+  }
+
+  // Les étapes viennent du domaine (codes de procédure) ; les pièces
+  // viennent du catalogue déclarable, dont le libellé de phase est traduit ici.
+  const checklist = tracking.checklist.map((item) => ({
+    ...item,
+    stageLabel: stageLabel(item.stage),
+  }));
+  // Les compteurs distinguent l'**obligatoire** du facultatif : dire
+  // « 12 attendues » quand 8 seulement sont exigées surestime l'effort.
+  const requiredItems = checklist.filter((item) => item.required);
+  const uploadedRequiredCount = requiredItems.filter(
+    (item) => item.status !== "missing",
+  ).length;
+  const requiredCount = requiredItems.length;
+  const optionalCount = checklist.length - requiredCount;
+
+  const currentStep = tracking.steps.find((step) => step.status === "current");
+  const currentPhaseLabel = currentStep?.phaseLabel ?? tracking.currentPhaseLabel;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-muted/20 to-background flex flex-col">
-      {/* 1. Top Navigation Bar */}
-      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur-md">
-        <div className="container mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/portal"
-              className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-muted"
-            >
-              <ArrowLeft className="size-4" />
-              <span>Retour au Portail Citoyen</span>
-            </Link>
-            <div className="h-4 w-px bg-border/80 hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <div className="size-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                CFC
-              </div>
-              <span className="text-sm font-bold text-foreground tracking-tight hidden sm:inline">
-                Guichet Unique de Suivi Numérique
-              </span>
-            </div>
-          </div>
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+      <header className="flex flex-col gap-3">
+        <Link
+          href="/portail-client"
+          className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          Retour au Portail Citoyen
+        </Link>
 
-          <div className="flex items-center gap-2.5">
-            <Link href="/simulator">
-              <Button variant="ghost" size="sm" className="h-8.5 text-xs font-medium">
-                Simulateur de Crédit
-              </Button>
-            </Link>
-            <Link href="/admin/clients">
-              <Button variant="outline" size="sm" className="h-8.5 text-xs font-medium gap-1.5 border-border/80">
-                <Building2 className="size-3.5" />
-                Espace Back-Office CFC
-              </Button>
-            </Link>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="cfc">Guichet Unique · Suivi du dossier</Badge>
+          <Tag tone="blue" size="sm" className="text-[11px]">
+            {tracking.ducCode}
+          </Tag>
+          {currentPhaseLabel ? (
+            <Tag tone="amber" size="sm" className="max-w-full whitespace-normal text-[11px]">
+              Phase en cours : {currentPhaseLabel}
+            </Tag>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Suivi de votre dossier de crédit
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Votre parcours est présenté étape par étape, avec le code de procédure de chaque
+            étape (CRD-01 à CRD-13, GAR-01) et le couloir qui la porte, conformément à la
+            cartographie officielle des processus du Crédit Foncier du Cameroun.
+          </p>
         </div>
       </header>
 
-      {/* 2. Hero Section */}
-      <main className="flex-1 container mx-auto px-4 lg:px-8 py-8 space-y-8 max-w-7xl">
-        <div className="space-y-3 text-center max-w-3xl mx-auto">
-          <Badge variant="outline" className="text-xs gap-1.5 py-1 px-3 rounded-full border-primary/30 text-primary bg-primary/5">
-            <Sparkles className="size-3.5" />
-            Transparence &amp; Dématérialisation Intégrale CFC
-          </Badge>
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-foreground tracking-tight">
-            Suivi en Direct de votre Prêt Immobilier
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-            Consultez en temps réel l&apos;avancement de votre Dossier Unique de Crédit (DUC), les visas des comités,
-            les délais garantis et téléchargez vos attestations scellées avec QR Code infalsifiable.
-          </p>
-        </div>
+      <TrackingStepper
+        steps={tracking.steps}
+        progress={tracking.progress}
+        events={tracking.events}
+        discussionPath="/portail-client"
+      />
 
-        {/* Search Strip */}
-        <TrackingSearchCard
-          currentDossierId={currentDossierId}
-          onSearch={handleSearch}
-          isLoading={isSearching}
+      <section aria-labelledby="pieces-titre" className="flex flex-col gap-3">
+        <h2 id="pieces-titre" className="text-sm font-semibold text-foreground">
+          Pièces de votre dossier
+        </h2>
+        <DossierRequirements
+          checklist={checklist}
+          uploadedRequiredCount={uploadedRequiredCount}
+          requiredCount={requiredCount}
+          optionalCount={optionalCount}
+          discussionPath="/portail-client"
         />
-
-        {dossier ? (
-          <div className="space-y-7">
-            {/* Dossier Summary Banner */}
-            <div className="rounded-2xl border bg-card p-5 md:p-7 shadow-xs relative overflow-hidden">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-                {/* Left: Identity & Project */}
-                <div className="space-y-2 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="font-mono text-xs font-bold rounded-md bg-muted/60 px-2 py-0.5">
-                      {dossier.ducId}
-                    </Badge>
-                    <Badge className="bg-primary/10 text-primary border-primary/20 text-xs rounded-md">
-                      {dossier.phaseLabel}
-                    </Badge>
-                    {dossier.isDiaspora && (
-                      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 text-xs rounded-md gap-1">
-                        <Globe className="size-3" />
-                        Pack Diaspora · {dossier.diasporaCountry}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight">
-                    {dossier.clientName}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5">
-                    <Home className="size-3.5 text-primary shrink-0" />
-                    <span>{dossier.projectTitle} · <strong className="text-foreground/90">{dossier.location}</strong></span>
-                  </p>
-                </div>
-
-                {/* Middle: Financials */}
-                <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs bg-muted/30 p-3.5 rounded-xl border border-border/60">
-                  <div className="space-y-0.5">
-                    <span className="text-[11px] text-muted-foreground">Financement Sollicité</span>
-                    <div className="font-mono text-base font-bold text-foreground">
-                      {dossier.amountRequested}
-                    </div>
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                      Apport : {dossier.personalContribution}
-                    </span>
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <span className="text-[11px] text-muted-foreground">Durée &amp; Taux CFC</span>
-                    <div className="font-mono text-sm font-semibold text-foreground">
-                      {dossier.durationMonths / 12} ans ({dossier.durationMonths} mois)
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      Taux : {dossier.interestRate.split(" ")[0]}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Right: Official Certificate CTA */}
-                {dossier.certificate && (
-                  <div className="shrink-0 flex items-center">
-                    <Button
-                      onClick={() => setIsCertificateModalOpen(true)}
-                      className="h-11 px-5 rounded-xl font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                    >
-                      <QrCode className="size-4" />
-                      Attestation Scellée (QR Code)
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Main Content 2-Column Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-7">
-              {/* Left 2 Cols: Timeline Stepper & Regulatory Documents Actions */}
-              <div className="lg:col-span-2 space-y-7">
-                <TrackingTimelineStepper
-                  steps={dossier.steps}
-                  currentPhaseIndex={dossier.currentPhaseIndex}
-                  globalProgress={dossier.globalProgress}
-                  slaStatus={dossier.slaStatus}
-                />
-
-                <TrackingPiecesAction
-                  documents={dossier.documents}
-                  ducId={dossier.ducId}
-                />
-              </div>
-
-              {/* Right Col: Advisor, Financial Details, FAQ */}
-              <div className="space-y-7">
-                <TrackingAdvisorCard
-                  advisor={dossier.advisor}
-                  agency={dossier.agency}
-                  submissionDate={dossier.submissionDate}
-                  lastUpdated={dossier.lastUpdated}
-                />
-
-                {/* Financial conditions recap card */}
-                <div className="rounded-2xl border bg-card/95 p-5 md:p-6 shadow-xs space-y-4">
-                  <h3 className="text-sm font-bold text-foreground border-b pb-3 flex items-center gap-2">
-                    <DollarSign className="size-4 text-primary" />
-                    Conditions Financières du Prêt
-                  </h3>
-
-                  <div className="space-y-2.5 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Apport mobilisé (Carthago) :</span>
-                      <span className="font-semibold font-mono text-foreground">{dossier.personalContribution}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Taux nominal annuel :</span>
-                      <span className="font-semibold text-foreground">{dossier.interestRate}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Échéances mensuelles :</span>
-                      <span className="font-semibold text-foreground font-mono">Prélèvement à la source</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Garantie exigée :</span>
-                      <span className="font-semibold text-foreground">Hypothèque de 1er rang</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* FAQ / Direct Help */}
-                <div className="rounded-2xl border bg-primary/5 border-primary/20 p-5 space-y-3">
-                  <div className="flex items-center gap-2 text-primary font-bold text-xs">
-                    <HelpCircle className="size-4" />
-                    Besoin d&apos;assistance sur votre dossier ?
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Le Crédit Foncier du Cameroun met à votre disposition un service d&apos;écoute citoyen.
-                    Appelez le numéro vert gratuit <strong>8008</strong> ou écrivez à <strong>contact@creditfoncier.cm</strong>.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Modal for official signed document */}
-        <OfficialAttestationModal
-          certificate={dossier?.certificate || null}
-          open={isCertificateModalOpen}
-          onOpenChange={setIsCertificateModalOpen}
-        />
-      </main>
+      </section>
     </div>
   );
 }
 
-export default function TrackingPage() {
+/**
+ * Visiteur non connecté : on l'invite à s'identifier, sans jamais afficher de
+ * formulaire d'identification ici — la connexion a sa propre porte.
+ */
+function SignInRequired() {
   return (
-    <React.Suspense fallback={<div className="p-12 text-center text-sm">Chargement du portail de suivi...</div>}>
-      <TrackingPageContent />
-    </React.Suspense>
+    <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:py-16">
+      <div className="flex flex-col items-start gap-4 rounded-xl border border-line-strong bg-card p-6">
+        <Badge variant="cfc">Guichet Unique · Suivi du dossier</Badge>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Suivez votre dossier de crédit
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Le suivi est strictement réservé à l&apos;emprunteur : il ne se consulte qu&apos;en
+          ligne, depuis votre espace citoyen. Aucun dossier n&apos;est interrogeable par une
+          autre personne.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="cfc" size="sm" asChild>
+            <Link href="/login">
+              <LogIn className="size-3.5" aria-hidden />
+              Se connecter
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/portail-client">
+              <ArrowLeft className="size-3.5" aria-hidden />
+              Portail Citoyen
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Compte connecté, mais aucun dossier ouvert : on l'accompagne vers l'ouverture. */
+function NoDossier() {
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:py-16">
+      <div className="flex flex-col items-start gap-4 rounded-xl border border-line-strong bg-card p-6">
+        <Badge variant="cfc">Guichet Unique · Suivi du dossier</Badge>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Aucun dossier de crédit en cours
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Aucun dossier unique client n&apos;est encore rattaché à votre compte. Dès que vous
+          aurez choisi un service et déposé vos premières pièces, votre parcours apparaîtra ici,
+          phase par phase.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="cfc" size="sm" asChild>
+            <Link href="/onboarding">
+              <FileText className="size-3.5" aria-hidden />
+              Ouvrir mon dossier
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/portail-client">
+              <ArrowLeft className="size-3.5" aria-hidden />
+              Portail Citoyen
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

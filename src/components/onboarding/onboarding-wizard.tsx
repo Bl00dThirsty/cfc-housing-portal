@@ -1,0 +1,326 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ArrowRight, Check, Lock } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { UserMenu } from "@/components/layout/user-menu";
+import { cn } from "@/lib/utils";
+import {
+  ONBOARDING_STEPS,
+  completedSteps,
+  resumeStepId,
+  type OnboardingDraft,
+  type OnboardingStepId,
+} from "@/domain/entities/onboarding";
+import type { ServiceSummary } from "@/domain/entities/services";
+import type { KycOptionGroups } from "@/domain/entities/kyc-options";
+
+import { KycWizard } from "@/components/kyc/kyc-wizard";
+import { ServiceDocuments } from "@/components/onboarding/service-documents";
+import { ServicePicker } from "@/components/onboarding/service-picker";
+
+/**
+ * Le parcours du dossier — trois étapes, un seul dossier.
+ *
+ * Le compte n'est plus une étape : il est ouvert par `/inscription`, la seule
+ * porte qui en crée un. L'assistant suppose donc le demandeur **connecté**.
+ *
+ * Deux règles tiennent l'ensemble :
+ *
+ * - **la validation a un seul propriétaire** : chaque étape vérifie ses
+ *   champs avant d'écrire, et le parcours ne revalide pas derrière elle ;
+ * - **on reprend où l'on s'est arrêté** : un visiteur qui revient retrouve
+ *   l'étape où son dossier s'est interrompu, pas la première.
+ */
+
+type OnboardingWizardProps = {
+  services: ServiceSummary[];
+  initialDraft: OnboardingDraft;
+  signedIn: boolean;
+  /** Derived from the persisted actor-level KYC submission timestamp. */
+  kycSubmitted: boolean;
+  /** Les pièces déjà fournies au KYC : elles ne sont jamais demandées deux fois. */
+  providedCodes: readonly string[];
+  /** Les pièces déjà envoyées par le demandeur. */
+  sentCodes: readonly string[];
+  /** Les choix KYC lus depuis le catalogue Supabase. */
+  kycOptions: KycOptionGroups;
+  /** L'erreur explicite si le catalogue est absent ou illisible. */
+  kycOptionsError: string | null;
+};
+
+export function OnboardingWizard({
+  services,
+  initialDraft,
+  signedIn,
+  kycSubmitted,
+  providedCodes,
+  sentCodes,
+  kycOptions,
+  kycOptionsError,
+}: OnboardingWizardProps) {
+  const router = useRouter();
+  const visibleSteps = React.useMemo(
+    () => kycSubmitted ? ONBOARDING_STEPS.filter((item) => item.id !== "kyc") : ONBOARDING_STEPS,
+    [kycSubmitted],
+  );
+  const [step, setStep] = React.useState<OnboardingStepId>(() => kycSubmitted
+    ? initialDraft.serviceCode ? "documents" : "service"
+    : resumeStepId(initialDraft));
+  const [draft, setDraft] = React.useState<OnboardingDraft>(initialDraft);
+  const [saving, setSaving] = React.useState(false);
+
+  const patch = React.useCallback((values: Partial<OnboardingDraft>) => {
+    setDraft((current) => ({ ...current, ...values }));
+  }, []);
+
+  const stepIndex = visibleSteps.findIndex((item) => item.id === step);
+
+  /** Le service choisi — il porte les pièces exigées. */
+  const service = React.useMemo(
+    () => services.find((item) => item.code === draft.serviceCode) ?? null,
+    [draft.serviceCode, services],
+  );
+
+  /**
+   * Les étapes **franchies** : elles dépendent des réponses, pas de
+   * l'ordre. Le service commande les pieces — c'est lui qui fait le lien
+   * entre l'étape 2 et l'étape 3.
+   */
+  const done = React.useMemo(() => completedSteps(draft), [draft]);
+
+  /** Le dossier a été transmis : l'étape des pièces est achevée. */
+  const [transmitted, setTransmitted] = React.useState(false);
+
+  /** L'étape suivante : le parcours n'avance qu'après une écriture réussie. */
+  const goNext = React.useCallback(() => {
+    const next = visibleSteps[stepIndex + 1];
+    if (!next) return;
+    setStep(next.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [stepIndex, visibleSteps]);
+
+  const goBack = React.useCallback(() => {
+    const previous = visibleSteps[stepIndex - 1];
+    if (!previous) return;
+    setStep(previous.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [stepIndex, visibleSteps]);
+
+  const finish = React.useCallback(() => {
+    setTransmitted(true);
+    router.push(draft.dossierId
+      ? `/portail-client/demandes/${encodeURIComponent(draft.dossierId)}`
+      : "/portail-client/demandes");
+  }, [draft.dossierId, router]);
+
+  /** L'étape de reprise, pour le dire à l'utilisateur. */
+  const resumed =
+    draft.fullName.trim().length > 0 ||
+    draft.serviceCode !== null ||
+    Boolean(draft.profile.identity.birthDate) ||
+    Boolean(draft.profile.residence.city);
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+      {!signedIn && (
+        <div className="mb-6 rounded-lg border border-line-strong bg-card p-5 shadow-xs">
+          <h2 className="text-base font-semibold text-foreground">
+            Ouvrez d&apos;abord votre compte
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Votre dossier est rattaché à votre compte : sans lui, nous ne pouvons
+            pas l&apos;ouvrir ni le reprendre.
+          </p>
+          <Button asChild variant="cfc" size="sm" className="mt-3 gap-1.5 text-xs">
+            <Link href="/inscription">
+              Créer mon compte
+              <ArrowRight className="size-3.5" aria-hidden />
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      <header className="mb-8 flex flex-col gap-1.5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="eyebrow-style font-normal text-cfc-gold">
+              Guichet Unique · Dossier Unique Client
+            </span>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Constituer votre dossier de prêt
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {kycSubmitted
+                ? "Choisissez le service et complétez cette nouvelle demande. Vos informations KYC déjà transmises restent rattachées à votre compte."
+                : "Trois étapes, et votre dossier est complet au CFC. Vous pouvez revenir dessus à tout moment depuis votre portail."}
+            </p>
+            {resumed && (
+              <p className="caption-style text-soft">
+                Vous reprenez votre dossier là où vous l&apos;aviez laissé.
+              </p>
+            )}
+          </div>
+
+          {/*
+           * Le demandeur connecté doit pouvoir **partir** : sans le menu
+           * d'identité, l'assistant de dossier est un cul-de-sac — il a
+           * ouvert un compte et ne peut plus le fermer.
+           */}
+          {signedIn && (
+            <div className="shrink-0">
+              <UserMenu profileHref="/portail-client/profil" />
+            </div>
+          )}
+        </div>
+      </header>
+
+      <ol className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-0">
+        {visibleSteps.map((item, index) => {
+          /**
+           * L'état d'une étape vient des **réponses**, pas de l'ordre :
+           * une étape est faite quand elle est valide, et accessible quand
+           * celles qui la précèdent le sont. L'étape des pièces est donc
+           * fermée tant qu'aucun service n'est choisi — ses pièces sont
+           * celles du service.
+           */
+          const isDone =
+            item.id === "documents"
+              ? transmitted
+              : item.id === "service"
+                ? Boolean(draft.serviceCode)
+                : done.includes(item.id);
+          const isReachable =
+            index <= stepIndex &&
+            (index === stepIndex || done.includes(item.id) || (kycSubmitted && item.id === "service" && Boolean(draft.serviceCode)));
+          const state = isDone ? "done" : index === stepIndex ? "current" : "todo";
+          const caption =
+            item.id === "documents" && service
+              ? `Pièces — ${service.label}`
+              : item.caption;
+
+          return (
+            <li key={item.id} className="flex flex-1 items-center gap-3 sm:flex-col sm:items-stretch sm:gap-2">
+              <button
+                type="button"
+                onClick={() => isReachable && setStep(item.id)}
+                disabled={!isReachable}
+                aria-current={state === "current" ? "step" : undefined}
+                className={cn(
+                  "flex items-center gap-2 text-left transition-colors duration-200 ease-power3-out",
+                  isReachable ? "cursor-pointer" : "cursor-not-allowed",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-6 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition-colors duration-200 ease-power3-out",
+                    state === "done" && "border-cfc-gold bg-cfc-gold text-white",
+                    state === "current" && "border-cfc-brown bg-cfc-brown text-white",
+                    state === "todo" && "border-line-strong text-soft",
+                  )}
+                >
+                  {state === "done" ? (
+                    <Check className="size-3" aria-hidden />
+                  ) : !isReachable ? (
+                    <Lock className="size-2.5" aria-hidden />
+                  ) : (
+                    index + 1
+                  )}
+                </span>
+                <span className="flex flex-col">
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      state === "todo" ? "text-soft" : "text-foreground",
+                    )}
+                  >
+                    {item.title}
+                  </span>
+                  <span className="caption-style text-soft">{caption}</span>
+                </span>
+              </button>
+              {index < visibleSteps.length - 1 && (
+                <span
+                  aria-hidden
+                  className="hidden h-px flex-1 bg-line-strong sm:block"
+                />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      <section className="rounded-lg border border-line-strong bg-card p-5 shadow-xs">
+        {step === "kyc" && (
+          <KycWizard
+            profile={draft.profile}
+            onProfileChange={(profile) => patch({ profile })}
+            fullName={draft.fullName}
+            phone={draft.phone}
+            onPhoneChange={(phone) => patch({ phone })}
+            affiliation={draft.affiliation}
+            onAffiliationChange={(affiliation) => patch({ affiliation })}
+            dossierId={draft.dossierId}
+            providedCodes={providedCodes}
+            options={kycOptions}
+            optionsError={kycOptionsError}
+            onNext={goNext}
+          />
+        )}
+        {step === "service" && (
+          <ServicePicker
+            services={services}
+            dossierId={draft.dossierId}
+            onSuspended={() => {
+              if (draft.dossierId) {
+                router.push(`/portail-client/demandes/${encodeURIComponent(draft.dossierId)}`);
+              }
+            }}
+            onNext={goNext}
+            saving={saving}
+            setSaving={setSaving}
+          />
+        )}
+        {step === "documents" &&
+          (service ? (
+            <ServiceDocuments
+              service={service}
+              dossierId={draft.dossierId}
+              providedCodes={providedCodes}
+              sentCodes={sentCodes}
+              onFinish={finish}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-base font-semibold text-foreground">
+                Aucun service choisi
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Revenez à l&apos;étape précédente pour choisir le service dont
+                vous souhaitez déposer les pièces.
+              </p>
+            </div>
+          ))}
+      </section>
+
+      <footer className="mt-6 flex items-center justify-between gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={goBack}
+          disabled={stepIndex === 0 || saving}
+          className="gap-1.5 text-xs"
+        >
+          <ArrowLeft className="size-3.5" aria-hidden />
+          Précédent
+        </Button>
+        <span className="caption-style text-soft">
+          Étape {stepIndex + 1} sur {visibleSteps.length}
+        </span>
+      </footer>
+    </div>
+  );
+}
