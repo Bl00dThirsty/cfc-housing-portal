@@ -6,7 +6,7 @@
 
 **Architecture :** le **domaine** possède le mapping étape ↔ événements (`src/domain/workflows/tracking.ts`) ; la couche serveur ne fait que lire ; le composant `StepDetailDrawer` ne fait que rendre. Aucun identifiant personnel ne transite vers l'emprunteur : « qui » est un **rôle**.
 
-**Pile technique :** Next.js 16 · React 19 · TypeScript strict · Tailwind v4 · Radix UI (Sheet) · Vitest + @testing-library/react
+**Pile technique :** Next.js 15.5.25 · React 19 · TypeScript strict · Tailwind v4 · Radix UI (Sheet) · Vitest + @testing-library/react
 
 ## Contraintes globales
 

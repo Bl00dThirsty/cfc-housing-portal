@@ -6,7 +6,7 @@
 
 **Architecture :** `sonner` est monté **une seule fois**, dans la racine. Le retour d'action passe par **un seul** helper (`src/lib/action-feedback.ts`) qui traduit la convention `{ ok, error }` déjà utilisée par tous les appels serveur. Un toast est un signal **transitoire** : il accompagne l'`ErrorState`, il ne le remplace jamais.
 
-**Pile technique :** Next.js 16 · React 19 · TypeScript strict · Tailwind v4 · sonner 2 · Vitest + @testing-library/react
+**Pile technique :** Next.js 15.5.25 · React 19 · TypeScript strict · Tailwind v4 · sonner 2 · Vitest + @testing-library/react
 
 ## Contraintes globales
 

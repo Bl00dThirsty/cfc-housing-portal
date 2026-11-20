@@ -6,7 +6,7 @@
 
 **Architecture :** la **configuration** de l'en-tête vit à côté des autres règles RBAC (`src/config/rbac/role-header.ts`) et s'appuie sur la politique de capacité existante. La **coque** vit dans `src/components/layout/portal-header.tsx`. Les deux portails rendent la même coque : le client et la console ne sont plus deux implémentations parallèles.
 
-**Pile technique :** Next.js 16 · React 19 · TypeScript strict · Tailwind v4 · Lucide · Vitest
+**Pile technique :** Next.js 15.5.25 · React 19 · TypeScript strict · Tailwind v4 · Lucide · Vitest
 
 ## Contraintes globales
 

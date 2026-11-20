@@ -2,6 +2,11 @@
 
 **Date:** 2026-11-18  
 **Status:** Implemented on `develop`; local database and server-action verification passed. Hosted rollout remains pending.  
+Status note 2026-11-20: core self-service edits, avatar metadata and the
+legal-name correction request/review panel are present in code and covered by
+tests. Staff/client avatar projections in dossier lists remain open and are
+tracked in the self-service plan addendum.
+
 **Scope:** Authenticated client and staff profile editing, profile photos, safe visibility in existing people views, and a reviewed legal-name correction path after KYC submission.
 
 ## 1. Product outcome
