@@ -176,6 +176,22 @@ export function getSidebarSectionsForRole(
   return sections;
 }
 
+/** All declared routes, including routes hidden by the current role grants. */
+export function getDeclaredNavRoutePaths(): string[] {
+  const routes = new Set<string>();
+  for (const role of STAFF_ROLES) {
+    for (const section of NAV_SECTIONS_BY_ROLE[role] ?? []) {
+      for (const item of section.items) {
+        routes.add(item.href);
+        for (const subItem of item.subItems ?? []) {
+          if (subItem.href) routes.add(subItem.href);
+        }
+      }
+    }
+  }
+  return [...routes];
+}
+
 const NAV_SECTIONS_BY_ROLE: Partial<Record<StaffRole, NavSection[]>> = {
   // ---------------------------------------------------------------------------
   // G1 — Guichetier & Accueil : enrôler, contrôler, constituer l'épargne.

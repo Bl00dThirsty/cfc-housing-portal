@@ -23,7 +23,7 @@
  *    écrit l'événement de journal.
  */
 
-import { CHEMISE_CODES, canWriteChemise, type ChemiseCode } from "@/domain/policies/chemise";
+import { CHEMISE_CODES, type ChemiseCode } from "@/domain/policies/chemise";
 import { hasCapability } from "@/domain/policies/permissions";
 import { isInScope, resolveScope } from "@/domain/policies/scope";
 import { getAdminClient } from "@/server/supabase/admin";
@@ -63,6 +63,8 @@ export type { UploadActor };
 
 interface DossierRow {
   id: string;
+  service_code: string | null;
+  current_phase: string | null;
   duc_code: string | null;
   citizen_id: string | null;
   owner_user_id: string | null;
@@ -92,6 +94,7 @@ interface DocumentTypeRow {
   label: string;
   accepted_mime: string[] | null;
   max_size_bytes: number | null;
+  chemise_code: ChemiseCode | null;
 }
 
 /**
@@ -105,7 +108,7 @@ async function authorizeDossier(actor: UploadActor, dossierId: string): Promise<
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("dossiers")
-    .select("id, duc_code, citizen_id, owner_user_id, agency_id, is_diaspora")
+    .select("id, duc_code, citizen_id, owner_user_id, agency_id, is_diaspora, service_code, current_phase")
     .eq("id", dossierId)
     .maybeSingle();
 
@@ -146,7 +149,7 @@ async function loadDocumentType(docTypeCode: string): Promise<DocumentTypeRow> {
   const admin = getAdminClient();
   const { data, error } = await admin
     .from(referenceView("document_type"))
-    .select("code, label, accepted_mime, max_size_bytes")
+    .select("code, label, accepted_mime, max_size_bytes, chemise_code")
     .eq("code", docTypeCode)
     .is("deleted_at", null)
     .maybeSingle();
@@ -196,13 +199,6 @@ export async function requestSignedUpload(
   if (!hasCapability(actor.role, "document:upload", actor.capabilities)) {
     throw new StorageError("forbidden", "Dépôt de document non autorisé pour ce rôle.");
   }
-  if (!canWriteChemise(actor.role, chemiseCode)) {
-    throw new StorageError(
-      "forbidden",
-      `Dépôt refusé dans la chemise ${chemiseCode} pour ce rôle.`,
-    );
-  }
-
   await authorizeDossier(actor, input.dossierId);
 
   const documentType = await loadDocumentType(input.docTypeCode);
@@ -441,20 +437,6 @@ export async function confirmUpload(
     document.size_bytes,
     document.checksum_sha256,
   );
-
-  if (document.status !== "uploaded") {
-    const { error: updateError } = await supabase
-      .from("dossier_documents")
-      .update({ status: "uploaded" })
-      .eq("id", document.id);
-
-    if (updateError) {
-      throw new StorageError(
-        "forbidden",
-        `Bascule en « uploaded » refusée : ${updateError.message}`,
-      );
-    }
-  }
 
   const { data: siblings, error: siblingsError } = await supabase
     .from("dossier_documents")
@@ -697,5 +679,80 @@ export async function listDocumentTypes(): Promise<DocumentTypeOption[]> {
     label: row.label,
     acceptedMime: row.accepted_mime ?? [],
     maxSizeBytes: row.max_size_bytes ?? 10 * 1024 * 1024,
+    chemiseCode: row.chemise_code ?? "C1",
   }));
+}
+
+/** Liste seulement les pièces que le rôle peut déposer à la phase courante. */
+export async function listDossierDocumentTypes(
+  actor: UploadActor,
+  dossierId: string,
+): Promise<DocumentTypeOption[]> {
+  const dossier = await authorizeDossier(actor, dossierId);
+  const supabase = await createServerSupabaseClient();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: stageRows, error: stageError } = await supabase
+    .from("cfc_document_stage_phase")
+    .select("stage_code")
+    .eq("phase_code", dossier.current_phase ?? "");
+  if (stageError) throw new StorageError("internal", `Étapes documentaires illisibles : ${stageError.message}`);
+  const stageCodes = (stageRows ?? []).map((row) => String((row as { stage_code: string }).stage_code));
+  if (!stageCodes.length) return [];
+
+  const { data: requirementRows, error: requirementError } = await supabase
+    .from(referenceView("service_document_requirement"))
+    .select("stage, doc_type_code, required, effective_from, effective_to")
+    .eq("service_code", dossier.service_code ?? "")
+    .in("stage", stageCodes)
+    .lte("effective_from", today)
+    .is("effective_to", null)
+    .is("deleted_at", null);
+  if (requirementError) throw new StorageError("internal", `Exigences documentaires illisibles : ${requirementError.message}`);
+  const requirements = (requirementRows ?? []) as Array<{
+    stage: string;
+    doc_type_code: string;
+    required: boolean;
+  }>;
+  if (!requirements.length) return [];
+
+  let permittedStages = stageCodes;
+  if (actor.role !== "CITIZEN") {
+    const { data: policies, error: policyError } = await supabase
+      .from("cfc_document_stage_role_policy")
+      .select("stage_code")
+      .eq("role_code", actor.role)
+      .eq("action", "upload")
+      .eq("enabled", true)
+      .is("deleted_at", null);
+    if (policyError) throw new StorageError("internal", `Droits de dépôt illisibles : ${policyError.message}`);
+    const allowed = new Set((policies ?? []).map((row) => String((row as { stage_code: string }).stage_code)));
+    permittedStages = stageCodes.filter((stage) => allowed.has(stage));
+  }
+  const allowedRequirements = requirements.filter((row) => permittedStages.includes(row.stage));
+  if (!allowedRequirements.length) return [];
+
+  const codes = [...new Set(allowedRequirements.map((row) => row.doc_type_code))];
+  const { data: types, error: typeError } = await supabase
+    .from(referenceView("document_type"))
+    .select("code, label, accepted_mime, max_size_bytes, chemise_code")
+    .in("code", codes)
+    .is("deleted_at", null)
+    .order("label", { ascending: true });
+  if (typeError) throw new StorageError("internal", `Types documentaires illisibles : ${typeError.message}`);
+
+  return ((types ?? []) as DocumentTypeRow[]).flatMap((row) => {
+    if (!row.chemise_code) return [];
+    const requirement = allowedRequirements.find((item) => item.doc_type_code === row.code);
+    if (!requirement) return [];
+    return [{
+      code: row.code,
+      label: row.label,
+      acceptedMime: row.accepted_mime ?? [],
+      maxSizeBytes: row.max_size_bytes ?? 10 * 1024 * 1024,
+      chemiseCode: row.chemise_code,
+      stageCode: requirement.stage,
+      required: requirement.required,
+    }];
+  });
 }

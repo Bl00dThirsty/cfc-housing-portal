@@ -117,6 +117,49 @@ sequenceDiagram
   DB-->>UI: Exposer la décision et son motif selon l'accès
 ```
 
+### Accueil du client au Guichet — flux livré
+
+La file opérationnelle `/portail-cfc/clients` expose l'action aux rôles auxquels le catalogue accorde `dossier:create`. Elle collecte seulement les informations de contact et de routage; le formulaire ne donne pas au Guichet un accès de lecture au profil KYC complet.
+
+```mermaid
+sequenceDiagram
+  actor Agent as Agent Guichet
+  participant File as File clients
+  participant Action as Action serveur
+  participant Auth as Supabase Auth
+  participant DB as Postgres
+  participant Manager as Gestionnaire régional
+  participant Mail as Relais SMTP
+  Agent->>File: Saisir identité, téléphone, CNI et région
+  File->>Action: Valider et créer l'accueil
+  Action->>DB: Rechercher le profil par e-mail
+  alt Nouveau client
+    Action->>Auth: Générer une invitation citoyen
+    Auth->>DB: Créer l'acteur citoyen
+    Action->>DB: Créer le profil emprunteur identity_capture
+  else Client existant
+    Action->>DB: Vérifier l'acteur et comparer le numéro de CNI
+    Note over Action,DB: Ne jamais écraser le profil existant
+  end
+  Action->>DB: cfc_create_staff_intake(id emprunteur)
+  DB->>DB: Vérifier dossier:create et lire le profil persisté
+  DB->>DB: Reprendre le brouillon KYC initial ou créer une demande distincte
+  DB->>DB: Résoudre l'agence et appliquer le round-robin régional
+  DB->>DB: Écrire l'historique, l'événement et la notification in-app
+  DB-->>Manager: Nouveau dossier attribué
+  DB-->>Action: DUC, gestionnaire et état de reprise
+  opt Nouveau compte
+    Action->>Mail: Envoyer BORROWER_INVITATION avec lien à usage unique
+  end
+  Action-->>File: Confirmer le DUC et l'état de livraison
+```
+
+Une défaillance de création du DUC supprime l'identité Auth créée pendant cette tentative. Une panne SMTP ne supprime pas le compte ni le dossier : le Guichet reçoit un avertissement et peut renvoyer l'invitation depuis les outils de gestion. La liste des destinations est construite côté base à partir du catalogue `agencies` et des affectations `GESTIONNAIRE` actuellement actives; une région non routable n'est donc pas proposée. L'agence et le gestionnaire finaux sont recalculés côté base. Les notifications d'affectation sont créées dans la même transaction que le DUC.
+
+### Données de démonstration locales et staging
+
+Le seed local/staging provisionne 16 comptes du personnel, 56 comptes emprunteur et 57 demandes réparties sur les cinq phases actuellement alimentées (17, 10, 10, 10, 10). Il fournit des profils KYC et des identifiants synthétiques stables à partir des comptes de démonstration; les choix fermés sont lus dans `ref.kyc_option`. Les versements d'épargne sont datés et rapprochés des soldes, et les tranches de déblocage restent planifiées tant qu'aucun décaissement réel n'est enregistré. Les fixtures de clôture restent absentes tant que le modèle ne porte pas le cycle de contrat et de remboursement décrit plus haut.
+
 ## Machine à états proposée
 
 Les libellés d'interface doivent venir du catalogue de processus; les codes ci-dessous illustrent les états métier et ne remplacent pas l'historique des événements.

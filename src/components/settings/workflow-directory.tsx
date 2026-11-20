@@ -4,9 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { GitBranch, ListOrdered, Plus, Search, Timer } from "lucide-react";
 
-import type { ProcessFamily, ProcessLane, ProcessPriority, WorkflowPhase, WorkflowProcess, WorkflowStep } from "@/domain/entities/admin-workflow";
+import type { DocumentStageAction, DocumentStagePhase, DocumentStageRolePolicy, ProcessFamily, ProcessLane, ProcessPriority, WorkflowPhase, WorkflowProcess, WorkflowRoleOption, WorkflowStep } from "@/domain/entities/admin-workflow";
 import { filterWorkflowSteps } from "@/domain/entities/admin-workflow";
-import { saveWorkflowProcessAction, saveWorkflowStepAction, setWorkflowStepOrderAction, type WorkflowActionResult } from "@/server/actions/admin-workflow";
+import { saveWorkflowProcessAction, saveWorkflowStepAction, setDocumentStagePhaseAction, setDocumentStageRolePolicyAction, setWorkflowStepOrderAction, type WorkflowActionResult } from "@/server/actions/admin-workflow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -17,7 +17,21 @@ const CONTROL_CLASS = "h-9 rounded-md border border-input bg-background px-2.5 t
 const FAMILY_LABELS: Record<ProcessFamily, string> = { pilotage: "Pilotage", realisation: "Réalisation", support: "Support", ecosysteme: "Écosystème" };
 const LANE_LABELS: Record<ProcessLane, string> = { client: "Client", agence: "Agence", siege: "Siège", partenaires: "Partenaires", support: "Support" };
 
-export function WorkflowDirectory({ processes, steps, phases }: { processes: WorkflowProcess[]; steps: WorkflowStep[]; phases: WorkflowPhase[] }) {
+export function WorkflowDirectory({
+  processes,
+  steps,
+  phases,
+  documentStages = [],
+  documentPolicies = [],
+  roles = [],
+}: {
+  processes: WorkflowProcess[];
+  steps: WorkflowStep[];
+  phases: WorkflowPhase[];
+  documentStages?: DocumentStagePhase[];
+  documentPolicies?: DocumentStageRolePolicy[];
+  roles?: WorkflowRoleOption[];
+}) {
   const [query, setQuery] = React.useState("");
   const [phase, setPhase] = React.useState("all");
   const [processCode, setProcessCode] = React.useState("all");
@@ -50,6 +64,13 @@ export function WorkflowDirectory({ processes, steps, phases }: { processes: Wor
         </ol>
       </section>
 
+      <DocumentWorkflowControls
+        documentStages={documentStages}
+        documentPolicies={documentPolicies}
+        roles={roles}
+        phases={phases}
+      />
+
       <section aria-label="Répertoire des étapes" className="space-y-4 rounded-lg border border-line-strong bg-card p-3 md:p-4">
         <div className="flex flex-wrap items-center gap-2">
           <label className="relative min-w-[220px] flex-1"><Search aria-hidden className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Rechercher les étapes" className="pl-8" placeholder="Rechercher code, libellé ou pilote" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
@@ -71,6 +92,156 @@ export function WorkflowDirectory({ processes, steps, phases }: { processes: Wor
         </div>
       </section>
     </main>
+  );
+}
+
+const DOCUMENT_ACTIONS: { code: DocumentStageAction; label: string }[] = [
+  { code: "upload", label: "Déposer" },
+  { code: "validate", label: "Valider" },
+  { code: "reject", label: "Rejeter" },
+];
+
+function DocumentWorkflowControls({
+  documentStages,
+  documentPolicies,
+  roles,
+  phases,
+}: {
+  documentStages: DocumentStagePhase[];
+  documentPolicies: DocumentStageRolePolicy[];
+  roles: WorkflowRoleOption[];
+  phases: WorkflowPhase[];
+}) {
+  const router = useRouter();
+  const [stageCode, setStageCode] = React.useState(documentStages[0]?.stageCode ?? "");
+  const [pendingKey, setPendingKey] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const stage = documentStages.find((item) => item.stageCode === stageCode);
+
+  React.useEffect(() => {
+    if (!documentStages.some((item) => item.stageCode === stageCode)) {
+      setStageCode(documentStages[0]?.stageCode ?? "");
+    }
+  }, [documentStages, stageCode]);
+
+  const saveRoleAction = async (roleCode: string, action: DocumentStageAction, enabled: boolean) => {
+    if (!stage) return;
+    const key = `${stage.stageCode}:${roleCode}:${action}`;
+    setPendingKey(key);
+    setError(null);
+    const result = await setDocumentStageRolePolicyAction({
+      stageCode: stage.stageCode,
+      roleCode,
+      action,
+      enabled,
+    });
+    setPendingKey(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    router.refresh();
+  };
+
+  const savePhase = async (phaseCode: string) => {
+    if (!stage) return;
+    setPendingKey(`${stage.stageCode}:phase`);
+    setError(null);
+    const result = await setDocumentStagePhaseAction({ stageCode: stage.stageCode, phaseCode });
+    setPendingKey(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    router.refresh();
+  };
+
+  return (
+    <section aria-label="Dépôt et contrôle documentaire" className="space-y-3 rounded-lg border border-line-strong bg-card p-4">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold">Dépôt et contrôle documentaire</h2>
+          <p className="max-w-3xl text-xs text-muted-foreground">
+            Règles par étape et par rôle. L’identité KYC reste réservée au gestionnaire affecté, quel que soit ce paramétrage.
+          </p>
+        </div>
+        <label className="grid gap-1 text-xs text-muted-foreground">
+          Étape documentaire
+          <select
+            aria-label="Étape documentaire"
+            className={CONTROL_CLASS}
+            value={stageCode}
+            onChange={(event) => setStageCode(event.target.value)}
+            disabled={documentStages.length === 0}
+          >
+            {documentStages.map((item) => <option key={item.stageCode} value={item.stageCode}>{item.label}</option>)}
+          </select>
+        </label>
+      </header>
+
+      {stage ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-background px-3 py-2">
+          <Badge variant="outline">{stage.stageCode}</Badge>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Phase courante
+            <select
+              aria-label={`Phase pour ${stage.label}`}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              value={stage.phaseCode}
+              onChange={(event) => void savePhase(event.target.value)}
+              disabled={pendingKey === `${stage.stageCode}:phase`}
+            >
+              {phases.map((phase) => <option key={phase.code} value={phase.code}>{phase.label}</option>)}
+            </select>
+          </label>
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Aucune étape documentaire n’est configurée dans le référentiel.</p>
+      )}
+
+      {stage && roles.length > 0 ? (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[650px] text-sm">
+            <caption className="sr-only">Actions documentaires autorisées par rôle pour {stage.label}</caption>
+            <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+              <tr><th scope="col" className="px-3 py-2 font-medium">Rôle</th>{DOCUMENT_ACTIONS.map((action) => <th scope="col" key={action.code} className="px-3 py-2 font-medium">{action.label}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {roles.map((role) => (
+                <tr key={role.code}>
+                  <th scope="row" className="px-3 py-2 text-left font-medium">
+                    <span>{role.label}</span><span className="ml-2 font-mono text-[10px] text-muted-foreground">{role.code}</span>
+                  </th>
+                  {DOCUMENT_ACTIONS.map((action) => {
+                    const rule = documentPolicies.find((item) => item.stageCode === stage.stageCode && item.roleCode === role.code && item.action === action.code);
+                    const enabled = rule?.enabled ?? false;
+                    const key = `${stage.stageCode}:${role.code}:${action.code}`;
+                    return (
+                      <td key={action.code} className="px-3 py-2">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={enabled}
+                          aria-label={`Autoriser ${role.label} à ${action.label.toLocaleLowerCase("fr")} des pièces pour ${stage.label}`}
+                          className={`rounded-md border px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50 ${enabled ? "border-primary/40 bg-primary/5 text-primary" : "border-border bg-background text-muted-foreground"}`}
+                          disabled={pendingKey === key}
+                          onClick={() => void saveRoleAction(role.code, action.code, !enabled)}
+                        >
+                          {pendingKey === key ? "…" : enabled ? "Autorisé" : "Bloqué"}
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : stage ? (
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">Aucun rôle actif n’est disponible pour configurer cette étape.</p>
+      ) : null}
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+    </section>
   );
 }
 

@@ -29,6 +29,27 @@ export interface WorkflowPhase {
   sortOrder: number;
 }
 
+export type DocumentStageAction = "upload" | "validate" | "reject";
+
+export interface DocumentStagePhase {
+  stageCode: string;
+  phaseCode: string;
+  label: string;
+  sortOrder: number;
+}
+
+export interface DocumentStageRolePolicy {
+  stageCode: string;
+  roleCode: string;
+  action: DocumentStageAction;
+  enabled: boolean;
+}
+
+export interface WorkflowRoleOption {
+  code: string;
+  label: string;
+}
+
 export interface WorkflowFilters {
   query?: string;
   phase?: string | "all" | "unassigned";

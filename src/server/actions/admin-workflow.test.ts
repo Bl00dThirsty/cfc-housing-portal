@@ -8,7 +8,7 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/auth/profile", () => ({ getServerProfile: getServerProfileMock }));
 vi.mock("@/server/supabase/server", () => ({ createServerSupabaseClient: vi.fn(async () => ({ rpc: rpcMock })) }));
 
-import { saveWorkflowProcessAction, saveWorkflowStepAction, setWorkflowStepOrderAction } from "@/server/actions/admin-workflow";
+import { saveWorkflowProcessAction, saveWorkflowStepAction, setDocumentStageRolePolicyAction, setWorkflowStepOrderAction } from "@/server/actions/admin-workflow";
 
 describe("admin workflow actions", () => {
   beforeEach(() => {
@@ -40,5 +40,23 @@ describe("admin workflow actions", () => {
     expect(ordered.ok).toBe(true);
     expect(rpcMock).toHaveBeenNthCalledWith(1, "cfc_save_process_step", expect.objectContaining({ p_code: "CRD-07", p_phase: "committees" }));
     expect(rpcMock).toHaveBeenNthCalledWith(2, "cfc_set_process_step_order", { p_code: "CRD-07", p_sort_order: 700 });
+  });
+
+  it("persists stage-specific upload policy only through guarded workflow configuration", async () => {
+    const denied = await setDocumentStageRolePolicyAction({
+      stageCode: "CREDIT_FILE", roleCode: "ANALYSTE", action: "upload", enabled: true,
+    });
+    expect(denied.ok).toBe(true);
+    expect(rpcMock).toHaveBeenCalledWith("cfc_set_document_stage_role_policy", {
+      p_stage_code: "CREDIT_FILE", p_role_code: "ANALYSTE", p_action: "upload", p_enabled: true,
+    });
+  });
+
+  it("rejects malformed stage policy edits before reaching the database", async () => {
+    const result = await setDocumentStageRolePolicyAction({
+      stageCode: "???", roleCode: "UNKNOWN", action: "read", enabled: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 });

@@ -17,13 +17,22 @@ describe("contrôle d'accès aux routes de la console", () => {
   it("ouvre à un agent les écrans de son rôle", () => {
     expect(canAgentOpenRoute("GUICHET", "/portail-cfc/clients")).toBe(true);
     expect(canAgentOpenRoute("GUICHET", "/portail-cfc/actors/agency")).toBe(true);
-    expect(canAgentOpenRoute("GUICHET", "/portail-cfc/actors/agency/kyc-validation")).toBe(true);
     expect(canAgentOpenRoute("GUICHET", "/portail-cfc/dossiers")).toBe(true);
 
     expect(canAgentOpenRoute("NOTAIRE", "/portail-cfc/actors/notary-cadastre")).toBe(true);
     expect(canAgentOpenRoute("COMITE", "/portail-cfc/actors/credit-committees")).toBe(true);
     expect(canAgentOpenRoute("DIASPORA", "/portail-cfc/actors/agency/diaspora")).toBe(true);
     expect(canAgentOpenRoute("RISQUES_BET", "/portail-cfc/actors/risk-engineering")).toBe(true);
+  });
+
+  it("keeps KYC review available only to the authorized manager role", () => {
+    const kycRoute = "/portail-cfc/actors/agency/kyc-validation";
+    expect(canAgentOpenRoute("GESTIONNAIRE", kycRoute)).toBe(true);
+    expect(canAgentOpenRoute("GESTIONNAIRE", kycRoute, [])).toBe(false);
+
+    for (const role of ["GUICHET", "RISQUES_BET", "NOTAIRE", "ADMIN"] as const) {
+      expect(canAgentOpenRoute(role, kycRoute), role).toBe(false);
+    }
   });
 
   /**

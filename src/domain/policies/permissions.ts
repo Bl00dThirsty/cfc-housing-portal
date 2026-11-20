@@ -72,6 +72,7 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "dossier:update",
     "dossier:decide",
     "dossier:export",
+    "kyc:read",
     "kyc:verify",
     "kyc:decide",
     "document:read",

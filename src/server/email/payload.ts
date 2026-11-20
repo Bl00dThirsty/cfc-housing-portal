@@ -1,4 +1,4 @@
-const AUTH_LINK_TEMPLATES = new Set(["MAGIC_LINK", "RESET_PASSWORD", "STAFF_INVITATION"]);
+const AUTH_LINK_TEMPLATES = new Set(["MAGIC_LINK", "RESET_PASSWORD", "STAFF_INVITATION", "BORROWER_INVITATION"]);
 const ALWAYS_SENSITIVE_KEYS = /^(password|secret|token|token_hash|access_token|refresh_token)$/i;
 const AUTH_LINK_KEYS = /^(lien|link|action_link|confirmation_url|recovery_url)$/i;
 

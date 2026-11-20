@@ -326,7 +326,7 @@ classDiagram
 - A missing role/capability catalogue fails closed. The app cannot fall back to a TypeScript grant matrix when the database query fails.
 - An invalid or unapproved product/delegation catalogue blocks downstream eligibility or credit approval; it does not substitute demo values.
 - Staging and production project references must be distinct. Production command keeps its confirmation and never invokes fixture seeding or `db reset`.
-- The local seed now covers five of six phases and creates committee, accepted-offer, notary, and planned-disbursement rows linked to the seeded dossiers. `closing_release` stays unseeded until the schema has a credit-contract/repayment lifecycle; do not fabricate a paid loan or mortgage release.
+- The local seed now covers five of six phases with 57 dossiers and creates committee, accepted-offer, notary, and planned-disbursement rows linked to the seeded dossiers. `closing_release` stays unseeded until the schema has a credit-contract/repayment lifecycle; do not fabricate a paid loan or mortgage release.
 
 ## Acceptance criteria
 

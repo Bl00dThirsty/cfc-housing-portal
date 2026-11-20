@@ -1,5 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import {
+  buildDemoBorrowerIdentity,
+  buildDemoSavingsLedger,
+  DEMO_CITIZENS,
+  DEMO_STAFF,
+} from "./lib/demo-fixtures.mjs";
+import {
   ensureLocalDevPassword,
   localEnvironmentFilePath,
 } from "./lib/local-supabase-env.mjs";
@@ -10,6 +16,7 @@ import { resolveUserSeedConfig } from "./lib/seed-environment.mjs";
 // affichés en démonstration sont donc ceux que la plateforme produirait
 // réellement, et non des chiffres écrits à la main.
 import { calculateHousingPlan } from "../src/domain/calculations/index.ts";
+import { SIGNUP_CONSENT_TEXT } from "../src/domain/entities/kyc-profile.ts";
 
 const SEED_TARGET = process.env.CFC_SEED_TARGET?.trim() || "local";
 if (SEED_TARGET === "local") {
@@ -36,189 +43,49 @@ try {
 const SUPABASE_URL = seedConfig.supabaseUrl;
 const SERVICE_ROLE_KEY = seedConfig.serviceKey;
 const DEV_PASSWORD = seedConfig.devPassword;
+const FIXTURE_AS_OF = new Date("2026-11-19T12:00:00.000Z");
 
-const STAFF = [
-  { email: "guichet@cfc.cm", name: "ABANDA Eric", role: "GUICHET", agencyCode: "CFC-YDE-CENTRE" },
-  { email: "gestionnaire@cfc.cm", name: "TCHOUNGUI Alain", role: "GESTIONNAIRE", agencyCode: "CFC-YDE-CENTRE" },
-  { email: "mbezele@cfc.cm", name: "Mme Mbezele", role: "GESTIONNAIRE", agencyCode: "CFC-YDE-CENTRE" },
-  { email: "tagne@cfc.cm", name: "M. Tagne", role: "GESTIONNAIRE", agencyCode: "CFC-YDE-MENDONG" },
-  { email: "manga@cfc.cm", name: "Mme Manga", role: "GESTIONNAIRE", agencyCode: "CFC-DLA-BONANJO" },
-  { email: "ndi@cfc.cm", name: "M. Ndi", role: "GESTIONNAIRE", agencyCode: "CFC-BAF-OUSSAM", active: false },
-  { email: "risques@cfc.cm", name: "FOKAM Emmanuel", role: "RISQUES_BET", agencyCode: "CFC-YDE-CENTRE" },
-  { email: "notaire@cfc.cm", name: "KAMGA Pascal", role: "NOTAIRE", agencyCode: "CFC-YDE-CENTRE" },
-  { email: "comite@cfc.cm", name: "MBALLA Jean-Paul", role: "COMITE", agencyCode: "CFC-YDE-CENTRE" },
-  { email: "diaspora@cfc.cm", name: "NGO NSOA Marie", role: "DIASPORA", agencyCode: "CFC-SIEGE-DIASPORA" },
-  { email: "admin@cfc.cm", name: "Administrateur CFC", role: "ADMIN", agencyCode: "CFC-YDE-CENTRE" },
-];
+function fixtureTimestamp() {
+  return FIXTURE_AS_OF.toISOString();
+}
 
-/**
- * Les dossiers de démonstration.
- *
- * On ne décrit que les **entrées** du parcours — coût du projet, apport,
- * durée d'épargne, revenu, taux, versements déjà effectués. Tout le reste
- * (montant du prêt, échéance, part d'épargne) est **calculé** par le
- * domaine : une donnée de démonstration qui contredit les règles de la
- * plateforme serait pire qu'aucune donnée.
- */
-const CITIZENS = [
-  {
-    email: "emprunteur@cfc.cm",
-    name: "EBAH Rodrigue",
-    affiliation: "first_time",
-    diaspora: false,
-    agencyCode: "CFC-YDE-CENTRE",
-    ducCode: "CFC-DEV-0001",
-    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
-    phase: "kyc_savings",
-    currentStep: "CRD-01",
-    plan: {
-      projectCost: 9000000,
-      apportPercentage: 20,
-      durationMonths: 36,
-      monthlyIncome: 850000,
-      loanDurationYears: 15,
-      annualInterestRate: 0.055,
-    },
-    // Neuf versements : le droit acquis (douze mois) n'est pas encore
-    // acquis, et le dossier est encore à la phase d'épargne.
-    savingsMonthsPaid: 9,
-    // Le demandeur n'a jamais eu de prêt au CFC : son dossier attend
-    // l'orientation d'un conseiller.
-    onboardingState: "suspension",
-    priorClientCase: "premiere_fois",
-    ducStatus: "non_active",
-    timeline: [
-      { type: "KYC_SUBMITTED", role: "CITIZEN", payload: { note: "Dossier transmis au guichet." } },
-      { type: "DOCUMENT_REQUESTED", role: "GUICHET", payload: { document: "CNI biométrique" } },
-    ],
-  },
-  {
-    email: "emprunteur.diaspora@cfc.cm",
-    name: "FOTSO Michel",
-    affiliation: "non_resident",
-    diaspora: true,
-    agencyCode: "CFC-SIEGE-DIASPORA",
-    ducCode: "CFC-DEV-0002",
-    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
-    phase: "risk_bet",
-    currentStep: "CRD-04",
-    plan: {
-      projectCost: 18000000,
-      apportPercentage: 25,
-      durationMonths: 48,
-      monthlyIncome: 1250000,
-      loanDurationYears: 20,
-      annualInterestRate: 0.0475,
-    },
-    // Épargne constituée : le dossier a franchi l'épargne et entre à
-    // l'expertise technique.
-    savingsMonthsPaid: 48,
-    // Client du CFC depuis plus de six mois : son DUC est activé et le
-    // dossier est en instruction.
-    onboardingState: "en_examen",
-    priorClientCase: "deja_au_cfc",
-    ducStatus: "active",
-    timeline: [
-      { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Identité vérifiée." } },
-      { type: "DOCUMENT_REQUESTED", role: "DIASPORA", payload: { document: "Titre foncier" } },
-      { type: "DOSSIER_UPDATED", role: "RISQUES_BET", payload: { note: "Transmission à l'expertise technique." } },
-    ],
-  },
-  {
-    email: "emprunteur.pieces@cfc.cm",
-    name: "NGUEMA Pierre",
-    affiliation: "cfc_existing",
-    diaspora: false,
-    agencyCode: "CFC-DLA-BONANJO",
-    ducCode: "CFC-DEV-0003",
-    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
-    phase: "kyc_savings",
-    currentStep: "CRD-02",
-    plan: {
-      projectCost: 12000000,
-      apportPercentage: 20,
-      durationMonths: 36,
-      monthlyIncome: 950000,
-      loanDurationYears: 15,
-      annualInterestRate: 0.055,
-    },
-    // Déjà client du CFC pour ce service : il dépose ses pièces.
-    savingsMonthsPaid: 14,
-    onboardingState: "documents",
-    priorClientCase: "deja_au_cfc",
-    ducStatus: "non_active",
-    timeline: [
-      { type: "KYC_SUBMITTED", role: "CITIZEN", payload: { note: "Dossier transmis au guichet." } },
-      { type: "DOCUMENT_UPLOADED", role: "CITIZEN", payload: { document: "CNI biométrique" } },
-    ],
-  },
-  {
-    email: "emprunteur.comite@cfc.cm",
-    name: "MANGA Solange",
-    affiliation: "cfc_existing",
-    diaspora: false,
-    agencyCode: "CFC-YDE-CENTRE",
-    ducCode: "CFC-DEV-0004",
-    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
-    phase: "committees",
-    currentStep: "CRD-07",
-    committeeCode: "CGR",
-    plan: { projectCost: 24000000, apportPercentage: 25, durationMonths: 48, monthlyIncome: 1600000, loanDurationYears: 20, annualInterestRate: 0.05 },
-    savingsMonthsPaid: 48,
-    onboardingState: "active",
-    priorClientCase: "deja_au_cfc",
-    ducStatus: "active",
-    kycState: "approved",
-    timeline: [
-      { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Dossier conforme, fixture locale." } },
-      { type: "DOSSIER_UPDATED", role: "RISQUES_BET", payload: { note: "Évaluation technique transmise au comité." } },
-    ],
-  },
-  {
-    email: "emprunteur.notaire@cfc.cm",
-    name: "TCHINDA Roland",
-    affiliation: "cfc_existing",
-    diaspora: false,
-    agencyCode: "CFC-DLA-BONANJO",
-    ducCode: "CFC-DEV-0005",
-    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
-    phase: "notary_mortgage",
-    currentStep: "CRD-11",
-    committeeCode: "CGR",
-    plan: { projectCost: 32000000, apportPercentage: 25, durationMonths: 48, monthlyIncome: 2200000, loanDurationYears: 20, annualInterestRate: 0.05 },
-    savingsMonthsPaid: 48,
-    onboardingState: "active",
-    priorClientCase: "deja_au_cfc",
-    ducStatus: "active",
-    kycState: "approved",
-    timeline: [
-      { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Dossier conforme, fixture locale." } },
-      { type: "DOSSIER_UPDATED", role: "COMITE", payload: { note: "Offre acceptée; constitution des garanties à suivre." } },
-    ],
-  },
-  {
-    email: "emprunteur.deblocage@cfc.cm",
-    name: "NGONO Mireille",
-    affiliation: "cfc_existing",
-    diaspora: false,
-    agencyCode: "CFC-YDE-CENTRE",
-    ducCode: "CFC-DEV-0006",
-    serviceCode: "PRET_FONCIER_CLASSIQUE_ORDINAIRE",
-    phase: "disbursements",
-    currentStep: "CRD-12",
-    committeeCode: "CGR",
-    plan: { projectCost: 28000000, apportPercentage: 30, durationMonths: 48, monthlyIncome: 1900000, loanDurationYears: 20, annualInterestRate: 0.05 },
-    savingsMonthsPaid: 48,
-    onboardingState: "active",
-    priorClientCase: "deja_au_cfc",
-    ducStatus: "active",
-    kycState: "approved",
-    timeline: [
-      { type: "KYC_APPROVED", role: "GUICHET", payload: { note: "Dossier conforme, fixture locale." } },
-      { type: "DOSSIER_UPDATED", role: "NOTAIRE", payload: { note: "Garantie enregistrée; première tranche planifiée." } },
-    ],
-  },
-];
+function optionFromCatalogue(options, category, preferredCode, selector = 0) {
+  const choices = options.filter((option) => option.category === category);
+  if (choices.length === 0) throw new Error(`The active KYC catalogue has no ${category} options.`);
+  return choices.find((option) => option.code === preferredCode)
+    ?? choices[Math.abs(selector) % choices.length];
+}
+
+function incomeBandFromCatalogue(options, income) {
+  const choices = options.filter((option) => option.category === "income_band");
+  const ranges = choices.map((option) => {
+    const code = option.code.toLocaleLowerCase("fr");
+    const amounts = (code.match(/[\d\u202f ]+/g) ?? [])
+      .map((part) => Number(part.replace(/\D/g, "")))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    return { option, code, amounts };
+  });
+  const match = ranges.find(({ code, amounts }) => {
+    if (code.includes("moins") && amounts[0] !== undefined) return income < amounts[0];
+    if (code.includes("plus") && amounts[0] !== undefined) return income >= amounts[0];
+    return amounts.length >= 2 && income >= amounts[0] && income <= amounts[1];
+  });
+  if (match) return match.option.code;
+  return choices.at(-1)?.code ?? (() => { throw new Error("The active KYC catalogue has no income band options."); })();
+}
+
+const STAFF = DEMO_STAFF;
+
+const CITIZENS = DEMO_CITIZENS;
+
+const STAFF_EVENT_EMAIL_BY_ROLE = {
+  GUICHET: "guichet@cfc.cm",
+  RISQUES_BET: "risques@cfc.cm",
+  NOTAIRE: "notaire@cfc.cm",
+  COMITE: "comite@cfc.cm",
+  DIASPORA: "diaspora@cfc.cm",
+  ANALYSTE: "analyste@cfc.cm",
+};
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -284,7 +151,7 @@ async function assertOk(result, label) {
  * (`append_dossier_event`) contrôle l'habilitation de `auth.uid()`, qui n'est
  * pas l'emprunteur dans un script de provisionnement.
  */
-async function seedDossier(citizen, citizenId, agency, staffByRegion) {
+async function seedDossier(citizen, citizenId, agency, staffByRegion, staffIds, borrowerIdentity) {
   const regionalManagers = staffByRegion.get(agency.region) ?? [];
   if (regionalManagers.length === 0) {
     throw new Error(`No active regional manager is configured for ${agency.region}.`);
@@ -332,6 +199,9 @@ async function seedDossier(citizen, citizenId, agency, staffByRegion) {
     is_diaspora: citizen.diaspora,
     name: citizen.name,
     email: citizen.email,
+    phone: borrowerIdentity.phone,
+    cni_raw: borrowerIdentity.cni,
+    birth_date: borrowerIdentity.birthDate,
     agency: agency.label,
     city: agency.city,
     region: agency.region,
@@ -343,7 +213,7 @@ async function seedDossier(citizen, citizenId, agency, staffByRegion) {
     onboarding_state: citizen.onboardingState,
     prior_client_case: citizen.priorClientCase,
     duc_status: citizen.ducStatus,
-    duc_activated_at: citizen.ducStatus === "active" ? new Date().toISOString() : null,
+    duc_activated_at: citizen.ducStatus === "active" ? fixtureTimestamp() : null,
     // Le conseiller : c'est son **nom** que le demandeur voit dans son
     // espace, et c'est lui qui instruit le dossier.
     advisor: advisorName,
@@ -426,12 +296,16 @@ async function seedDossier(citizen, citizenId, agency, staffByRegion) {
     const rows = citizen.timeline.map((event, index) => ({
       dossier_id: dossierId,
       event_type: event.type,
-      actor_id: advisorId,
+      actor_id: event.role === "CITIZEN"
+        ? citizenId
+        : event.role === "GESTIONNAIRE"
+        ? advisorId
+        : staffIds.get(STAFF_EVENT_EMAIL_BY_ROLE[event.role]) ?? advisorId,
       actor_role: event.role,
       payload: event.payload ?? {},
       legal_basis: "COBAC R-2023/01 — lignes directrices LC-COB/01",
       occurred_at: new Date(
-        Date.now() - (citizen.timeline.length - index) * 86_400_000,
+        FIXTURE_AS_OF.getTime() - (citizen.timeline.length - index) * 86_400_000,
       ).toISOString(),
     }));
     const { error } = await admin.from("dossier_events").insert(rows);
@@ -464,14 +338,101 @@ async function seedDossier(citizen, citizenId, agency, staffByRegion) {
   return { dossierId, advisorId };
 }
 
+/** Keep the borrower identity, DUC projection and submitted KYC in sync. */
+async function ensureDemoKycProfile(citizen, citizenId, agency, identity, options, managerId) {
+  const state = citizen.kycState ?? (citizen.diaspora ? "enhanced_due_diligence" : "identity_capture");
+  const isSubmitted = !["pre_boarding", "identity_capture"].includes(state);
+  const selector = Number.parseInt(identity.cni.slice(-4), 16);
+  const country = citizen.diaspora ? (citizen.residenceCountry ?? "France") : "Cameroun";
+  const city = citizen.diaspora ? (citizen.residenceCity ?? "Paris") : agency.city;
+  const identityType = optionFromCatalogue(
+    options,
+    "id_document_type",
+    citizen.diaspora ? "Passeport" : "CNI",
+    selector,
+  ).code;
+  const identityData = {
+    birth_date: identity.birthDate,
+    birth_place_city: agency.city,
+    birth_place_country: "Cameroun",
+    nationality: "Camerounaise",
+    family_status: optionFromCatalogue(options, "family_status", null, selector).code,
+    id_document_type: identityType,
+    id_document_number: identity.cni,
+    id_document_issued_at: dateOffset(-365 * 4),
+    id_document_expires_at: dateOffset(365 * 4),
+    id_document_issuer: "Autorité de délivrance déclarée",
+    niu: null,
+  };
+  const residenceData = {
+    country,
+    region: citizen.diaspora ? null : agency.region,
+    city,
+    neighbourhood: null,
+    landmark: null,
+    postal_box: null,
+    occupation_status: optionFromCatalogue(options, "occupation_status", null, selector).code,
+    emergency_contact: null,
+  };
+  const plan = calculateHousingPlan(citizen.plan);
+  const employmentStatus = optionFromCatalogue(options, "employment_status", "CDI", selector).code;
+  const employmentData = isSubmitted ? {
+    status: employmentStatus,
+    profession: "Cadre administratif",
+    employer: "Employeur déclaré pour la démonstration",
+    sector: "Services",
+    contract_type: employmentStatus,
+    hired_at: `${Number(identity.birthDate.slice(0, 4)) + 22}-01-01`,
+    income_band: incomeBandFromCatalogue(options, plan.monthlyIncome),
+    income_origin: optionFromCatalogue(options, "income_origin", "salaire", selector).code,
+    declared_income: Math.round(plan.monthlyIncome),
+  } : {};
+  const complianceData = isSubmitted ? {
+    politically_exposed: false,
+    pep_reason: null,
+    business_relationship: "Financement immobilier",
+    tax_residence: country,
+    honour_attestation: true,
+    honour_mention: "Déclaration de démonstration",
+    accepted_at: fixtureTimestamp(),
+    dependants: selector % 4,
+    existing_loans: "Aucun crédit déclaré dans ce scénario",
+  } : { politically_exposed: false, honour_attestation: false, dependants: 0 };
+
+  const { error } = await admin.from("kyc_profiles").upsert({
+    citizen_id: citizenId,
+    identity: identityData,
+    residence: residenceData,
+    employment: employmentData,
+    compliance: complianceData,
+    consent_at: isSubmitted ? fixtureTimestamp() : null,
+    consent_text: isSubmitted ? SIGNUP_CONSENT_TEXT : null,
+    submitted_at: isSubmitted ? fixtureTimestamp() : null,
+    created_by: managerId,
+    updated_by: managerId,
+    updated_at: fixtureTimestamp(),
+    deleted_at: null,
+  }, { onConflict: "citizen_id" });
+  if (error) throw error;
+}
+
 /** Create a visibly identified development ledger opening from the stored plan values. */
-async function ensureDemoSavingsAccount(ducCode, dossierId, managerId) {
+async function ensureDemoSavingsAccount(citizen, dossierId, managerId) {
   const { data: dossier, error: dossierError } = await admin
     .from("dossiers")
     .select("citizen_id, savings_current, savings_target")
     .eq("id", dossierId)
     .single();
   if (dossierError) throw dossierError;
+
+  const plan = calculateHousingPlan(citizen.plan);
+  const ledger = buildDemoSavingsLedger({
+    ducCode: citizen.ducCode,
+    totalAmount: Number(dossier.savings_current ?? 0),
+    monthlySavings: plan.monthlySavings,
+    months: citizen.savingsMonthsPaid,
+    asOf: FIXTURE_AS_OF.toISOString().slice(0, 10),
+  });
 
   const { data: existingAccount, error: accountError } = await admin
     .from("savings_accounts")
@@ -485,13 +446,14 @@ async function ensureDemoSavingsAccount(ducCode, dossierId, managerId) {
 
   let account = existingAccount;
   if (!account) {
-    const accountNumber = `EP-${ducCode.replace(/[^A-Za-z0-9]/g, "")}`;
+    const accountNumber = `EP-${citizen.ducCode.replace(/[^A-Za-z0-9]/g, "")}`;
     const { data, error } = await admin
       .from("savings_accounts")
       .insert({
         dossier_id: dossierId,
         citizen_id: dossier.citizen_id,
         account_number: accountNumber,
+        opening_date: ledger[0]?.transactionDate ?? FIXTURE_AS_OF.toISOString().slice(0, 10),
         balance: dossier.savings_current ?? 0,
         target_amount: dossier.savings_target,
         status: "active",
@@ -503,49 +465,107 @@ async function ensureDemoSavingsAccount(ducCode, dossierId, managerId) {
     account = data;
   }
 
-  const { count, error: transactionCountError } = await admin
+  const { data: transactions, error: transactionError } = await admin
     .from("savings_transactions")
-    .select("id", { count: "exact", head: true })
+    .select("id, reference, amount, reversal_of")
     .eq("account_id", account.id)
     .is("deleted_at", null);
-  if (transactionCountError) throw transactionCountError;
-  if ((count ?? 0) > 0 || Number(account.balance) <= 0) return;
-
-  const openingAmount = Number(account.balance);
-  const reference = `DEV-OPEN-${ducCode}`;
-  const { error: transactionError } = await admin.from("savings_transactions").insert({
-    account_id: account.id,
-    dossier_id: dossierId,
-    transaction_type: "deposit",
-    amount: openingAmount,
-    credit: openingAmount,
-    balance_after: openingAmount,
-    channel: "agency",
-    reference,
-    description: "Solde d’ouverture des données de démonstration",
-    transaction_date: new Date().toISOString().slice(0, 10),
-    validated_by: managerId,
-    validated_at: new Date().toISOString(),
-    decision_state: "validated",
-    decided_by: managerId,
-    decided_at: new Date().toISOString(),
-    created_by: managerId,
-  });
   if (transactionError) throw transactionError;
 
-  const { error: eventError } = await admin.from("dossier_events").insert({
-    dossier_id: dossierId,
-    event_type: "SAVINGS_TRANSACTION_VALIDATED",
-    actor_id: managerId,
-    actor_role: "GESTIONNAIRE",
-    payload: { reference, amount: openingAmount, source: "development_fixture" },
-    legal_basis: "Données locales de développement — solde d'ouverture de démonstration",
-  });
-  if (eventError) throw eventError;
+  const fixturePrefix = `DEV-SAV-${citizen.ducCode}-`;
+  const openingReference = `DEV-OPEN-${citizen.ducCode}`;
+  const nonFixtureTransactions = (transactions ?? []).filter((transaction) =>
+    transaction.reference !== openingReference
+      && !transaction.reference?.startsWith(fixturePrefix),
+  );
+
+  // Never rewrite a real or manually recorded ledger. This branch only expands
+  // the aggregate opening row generated by the earlier demo seed.
+  if (nonFixtureTransactions.length > 0) return;
+
+  const legacyOpening = (transactions ?? []).find((transaction) => transaction.reference === openingReference);
+  if (legacyOpening) {
+    const { error: retireLegacyError } = await admin
+      .from("savings_transactions")
+      .update({ deleted_at: fixtureTimestamp(), deleted_by: managerId })
+      .eq("id", legacyOpening.id)
+      .is("deleted_at", null);
+    if (retireLegacyError) throw retireLegacyError;
+  }
+
+  const knownReferences = new Set((transactions ?? [])
+    .filter((transaction) => transaction.reference?.startsWith(fixturePrefix))
+    .map((transaction) => transaction.reference));
+  const missingEntries = ledger.filter((entry) => !knownReferences.has(entry.reference));
+
+  if (missingEntries.length > 0) {
+    const rows = missingEntries.map((entry) => {
+      const decidedAt = `${entry.transactionDate}T12:00:00.000Z`;
+      return {
+        account_id: account.id,
+        dossier_id: dossierId,
+        transaction_type: "deposit",
+        amount: entry.amount,
+        debit: null,
+        credit: entry.amount,
+        balance_after: entry.balanceAfter,
+        channel: entry.channel,
+        reference: entry.reference,
+        receipt_ref: `REC-${entry.reference}`,
+        description: `Versement mensuel de démonstration — ${citizen.ducCode}.`,
+        transaction_date: entry.transactionDate,
+        validated_by: managerId,
+        validated_at: decidedAt,
+        decision_state: "validated",
+        decided_by: managerId,
+        decided_at: decidedAt,
+        created_by: managerId,
+      };
+    });
+    const { error: insertError } = await admin.from("savings_transactions").insert(rows);
+    if (insertError) throw insertError;
+  }
+
+  const ledgerFixtureKey = `demo-savings-ledger:${citizen.ducCode}`;
+  const { data: ledgerEvent, error: ledgerEventError } = await admin
+    .from("dossier_events")
+    .select("id")
+    .eq("dossier_id", dossierId)
+    .eq("event_type", "SAVINGS_DEMO_LEDGER_SEEDED")
+    .contains("payload", { fixture_key: ledgerFixtureKey })
+    .maybeSingle();
+  if (ledgerEventError) throw ledgerEventError;
+  if (!ledgerEvent && ledger.length > 0) {
+    const { error: eventError } = await admin.from("dossier_events").insert({
+      dossier_id: dossierId,
+      event_type: "SAVINGS_DEMO_LEDGER_SEEDED",
+      actor_id: managerId,
+      actor_role: "GESTIONNAIRE",
+      payload: {
+        fixture_key: ledgerFixtureKey,
+        transactions_count: ledger.length,
+        total_amount: ledger.at(-1).balanceAfter,
+        source: "development_fixture",
+      },
+      legal_basis: "Données de démonstration locale/staging — sans portée juridique",
+      occurred_at: fixtureTimestamp(),
+    });
+    if (eventError) throw eventError;
+  }
+
+  const { error: accountUpdateError } = await admin
+    .from("savings_accounts")
+    .update({
+      opening_date: ledger[0]?.transactionDate ?? FIXTURE_AS_OF.toISOString().slice(0, 10),
+      balance: dossier.savings_current ?? 0,
+      target_amount: dossier.savings_target,
+    })
+    .eq("id", account.id);
+  if (accountUpdateError) throw accountUpdateError;
 }
 
 function dateOffset(days) {
-  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+  return new Date(FIXTURE_AS_OF.getTime() + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 async function findFixtureRow(table, filters) {
@@ -598,7 +618,7 @@ async function ensureOperationalStageFixture(citizen, dossierId, staffIds) {
       signer_role: "COMITE",
       vote: "approve",
       comment: fixtureTag,
-      signed_at: new Date().toISOString(),
+      signed_at: fixtureTimestamp(),
       signature_hash: null,
     });
     seeded.push("deliberation_lines");
@@ -652,19 +672,36 @@ async function ensureOperationalStageFixture(citizen, dossierId, staffIds) {
     seeded.push("notary_instruments");
 
     if (citizen.phase === "disbursements") {
-      const tranche = await findFixtureRow("disbursements", { dossier_id: dossierId, tranche_number: 1 });
-      await persistFixtureRow("disbursements", tranche, {
-        dossier_id: dossierId,
-        tranche_number: 1,
-        amount: Math.round(plan.loanAmount * 0.35),
-        release_date: dateOffset(5),
-        value_available_date: dateOffset(6),
-        method: "systac_transfer",
-        payment_reference: `DEV-DISB-${citizen.ducCode}`,
-        status: "planned",
-        authorized_by: null,
-        released_by: null,
-      });
+      const trancheWeights = [0.35, 0.35, 0.3];
+      const trancheCount = Math.min(3, Math.max(1, citizen.plannedTranches ?? 1));
+      let plannedTotal = 0;
+
+      for (let index = 0; index < trancheCount; index += 1) {
+        const trancheNumber = index + 1;
+        const amount = index === 0
+          ? Math.round(plan.loanAmount * trancheWeights[0])
+          : index === trancheCount - 1
+          ? plan.loanAmount - plannedTotal
+          : Math.round(plan.loanAmount * trancheWeights[index]);
+        plannedTotal += amount;
+
+        const tranche = await findFixtureRow("disbursements", {
+          dossier_id: dossierId,
+          tranche_number: trancheNumber,
+        });
+        await persistFixtureRow("disbursements", tranche, {
+          dossier_id: dossierId,
+          tranche_number: trancheNumber,
+          amount,
+          release_date: dateOffset(5 + index * 30),
+          value_available_date: dateOffset(6 + index * 30),
+          method: "systac_transfer",
+          payment_reference: `DEV-DISB-${citizen.ducCode}-${trancheNumber}`,
+          status: "planned",
+          authorized_by: null,
+          released_by: null,
+        });
+      }
       seeded.push("disbursements");
     }
   }
@@ -710,6 +747,17 @@ async function main() {  const { data: roles, error: rolesError } = await admin
   const agencyByCode = new Map((agencies ?? []).map((agency) => [agency.code, agency]));
   const defaultAgency = agencyByCode.get("CFC-YDE-CENTRE") ?? null;
   if (!defaultAgency) throw new Error("The CFC-YDE-CENTRE agency is missing from the reference seed.");
+
+  const { data: kycOptionRows, error: kycOptionError } = await admin
+    .schema("ref")
+    .from("kyc_option")
+    .select("category, code, sort_order")
+    .is("deleted_at", null)
+    .lte("effective_from", FIXTURE_AS_OF.toISOString().slice(0, 10))
+    .order("category", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (kycOptionError) throw kycOptionError;
+  const kycOptions = kycOptionRows ?? [];
 
   const created = [];
   const staffIds = new Map();
@@ -806,6 +854,8 @@ async function main() {  const { data: roles, error: rolesError } = await admin
 
   for (const citizen of CITIZENS) {
     const userId = await ensureUser(citizen.email, { role: "CITIZEN" });
+    const citizenAgency = agencyByCode.get(citizen.agencyCode) ?? defaultAgency;
+    const borrowerIdentity = buildDemoBorrowerIdentity(citizen.email);
 
     await admin.from("actors").upsert(
       { id: userId, actor_type: "citizen" },
@@ -818,15 +868,20 @@ async function main() {  const { data: roles, error: rolesError } = await admin
         full_name: citizen.name,
         affiliation_status: citizen.affiliation,
         email: citizen.email,
+        phone: borrowerIdentity.phone,
+        cni_raw: borrowerIdentity.cni,
+        birth_date: borrowerIdentity.birthDate,
+        city: citizen.diaspora ? (citizen.residenceCity ?? "Paris") : citizenAgency.city,
+        region: citizen.diaspora ? null : citizenAgency.region,
         is_diaspora: citizen.diaspora,
         kyc_state: citizen.kycState ?? (citizen.diaspora ? "enhanced_due_diligence" : "identity_capture"),
       },
       { onConflict: "id" },
     );
 
-    const citizenAgency = agencyByCode.get(citizen.agencyCode) ?? defaultAgency;
-    const dossier = await seedDossier(citizen, userId, citizenAgency, staffByRegion);
-    await ensureDemoSavingsAccount(citizen.ducCode, dossier.dossierId, dossier.advisorId);
+    const dossier = await seedDossier(citizen, userId, citizenAgency, staffByRegion, staffIds, borrowerIdentity);
+    await ensureDemoKycProfile(citizen, userId, citizenAgency, borrowerIdentity, kycOptions, dossier.advisorId);
+    await ensureDemoSavingsAccount(citizen, dossier.dossierId, dossier.advisorId);
     const stageRegisters = await ensureOperationalStageFixture(citizen, dossier.dossierId, staffIds);
 
     created.push({
@@ -836,13 +891,18 @@ async function main() {  const { data: roles, error: rolesError } = await admin
       affiliation: citizen.affiliation,
       phase: citizen.phase,
       dossier: citizen.ducCode,
-      registers: stageRegisters.join(", ") || "dossier & épargne",
+      registers: ["profil", "KYC", "DUC", "épargne", ...stageRegisters].join(", "),
     });
   }
 
   await reportStageCoverage();
 
-  console.log(`\n${created.length} comptes de démonstration provisionnés :\n`);
+  const staffCount = created.filter((row) => row.type === "agent").length;
+  const borrowerAccountCount = new Set(
+    created.filter((row) => row.type === "emprunteur").map((row) => row.email.toLowerCase()),
+  ).size;
+  const dossierCount = created.filter((row) => row.type === "emprunteur").length;
+  console.log(`\n${staffCount} comptes staff, ${borrowerAccountCount} comptes emprunteur et ${dossierCount} demandes provisionnés :\n`);
   console.table(created);
   if (seedConfig.name === "local") {
     console.log("\nMot de passe local stocké dans .env.local (CFC_DEV_PASSWORD).");

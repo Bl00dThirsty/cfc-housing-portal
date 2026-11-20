@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth-context";
 import { type ClientItem } from "@/domain/entities/client";
-import { CHEMISE_CODES, getChemise } from "@/domain/policies/chemise";
-import { listDocumentTypesAction, resolveDossierIdAction } from "@/server/storage/actions";
+import { getChemise } from "@/domain/policies/chemise";
+import { listDossierDocumentTypesAction, resolveDossierIdAction } from "@/server/storage/actions";
 import type { DocumentTypeOption } from "@/server/storage/types";
 import { type DucFile, type DucFileKind } from "./client-duc-manager";
 
@@ -73,7 +73,6 @@ export function DucUploadDialog({
   const { currentUser } = useAuth();
 
   const [docTypeCode, setDocTypeCode] = React.useState("");
-  const [folderId, setFolderId] = React.useState("C1");
   const [dossierId, setDossierId] = React.useState<string | null>(null);
   const [documentTypes, setDocumentTypes] = React.useState<DocumentTypeOption[]>([]);
   const [error, setError] = React.useState<UploadErrorPayload | null>(null);
@@ -91,21 +90,21 @@ export function DucUploadDialog({
     setUploaded(null);
 
     void (async () => {
-      const [dossier, types] = await Promise.all([
-        resolveDossierIdAction({ ducCode: client.ducId }),
-        listDocumentTypesAction(),
-      ]);
+      const dossier = await resolveDossierIdAction({ ducCode: client.ducId });
 
       if (cancelled) return;
-      setLoading(false);
 
       if (!dossier.ok) {
+        setLoading(false);
         setDossierId(null);
         setError(dossier.error);
-      } else {
-        setDossierId(dossier.data.dossierId);
+        return;
       }
 
+      setDossierId(dossier.data.dossierId);
+      const types = await listDossierDocumentTypesAction(dossier.data.dossierId);
+      if (cancelled) return;
+      setLoading(false);
       if (types.ok) {
         setDocumentTypes(types.data);
         setDocTypeCode((current) => current || (types.data[0]?.code ?? ""));
@@ -120,6 +119,9 @@ export function DucUploadDialog({
   }, [client, open]);
 
   if (!client) return null;
+
+  const selectedType = documentTypes.find((type) => type.code === docTypeCode);
+  const folderId = selectedType?.chemiseCode ?? "C1";
 
   const handleUploaded = (document: UploadedDocument) => {
     setUploaded(document);
@@ -155,8 +157,6 @@ export function DucUploadDialog({
     onDocumentUploaded(newFile, newAuditLog);
     onOpenChange(false);
   };
-
-  const selectedType = documentTypes.find((type) => type.code === docTypeCode);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -207,22 +207,21 @@ export function DucUploadDialog({
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="duc-upload-folder" className="text-xs font-semibold text-foreground">
-                Chemise DUC de Destination (CFC-09)
-              </label>
-              <select
-                id="duc-upload-folder"
-                value={folderId}
-                onChange={(e) => setFolderId(e.target.value)}
-                className="h-8 w-full rounded-md border bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
-              >
-                {CHEMISE_CODES.map((code) => (
-                  <option key={code} value={code}>
-                    {code} · {getChemise(code).label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-end gap-2 pb-1.5">
+              {selectedType ? (
+                <>
+                  <Badge variant="outline" className="text-xs">
+                    {selectedType.chemiseCode} · {getChemise(selectedType.chemiseCode).label}
+                  </Badge>
+                  <Badge variant={selectedType.required ? "secondary" : "outline"} className="text-xs">
+                    {selectedType.required ? "Pièce requise" : "Pièce complémentaire"}
+                  </Badge>
+                </>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Aucune pièce n’est ouverte au dépôt pour votre rôle et l’étape en cours.
+                </span>
+              )}
             </div>
           </div>
 
@@ -252,7 +251,7 @@ export function DucUploadDialog({
             <DocumentUploader
               dossierId={dossierId}
               docTypeCode={docTypeCode}
-              chemiseCode={folderId}
+              chemiseCode={selectedType?.chemiseCode ?? "C1"}
               onUploaded={handleUploaded}
               label="Déposer la pièce au dossier"
               hint={

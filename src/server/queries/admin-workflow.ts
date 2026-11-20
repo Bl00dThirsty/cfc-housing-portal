@@ -1,13 +1,21 @@
 import "server-only";
 
-import type { WorkflowPhase, WorkflowProcess, WorkflowStep, ProcessFamily, ProcessPriority, ProcessLane } from "@/domain/entities/admin-workflow";
+import type { DocumentStagePhase, DocumentStageRolePolicy, WorkflowRoleOption, WorkflowPhase, WorkflowProcess, WorkflowStep, ProcessFamily, ProcessPriority, ProcessLane } from "@/domain/entities/admin-workflow";
 import { hasCapability } from "@/domain/policies/permissions";
 import { getServerProfile } from "@/server/auth/profile";
 import { createServerSupabaseClient } from "@/server/supabase/server";
 
 type Row = Record<string, unknown>;
 export type AdminWorkflowResult =
-  | { ok: true; processes: WorkflowProcess[]; steps: WorkflowStep[]; phases: WorkflowPhase[] }
+  | {
+      ok: true;
+      processes: WorkflowProcess[];
+      steps: WorkflowStep[];
+      phases: WorkflowPhase[];
+      documentStages: DocumentStagePhase[];
+      documentPolicies: DocumentStageRolePolicy[];
+      roles: WorkflowRoleOption[];
+    }
   | { ok: false; error: string };
 
 export async function getAdminWorkflowCatalogue(): Promise<AdminWorkflowResult> {
@@ -17,12 +25,15 @@ export async function getAdminWorkflowCatalogue(): Promise<AdminWorkflowResult> 
   }
 
   const supabase = await createServerSupabaseClient();
-  const [processResult, stepResult, phaseResult] = await Promise.all([
+  const [processResult, stepResult, phaseResult, documentStageResult, documentPolicyResult, roleResult] = await Promise.all([
     supabase.from("cfc_processes").select("code, label, family, chain_order, pilote, priority, deleted_at").is("deleted_at", null).order("chain_order", { ascending: true, nullsFirst: false }).order("code", { ascending: true }),
     supabase.from("cfc_process_steps").select("code, process_code, label, phase, lane, is_external, sla_days, sort_order, deleted_at").is("deleted_at", null).order("sort_order", { ascending: true }).order("code", { ascending: true }),
     supabase.from("cfc_process_phases").select("code, label, sort_order").order("sort_order", { ascending: true }),
+    supabase.from("cfc_document_stage_phase").select("stage_code, phase_code, label, sort_order").order("sort_order", { ascending: true }),
+    supabase.from("cfc_document_stage_role_policy").select("stage_code, role_code, action, enabled").order("stage_code").order("role_code"),
+    supabase.from("cfc_role").select("code, label").is("deleted_at", null).order("sort_order", { ascending: true }),
   ]);
-  if (processResult.error || stepResult.error || phaseResult.error) {
+  if (processResult.error || stepResult.error || phaseResult.error || documentStageResult.error || documentPolicyResult.error || roleResult.error) {
     return { ok: false, error: "Le référentiel des workflows est indisponible. Réessayez après vérification de la base." };
   }
 
@@ -52,6 +63,21 @@ export async function getAdminWorkflowCatalogue(): Promise<AdminWorkflowResult> 
   const phases: WorkflowPhase[] = ((phaseResult.data ?? []) as Row[]).map((row) => ({
     code: String(row.code), label: String(row.label), sortOrder: Number(row.sort_order),
   }));
+  const documentStages: DocumentStagePhase[] = ((documentStageResult.data ?? []) as Row[]).map((row) => ({
+    stageCode: String(row.stage_code),
+    phaseCode: String(row.phase_code),
+    label: String(row.label),
+    sortOrder: Number(row.sort_order),
+  }));
+  const documentPolicies: DocumentStageRolePolicy[] = ((documentPolicyResult.data ?? []) as Row[]).map((row) => ({
+    stageCode: String(row.stage_code),
+    roleCode: String(row.role_code),
+    action: String(row.action) as DocumentStageRolePolicy["action"],
+    enabled: Boolean(row.enabled),
+  }));
+  const roles: WorkflowRoleOption[] = ((roleResult.data ?? []) as Row[]).map((row) => ({
+    code: String(row.code), label: String(row.label),
+  }));
 
-  return { ok: true, processes, steps, phases };
+  return { ok: true, processes, steps, phases, documentStages, documentPolicies, roles };
 }

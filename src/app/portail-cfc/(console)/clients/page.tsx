@@ -4,11 +4,17 @@ import { hasCapability } from "@/domain/policies/permissions";
 import { getServerProfile } from "@/server/auth/profile";
 import { getOperationalDossiers } from "@/server/queries/operational-dossiers";
 import { getStaffDossiers } from "@/server/queries/staff-dossiers";
+import { getStaffIntakeOptions } from "@/server/queries/staff-intake";
 
 export default async function ClientsPage() {
   const profile = await getServerProfile();
   if (profile?.role !== "GESTIONNAIRE") {
-    const result = await getOperationalDossiers();
+    const [result, intakeOptions] = await Promise.all([
+      getOperationalDossiers(),
+      hasCapability(profile?.role ?? "CITIZEN", "dossier:create", profile?.capabilities)
+        ? getStaffIntakeOptions()
+        : Promise.resolve({ regions: [], diasporaAvailable: false }),
+    ]);
     if (!result.ok) {
       return (
         <section className="rounded-lg border border-destructive/30 bg-card p-5" role="alert">
@@ -22,6 +28,9 @@ export default async function ClientsPage() {
         dossiers={result.dossiers}
         title="Dossiers accessibles"
         description="Répertoire opérationnel limité aux numéros DUC, étapes et rattachements autorisés pour votre rôle. Les profils et justificatifs restent réservés au gestionnaire attribué."
+        canCreate={hasCapability(profile?.role ?? "CITIZEN", "dossier:create", profile?.capabilities)}
+        intakeRegions={intakeOptions.regions}
+        intakeDiasporaAvailable={intakeOptions.diasporaAvailable}
       />
     );
   }

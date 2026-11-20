@@ -30,6 +30,17 @@ const orderSchema = z.object({
   sortOrder: z.number().int().min(0).max(2_000_000_000),
 });
 
+const documentStageRolePolicySchema = z.object({
+  stageCode: z.enum(["ONBOARDING", "SAVINGS", "CREDIT_FILE", "NOTARY", "MORTGAGE", "PAYOFF", "DISBURSEMENT"]),
+  roleCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{2,32}$/),
+  action: z.enum(["upload", "validate", "reject"]),
+  enabled: z.boolean(),
+});
+const documentStagePhaseSchema = z.object({
+  stageCode: z.enum(["ONBOARDING", "SAVINGS", "CREDIT_FILE", "NOTARY", "MORTGAGE", "PAYOFF", "DISBURSEMENT"]),
+  phaseCode: z.enum(["kyc_savings", "risk_bet", "committees", "notary_mortgage", "disbursements", "closing_release"]),
+});
+
 export type WorkflowActionResult = { ok: true } | { ok: false; error: string };
 
 async function canManageWorkflow(): Promise<boolean> {
@@ -88,6 +99,38 @@ export async function setWorkflowStepOrderAction(input: unknown): Promise<Workfl
     p_sort_order: parsed.data.sortOrder,
   });
   if (error) return { ok: false, error: "L’ordre de l’étape n’a pas pu être modifié." };
+  revalidateWorkflow();
+  return { ok: true };
+}
+
+/** Configure une permission documentaire stage/rôle depuis le catalogue Supabase. */
+export async function setDocumentStageRolePolicyAction(input: unknown): Promise<WorkflowActionResult> {
+  const parsed = documentStageRolePolicySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Vérifiez l’étape, le rôle, l’action et son état." };
+  if (!(await canManageWorkflow())) return { ok: false, error: "Vous n’êtes pas habilité à modifier les workflows." };
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc("cfc_set_document_stage_role_policy", {
+    p_stage_code: parsed.data.stageCode,
+    p_role_code: parsed.data.roleCode,
+    p_action: parsed.data.action,
+    p_enabled: parsed.data.enabled,
+  });
+  if (error) return { ok: false, error: "La règle documentaire n’a pas pu être enregistrée." };
+  revalidateWorkflow();
+  return { ok: true };
+}
+
+/** Relie une étape documentaire à une phase métier effective. */
+export async function setDocumentStagePhaseAction(input: unknown): Promise<WorkflowActionResult> {
+  const parsed = documentStagePhaseSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Vérifiez l’étape et la phase du parcours." };
+  if (!(await canManageWorkflow())) return { ok: false, error: "Vous n’êtes pas habilité à modifier les workflows." };
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.rpc("cfc_set_document_stage_phase", {
+    p_stage_code: parsed.data.stageCode,
+    p_phase_code: parsed.data.phaseCode,
+  });
+  if (error) return { ok: false, error: "La phase de l’étape documentaire n’a pas pu être modifiée." };
   revalidateWorkflow();
   return { ok: true };
 }

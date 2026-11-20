@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ViewModeToggle, type ViewMode } from "@/components/ui/view-mode-toggle";
+import { StaffIntakeDialog } from "@/components/portail-cfc/staff-intake-dialog";
 
 function displayDate(value: string | null): string {
   if (!value) return "—";
@@ -22,10 +23,16 @@ export function DossierQueueView({
   dossiers,
   title,
   description,
+  canCreate = false,
+  intakeRegions = [],
+  intakeDiasporaAvailable = false,
 }: {
   dossiers: OperationalDossier[];
   title: string;
   description: string;
+  canCreate?: boolean;
+  intakeRegions?: string[];
+  intakeDiasporaAvailable?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [view, setView] = useState<ViewMode>("list");
@@ -48,9 +55,12 @@ export function DossierQueueView({
           <h1 id="queue-title" className="text-2xl font-bold tracking-tight">{title}</h1>
           <p className="max-w-3xl text-sm text-muted-foreground">{description}</p>
         </div>
-        <Badge variant="outline" className="tabular-nums">
-          {visibleDossiers.length} dossier{visibleDossiers.length === 1 ? "" : "s"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="tabular-nums">
+            {visibleDossiers.length} dossier{visibleDossiers.length === 1 ? "" : "s"}
+          </Badge>
+          {canCreate ? <StaffIntakeDialog regions={intakeRegions} diasporaAvailable={intakeDiasporaAvailable} /> : null}
+        </div>
       </header>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

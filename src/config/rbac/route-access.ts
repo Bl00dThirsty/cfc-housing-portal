@@ -16,7 +16,11 @@
 
 import { STAFF_ROLES, type Capability, type StaffRole } from "@/domain/policies/capabilities";
 import { hasCapability } from "@/domain/policies/permissions";
-import { getSidebarSectionsForRole, landingPathForRole } from "@/config/rbac/sidebar-by-role";
+import {
+  getDeclaredNavRoutePaths,
+  getSidebarSectionsForRole,
+  landingPathForRole,
+} from "@/config/rbac/sidebar-by-role";
 
 /** Racine de la console CFC. */
 export const AGENT_PORTAL_ROOT = "/portail-cfc";
@@ -115,20 +119,19 @@ export function canAgentOpenRoute(
     return hasCapability(role, "dossier:read", assignedCapabilities);
   }
 
-  const map = rolesByRoute(role, assignedCapabilities);
-
+  const visibleRolesByRoute = rolesByRoute(role, assignedCapabilities);
+  const declaredRoutes = getDeclaredNavRoutePaths();
   let bestRoute: string | null = null;
-  let bestRoles: Set<StaffRole> | null = null;
 
-  for (const [candidate, roles] of map) {
+  for (const declaredRoute of declaredRoutes) {
+    const candidate = routeOf(declaredRoute);
     if (route !== candidate && !route.startsWith(`${candidate}/`)) continue;
     if (bestRoute === null || candidate.length > bestRoute.length) {
       bestRoute = candidate;
-      bestRoles = roles;
     }
   }
 
-  return bestRoles ? bestRoles.has(role) : false;
+  return bestRoute ? visibleRolesByRoute.get(bestRoute)?.has(role) ?? false : false;
 }
 
 /** Keep the assigned role's landing URL inside its current live grants. */

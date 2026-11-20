@@ -12,7 +12,7 @@
 --   idempotent ;
 -- - une exigence ou un barème déjà « expédié » n'est jamais réécrit en base ;
 --   on ferme (`effective_to`) et on ouvre une nouvelle ligne. Ici, le seed
---   pose la première version (effective_from = current_date).
+--   pose la première version (effective_from = date '2026-11-19').
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
@@ -363,24 +363,24 @@ insert into ref.document_type (
   renewal_reminder_days, accepted_mime, max_size_bytes, min_count, max_count,
   standalone_ok, requires_signature, requires_photograph, valid_from
 ) values
-  ('CNI_BIOMETRIQUE',        'IDENTITE',   'Carte Nationale d''Identité biométrique',  'DGSN',                              'CM', 120, 30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  false, true,  current_date),
-  ('PASSPORT',               'IDENTITE',   'Passeport',                              'Ministère des Affaires Étrangères', 'CM', 60,  30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  false, true,  current_date),
-  ('BIRTH_CERTIFICATE',      'IDENTITE',   'Certificat de naissance (état civil)',   'Mairie / Tribunal',                  'CM', null, null, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, current_date),
-  ('PROOF_OF_RESIDENCE',     'RESIDENCE',  'Justificatif de domicile',               'CFC, bailleur, unité administrative','CM', 6,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  false, false, current_date),
-  ('PAYSLIP',                'REVENU',     'Bulletin de salaire',                   'Employeur',                         'CM', 3,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 3, false, false, false, current_date),
-  ('INCOME_ATTESTATION',     'REVENU',     'Attestation de revenu',                 'Employeur, CFP, tyres entrepreneurs','CM', 3,  15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, current_date),
-  ('BANK_STATEMENT',         'REVENU',     'Relevé bancaire d''activité',           'Banque',                            'CM', 3,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 3, false, false, false, current_date),
-  ('WEALTH_DECLARATION',     'PATRIMOINE', 'Déclaration de patrimoine',              'Candidat',                          'CM', 6,   30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, current_date),
-  ('LAND_TITLE',             'FONCIER',    'Titre foncier',                         'Conservation Foncière / MINDCAF',    'CM', null, null, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, current_date),
-  ('PROPERTY_CERTIFICATE',   'FONCIER',    'Certificat de propriété foncière',      'Service domanial',                  'CM', 3,   30, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, current_date),
-  ('BET_DQE',                'TECHNIQUE',  'Devis Quantitatif Estimatif (BET)',      'Bureau d''études agréé',            'CM', 6,   30, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, current_date),
-  ('SITE_REPORT',            'TECHNIQUE',  'Rapport de visite de chantier',          'Bureau d''études agréé',            'CM', 6,   30, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, current_date),
-  ('BUILD_PERMIT',           'TECHNIQUE',  'Permis de bâtir / certificat d''urbanisme','Mairie, Communauté urbaine',     'CM', 12,  60, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, current_date),
-  ('MORTGAGE_CONVENTION',    'GARANTIE',   'Convention hypothécaire',               'Notaire',                           'CM', null, null, array['application/pdf']::text[], 20971520, 1, 1, true,  true,  false, current_date),
-  ('LIFE_DISABILITY_INSURANCE','GARANTIE', 'Attestation d''assurance vie-invalidité','Compagnie d''assurance agréée',      'CM', 12,  60, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, current_date),
-  ('FIRE_INSURANCE',         'GARANTIE',   'Attestation d''assurance incendie',     'Compagnie d''assurance agréée',      'CM', 12,  60, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, current_date),
-  ('COMPLIANCE_CERTIFICATE', 'CONFORMITE', 'Attestation de conformité (non-résident)','Banque du pays de résidence',       'CM', 3,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, current_date),
-  ('LIMITED_MANDATE',        'MANDAT',     'Mandat limité / procuration',           'Candidat ou mandataire',             'CM', 12,  30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  true,  current_date)
+  ('CNI_BIOMETRIQUE',        'IDENTITE',   'Carte Nationale d''Identité biométrique',  'DGSN',                              'CM', 120, 30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  false, true,  date '2026-11-19'),
+  ('PASSPORT',               'IDENTITE',   'Passeport',                              'Ministère des Affaires Étrangères', 'CM', 60,  30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  false, true,  date '2026-11-19'),
+  ('BIRTH_CERTIFICATE',      'IDENTITE',   'Certificat de naissance (état civil)',   'Mairie / Tribunal',                  'CM', null, null, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('PROOF_OF_RESIDENCE',     'RESIDENCE',  'Justificatif de domicile',               'CFC, bailleur, unité administrative','CM', 6,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  false, false, date '2026-11-19'),
+  ('PAYSLIP',                'REVENU',     'Bulletin de salaire',                   'Employeur',                         'CM', 3,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 3, false, false, false, date '2026-11-19'),
+  ('INCOME_ATTESTATION',     'REVENU',     'Attestation de revenu',                 'Employeur, CFP, tyres entrepreneurs','CM', 3,  15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('BANK_STATEMENT',         'REVENU',     'Relevé bancaire d''activité',           'Banque',                            'CM', 3,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 3, false, false, false, date '2026-11-19'),
+  ('WEALTH_DECLARATION',     'PATRIMOINE', 'Déclaration de patrimoine',              'Candidat',                          'CM', 6,   30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('LAND_TITLE',             'FONCIER',    'Titre foncier',                         'Conservation Foncière / MINDCAF',    'CM', null, null, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('PROPERTY_CERTIFICATE',   'FONCIER',    'Certificat de propriété foncière',      'Service domanial',                  'CM', 3,   30, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('BET_DQE',                'TECHNIQUE',  'Devis Quantitatif Estimatif (BET)',      'Bureau d''études agréé',            'CM', 6,   30, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('SITE_REPORT',            'TECHNIQUE',  'Rapport de visite de chantier',          'Bureau d''études agréé',            'CM', 6,   30, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('BUILD_PERMIT',           'TECHNIQUE',  'Permis de bâtir / certificat d''urbanisme','Mairie, Communauté urbaine',     'CM', 12,  60, array['application/pdf','image/jpeg','image/png']::text[], 20971520, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('MORTGAGE_CONVENTION',    'GARANTIE',   'Convention hypothécaire',               'Notaire',                           'CM', null, null, array['application/pdf']::text[], 20971520, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('LIFE_DISABILITY_INSURANCE','GARANTIE', 'Attestation d''assurance vie-invalidité','Compagnie d''assurance agréée',      'CM', 12,  60, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('FIRE_INSURANCE',         'GARANTIE',   'Attestation d''assurance incendie',     'Compagnie d''assurance agréée',      'CM', 12,  60, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('COMPLIANCE_CERTIFICATE', 'CONFORMITE', 'Attestation de conformité (non-résident)','Banque du pays de résidence',       'CM', 3,   15, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  false, date '2026-11-19'),
+  ('LIMITED_MANDATE',        'MANDAT',     'Mandat limité / procuration',           'Candidat ou mandataire',             'CM', 12,  30, array['application/pdf','image/jpeg','image/png']::text[], 10485760, 1, 1, true,  true,  true,  date '2026-11-19')
 on conflict (code) do update
   set nature_code = excluded.nature_code,
       label = excluded.label,
@@ -448,19 +448,14 @@ on conflict (code) do update
       deleted_by = null;
 
 insert into ref.product_rate (product_code, rate_code, label, annual_rate, duration_years, savings_rate, valid_from) values
-  ('PFC_ORD_15',    'TAUX_BONIFIE',  'Taux bonifié',  5.25, 15, 3.50, current_date),
-  ('PFC_ORD_15',    'TAUX_STANDARD', 'Taux standard', 5.75, 15, 3.50, current_date),
-  ('PFC_ORD_20',    'TAUX_BONIFIE',  'Taux bonifié',  5.50, 20, 3.50, current_date),
-  ('PFC_ORD_20',    'TAUX_STANDARD', 'Taux standard', 6.00, 20, 3.50, current_date),
-  ('PFC_PROMO_15',  'TAUX_STANDARD', 'Taux standard', 6.25, 15, 3.00, current_date),
-  ('PFC_LOT_10',    'TAUX_STANDARD', 'Taux standard', 6.00, 10, 3.50, current_date),
-  ('PFC_SOLIDAIRE', 'TAUX_SOLIDAIRE','Taux solidaire',5.00, 15, 4.00, current_date)
-on conflict (product_code, rate_code, duration_years, valid_from) where deleted_at is null do update
-  set label = excluded.label,
-      annual_rate = excluded.annual_rate,
-      savings_rate = excluded.savings_rate,
-      deleted_at = null,
-      deleted_by = null;
+  ('PFC_ORD_15',    'TAUX_BONIFIE',  'Taux bonifié',  5.25, 15, 3.50, date '2026-11-19'),
+  ('PFC_ORD_15',    'TAUX_STANDARD', 'Taux standard', 5.75, 15, 3.50, date '2026-11-19'),
+  ('PFC_ORD_20',    'TAUX_BONIFIE',  'Taux bonifié',  5.50, 20, 3.50, date '2026-11-19'),
+  ('PFC_ORD_20',    'TAUX_STANDARD', 'Taux standard', 6.00, 20, 3.50, date '2026-11-19'),
+  ('PFC_PROMO_15',  'TAUX_STANDARD', 'Taux standard', 6.25, 15, 3.00, date '2026-11-19'),
+  ('PFC_LOT_10',    'TAUX_STANDARD', 'Taux standard', 6.00, 10, 3.50, date '2026-11-19'),
+  ('PFC_SOLIDAIRE', 'TAUX_SOLIDAIRE','Taux solidaire',5.00, 15, 4.00, date '2026-11-19')
+on conflict (product_code, rate_code, duration_years, valid_from) where deleted_at is null do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Exigences documentaires par service et par étape
@@ -471,73 +466,65 @@ insert into ref.service_document_requirement (
   alternative_group, condition_expr, depends_on_doc, effective_from
 ) values
   -- Prêt foncier classique ordinaire
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'ONBOARDING', 'CNI_BIOMETRIQUE',        true,  1, 1, 'IDENTITY', 'citizen.affiliation_status <> ''non_resident''', null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'ONBOARDING', 'PASSPORT',               false, 1, 1, 'IDENTITY', 'citizen.affiliation_status = ''non_resident''', null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'ONBOARDING', 'PROOF_OF_RESIDENCE',     true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'SAVINGS',    'PAYSLIP',                true,  1, 3, 'REVENUS', null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','INCOME_ATTESTATION',     true,  1, 1, 'REVENUS', null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','WEALTH_DECLARATION',     true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','LAND_TITLE',             true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','BET_DQE',                true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','SITE_REPORT',            false, 1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','BUILD_PERMIT',           false, 1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'NOTARY',      'MORTGAGE_CONVENTION',    true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'MORTGAGE',    'FIRE_INSURANCE',         true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'MORTGAGE',    'LIFE_DISABILITY_INSURANCE', true, 1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'DISBURSEMENT','BUILD_PERMIT',           true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'PAYOFF',      'MORTGAGE_CONVENTION',    true,  1, 1, null, null, null, current_date),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'ONBOARDING', 'CNI_BIOMETRIQUE',        true,  1, 1, 'IDENTITY', 'citizen.affiliation_status <> ''non_resident''', null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'ONBOARDING', 'PASSPORT',               false, 1, 1, 'IDENTITY', 'citizen.affiliation_status = ''non_resident''', null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'ONBOARDING', 'PROOF_OF_RESIDENCE',     true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'SAVINGS',    'PAYSLIP',                true,  1, 3, 'REVENUS', null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','INCOME_ATTESTATION',     true,  1, 1, 'REVENUS', null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','WEALTH_DECLARATION',     true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','LAND_TITLE',             true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','BET_DQE',                true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','SITE_REPORT',            false, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'CREDIT_FILE','BUILD_PERMIT',           false, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'NOTARY',      'MORTGAGE_CONVENTION',    true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'MORTGAGE',    'FIRE_INSURANCE',         true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'MORTGAGE',    'LIFE_DISABILITY_INSURANCE', true, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'DISBURSEMENT','BUILD_PERMIT',           true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE', 'PAYOFF',      'MORTGAGE_CONVENTION',    true,  1, 1, null, null, null, date '2026-11-19'),
 
   -- Prêt foncier classique professionnel
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'CNI_BIOMETRIQUE',       true,  1, 1, 'IDENTITY', null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'PROOF_OF_RESIDENCE',    true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'WEALTH_DECLARATION',    true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','INCOME_ATTESTATION',    true,  1, 1, 'REVENUS', null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','BANK_STATEMENT',        true,  1, 3, 'REVENUS', null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','LAND_TITLE',            true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','BET_DQE',               true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','SITE_REPORT',           true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'NOTARY',      'MORTGAGE_CONVENTION',   true,  1, 1, null, null, null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'MORTGAGE',    'FIRE_INSURANCE',        true,  1, 1, null, null, null, current_date),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'CNI_BIOMETRIQUE',       true,  1, 1, 'IDENTITY', null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'PROOF_OF_RESIDENCE',    true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'WEALTH_DECLARATION',    true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','INCOME_ATTESTATION',    true,  1, 1, 'REVENUS', null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','BANK_STATEMENT',        true,  1, 3, 'REVENUS', null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','LAND_TITLE',            true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','BET_DQE',               true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'CREDIT_FILE','SITE_REPORT',           true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'NOTARY',      'MORTGAGE_CONVENTION',   true,  1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'MORTGAGE',    'FIRE_INSURANCE',        true,  1, 1, null, null, null, date '2026-11-19'),
 
   -- Prêt lotissement
-  ('PRET_LOTISSEMENT', 'ONBOARDING', 'CNI_BIOMETRIQUE',           true, 1, 1, 'IDENTITY', null, null, current_date),
-  ('PRET_LOTISSEMENT', 'ONBOARDING', 'PROOF_OF_RESIDENCE',        true, 1, 1, null, null, null, current_date),
-  ('PRET_LOTISSEMENT', 'CREDIT_FILE','INCOME_ATTESTATION',        true, 1, 1, 'REVENUS', null, null, current_date),
-  ('PRET_LOTISSEMENT', 'CREDIT_FILE','LAND_TITLE',                true, 1, 1, null, null, null, current_date),
-  ('PRET_LOTISSEMENT', 'CREDIT_FILE','BET_DQE',                   true, 1, 1, null, null, null, current_date),
-  ('PRET_LOTISSEMENT', 'DISBURSEMENT','BUILD_PERMIT',              true, 1, 1, null, null, null, current_date),
-  ('PRET_LOTISSEMENT', 'MORTGAGE',    'FIRE_INSURANCE',            true, 1, 1, null, null, null, current_date),
-  ('PRET_LOTISSEMENT', 'MORTGAGE',    'LIFE_DISABILITY_INSURANCE', true, 1, 1, null, null, null, current_date),
+  ('PRET_LOTISSEMENT', 'ONBOARDING', 'CNI_BIOMETRIQUE',           true, 1, 1, 'IDENTITY', null, null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT', 'ONBOARDING', 'PROOF_OF_RESIDENCE',        true, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT', 'CREDIT_FILE','INCOME_ATTESTATION',        true, 1, 1, 'REVENUS', null, null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT', 'CREDIT_FILE','LAND_TITLE',                true, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT', 'CREDIT_FILE','BET_DQE',                   true, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT', 'DISBURSEMENT','BUILD_PERMIT',              true, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT', 'MORTGAGE',    'FIRE_INSURANCE',            true, 1, 1, null, null, null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT', 'MORTGAGE',    'LIFE_DISABILITY_INSURANCE', true, 1, 1, null, null, null, date '2026-11-19'),
 
   -- Crédit solidaire
-  ('CREDIT_SOLIDAIRE', 'ONBOARDING', 'CNI_BIOMETRIQUE',        true, 1, 1, 'IDENTITY', null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'ONBOARDING', 'PROOF_OF_RESIDENCE',     true, 1, 1, null, null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'SAVINGS',    'PAYSLIP',                true, 1, 3, 'REVENUS', null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','INCOME_ATTESTATION',     true, 1, 1, 'REVENUS', null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','WEALTH_DECLARATION',     false, 1, 1, null, null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','LAND_TITLE',             true, 1, 1, null, null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','BET_DQE',                true, 1, 1, null, null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'NOTARY',      'MORTGAGE_CONVENTION',   true, 1, 1, null, null, null, current_date),
-  ('CREDIT_SOLIDAIRE', 'MORTGAGE',    'FIRE_INSURANCE',        true, 1, 1, null, null, null, current_date),
+  ('CREDIT_SOLIDAIRE', 'ONBOARDING', 'CNI_BIOMETRIQUE',        true, 1, 1, 'IDENTITY', null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'ONBOARDING', 'PROOF_OF_RESIDENCE',     true, 1, 1, null, null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'SAVINGS',    'PAYSLIP',                true, 1, 3, 'REVENUS', null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','INCOME_ATTESTATION',     true, 1, 1, 'REVENUS', null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','WEALTH_DECLARATION',     false, 1, 1, null, null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','LAND_TITLE',             true, 1, 1, null, null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'CREDIT_FILE','BET_DQE',                true, 1, 1, null, null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'NOTARY',      'MORTGAGE_CONVENTION',   true, 1, 1, null, null, null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE', 'MORTGAGE',    'FIRE_INSURANCE',        true, 1, 1, null, null, null, date '2026-11-19'),
 
   -- Non-résidents : dossier renforcé (EDD) — commun à tous les services
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE',    'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, current_date),
-  ('PRET_LOTISSEMENT',                    'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, current_date),
-  ('CREDIT_SOLIDAIRE',                    'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, current_date),
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE',    'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, date '2026-11-19'),
+  ('PRET_LOTISSEMENT',                    'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, date '2026-11-19'),
+  ('CREDIT_SOLIDAIRE',                    'ONBOARDING', 'COMPLIANCE_CERTIFICATE', true, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, date '2026-11-19'),
 
   -- Mandat limité : obligatoire dès qu'un mandataire agit pour le client
-  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE',    'ONBOARDING', 'LIMITED_MANDATE', false, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, current_date),
-  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'LIMITED_MANDATE', false, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, current_date)
-on conflict (service_code, stage, doc_type_code, effective_from) do update
-  set required = excluded.required,
-      min_count = excluded.min_count,
-      max_count = excluded.max_count,
-      alternative_group = excluded.alternative_group,
-      condition_expr = excluded.condition_expr,
-      depends_on_doc = excluded.depends_on_doc,
-      deleted_at = null,
-      deleted_by = null;
+  ('PRET_FONCIER_CLASSIQUE_ORDINAIRE',    'ONBOARDING', 'LIMITED_MANDATE', false, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, date '2026-11-19'),
+  ('PRET_FONCIER_CLASSIQUE_PROMOTIONNEL', 'ONBOARDING', 'LIMITED_MANDATE', false, 1, 1, null, 'citizen.affiliation_status = ''non_resident''', null, date '2026-11-19')
+on conflict (service_code, stage, doc_type_code, effective_from) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Politique de capacité d'endettement (versionnée)
@@ -548,15 +535,9 @@ on conflict (service_code, stage, doc_type_code, effective_from) do update
 -- ---------------------------------------------------------------------------
 
 insert into ref.debt_capacity_policy (code, label, description, max_debt_ratio, applies_to, effective_from) values
-  ('DTI_33', 'Capacité d''endettement — palier 33 %', 'Ratio dette / revenu mensuel maximal retenu par CFC. Politique institutionnelle, non réglementaire.', 33.00, 'ALL', current_date),
-  ('DTI_40', 'Capacité d''endettement — palier 40 %', 'Palier majoré applicable aux promoteurs et programmes encadrés.', 40.00, 'PROMOTIONNEL', current_date)
-on conflict (code, effective_from) do update
-  set label = excluded.label,
-      description = excluded.description,
-      max_debt_ratio = excluded.max_debt_ratio,
-      applies_to = excluded.applies_to,
-      deleted_at = null,
-      deleted_by = null;
+  ('DTI_33', 'Capacité d''endettement — palier 33 %', 'Ratio dette / revenu mensuel maximal retenu par CFC. Politique institutionnelle, non réglementaire.', 33.00, 'ALL', date '2026-11-19'),
+  ('DTI_40', 'Capacité d''endettement — palier 40 %', 'Palier majoré applicable aux promoteurs et programmes encadrés.', 40.00, 'PROMOTIONNEL', date '2026-11-19')
+on conflict (code, effective_from) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Seuils d'approbation
@@ -569,19 +550,11 @@ on conflict (code, effective_from) do update
 -- ---------------------------------------------------------------------------
 
 insert into ref.retention_policy (code, label, document_type_code, stage, retention_years, archive_after_years, legal_basis, effective_from) values
-  ('RET_DOSSIER_DEFAULT', 'Conservation de dossier — 10 ans', null, null, 10, 5, 'Code civil : prescription des actions personnelles et mobilières', current_date),
-  ('RET_KYC',             'Conservation des pièces KYC — 10 ans', 'CNI_BIOMETRIQUE', 'ONBOARDING', 10, 5, 'R-2023/01 — lutte contre le blanchiment', current_date),
-  ('RET_NOTARIAL',        'Conservation des actes et hypothèques — 30 ans', null, 'NOTARY', 30, 10, 'Code civil : archives notariales', current_date),
-  ('RET_CREDIT',          'Conservation des pièces de crédit — 10 ans', null, 'CREDIT_FILE', 10, 5, 'COBAC R-2001/07 — documentation des crédits', current_date)
-on conflict (code, effective_from) do update
-  set label = excluded.label,
-      document_type_code = excluded.document_type_code,
-      stage = excluded.stage,
-      retention_years = excluded.retention_years,
-      archive_after_years = excluded.archive_after_years,
-      legal_basis = excluded.legal_basis,
-      deleted_at = null,
-      deleted_by = null;
+  ('RET_DOSSIER_DEFAULT', 'Conservation de dossier — 10 ans', null, null, 10, 5, 'Code civil : prescription des actions personnelles et mobilières', date '2026-11-19'),
+  ('RET_KYC',             'Conservation des pièces KYC — 10 ans', 'CNI_BIOMETRIQUE', 'ONBOARDING', 10, 5, 'R-2023/01 — lutte contre le blanchiment', date '2026-11-19'),
+  ('RET_NOTARIAL',        'Conservation des actes et hypothèques — 30 ans', null, 'NOTARY', 30, 10, 'Code civil : archives notariales', date '2026-11-19'),
+  ('RET_CREDIT',          'Conservation des pièces de crédit — 10 ans', null, 'CREDIT_FILE', 10, 5, 'COBAC R-2001/07 — documentation des crédits', date '2026-11-19')
+on conflict (code, effective_from) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Agences (référentiel minimal ; l'import des agences réelles est un
@@ -613,7 +586,7 @@ on conflict (code) where deleted_at is null do update
 -- clients e-mail ignorent les blocs `<style>`) et un appel à l'action.
 --
 -- Versionnement : le seed pose la **première version** (version 1,
--- `effective_from = current_date`). Il ne réécrit **jamais** une version
+-- `effective_from = date '2026-11-19'`). Il ne réécrit **jamais** une version
 -- existante (`on conflict do nothing`) : passé la première publication, le
 -- catalogue appartient à l'administrateur, qui édite en ouvrant une version
 -- nouvelle. La version 1 reste dans l'historique.
@@ -744,6 +717,33 @@ Votre compte professionnel CFC a été préparé. Utilisez ce lien unique avant 
 Activer mon compte : {{lien}}
 
 Ce lien est à usage unique et expire dans {{duree}}. Ne le transférez pas.
+
+--
+Crédit Foncier du Cameroun — Direction Générale$txt$
+  ),
+  (
+    'BORROWER_INVITATION',
+    'Invitation du nouvel emprunteur',
+    $s$Votre espace CFC Habitat est prêt — {{reference}}$s$,
+    'BORROWER_INVITATION_SENT',
+    'citizen',
+    array['prenom', 'nom', 'duc', 'reference', 'lien', 'date', 'duree', 'logo', 'siege'],
+    $html$<p style="margin:0 0 16px 0;font-size:17px;font-weight:bold;color:#0f5132;">Votre espace emprunteur est prêt</p>
+<p style="margin:0 0 14px 0;">Bonjour {{prenom}} {{nom}},</p>
+<p style="margin:0 0 14px 0;">Le Guichet Unique a ouvert votre Dossier Unique Client (DUC {{duc}}). Votre demande sera suivie par un gestionnaire de votre région.</p>
+<p style="margin:0 0 14px 0;">Activez votre compte avec ce lien unique avant son expiration, puis connectez-vous pour compléter votre profil et déposer vos pièces KYC.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 10px 0;"><tr><td style="background:#0f5132;border-radius:6px;"><a href="{{lien}}" style="display:inline-block;padding:13px 26px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none;">Activer mon compte et compléter mon dossier</a></td></tr></table>
+<p style="margin:0 0 14px 0;font-size:12px;color:#64748b;">Ce lien est à usage unique. Si vous n’attendiez pas cette invitation, contactez votre agence CFC et ne transférez pas le lien.</p>$html$,
+    $txt$Invitation à rejoindre CFC Habitat
+
+Bonjour {{prenom}} {{nom}},
+
+Le Guichet Unique a ouvert votre Dossier Unique Client (DUC {{duc}}). Votre demande sera suivie par un gestionnaire de votre région.
+Complétez votre profil et déposez vos pièces KYC depuis le portail.
+
+Activez votre compte avant l’expiration du lien : {{lien}}
+
+Si vous n’attendiez pas cette invitation, contactez votre agence CFC et ne transférez pas le lien.
 
 --
 Crédit Foncier du Cameroun — Direction Générale$txt$
@@ -1082,7 +1082,7 @@ select
   t.audience,
   true,
   t.variables,
-  current_date,
+  date '2026-11-19',
   null
 from email_templates t
 cross join email_shell s

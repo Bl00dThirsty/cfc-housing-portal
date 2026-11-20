@@ -20,6 +20,7 @@ import {
   deleteDocument,
   findCitizenDossier,
   findDossierByDucCode,
+  listDossierDocumentTypes,
   getSignedDownloadUrl,
   listDocumentTypes,
   requestSignedUpload,
@@ -167,6 +168,18 @@ export async function listDocumentTypesAction(): Promise<ActionResult<DocumentTy
   try {
     await resolveActor();
     return { ok: true, data: await listDocumentTypes() };
+  } catch (error) {
+    return toFailure(error);
+  }
+}
+
+/** Types acceptés pour ce dossier, sa phase, son service et le rôle connecté. */
+export async function listDossierDocumentTypesAction(
+  dossierId: string,
+): Promise<ActionResult<DocumentTypeOption[]>> {
+  try {
+    const actor = await resolveActor();
+    return { ok: true, data: await listDossierDocumentTypes(actor, dossierId) };
   } catch (error) {
     return toFailure(error);
   }

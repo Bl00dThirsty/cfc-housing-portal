@@ -58,8 +58,8 @@ export const CHEMISES: Record<ChemiseCode, ChemiseDefinition> = {
     description:
       "Pièces d'identification du candidat : CNI ou passeport, justificatif de domicile, état civil, revenus, plan d'épargne et carnet d'épargne.",
     owningPole: "G1",
-    readableByPoles: ["G1", "G2", "G6", "DIASPORA", "ADMIN"],
-    readableByRoles: ["GUICHET", "GESTIONNAIRE", "COMITE", "DIASPORA", "PMO", "ANALYSTE", "RECOUVREMENT", "ARCHIVISTE", "AUDIT", "ADMIN"],
+    readableByPoles: ["G2"],
+    readableByRoles: ["GESTIONNAIRE"],
     sortOrder: 1,
   },
   C2: {
@@ -118,6 +118,5 @@ export function readableChemises(role: Role): ChemiseCode[] {
 /** Le rôle peut-il déposer une pièce dans cette chemise ? */
 export function canWriteChemise(role: Role, code: ChemiseCode): boolean {
   if (role === "CITIZEN") return code === "C1";
-  if (role === "ADMIN") return true;
   return CHEMISES[code].readableByRoles.includes(role);
 }

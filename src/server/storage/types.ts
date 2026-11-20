@@ -104,4 +104,10 @@ export interface DocumentTypeOption {
   acceptedMime: string[];
   /** Taille maximale acceptée, en octets. */
   maxSizeBytes: number;
+  /** Chemise autorisée par le type de pièce en base. */
+  chemiseCode: "C1" | "C2" | "C3";
+  /** Étape du dossier qui accepte cette pièce, si la liste est contextualisée. */
+  stageCode?: string;
+  /** Indique si le catalogue demande cette pièce pour cette étape. */
+  required?: boolean;
 }

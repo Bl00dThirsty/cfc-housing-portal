@@ -61,7 +61,7 @@ Bring the existing CFC portal toward a complete, data-backed operating system: e
 - [x] Correct SYSTAC reconciliation filter; retain existing list/grid controls.
 - [x] Add effective permission management for all 12 typed staff roles with a complete capability catalogue, live navigation and route grants, RPC-only database writes, and audited revocations.
 - [x] Reconcile local/staging grants with least-privilege KYC, PMO, Audit, and system-administrator boundaries.
-- [x] Seed six local/staging loan dossiers across five currently modeled phases and populate committee, offer, notary, and planned-disbursement registers; report the unmodeled debt-closure phase instead of fabricating repayment rows.
+- [x] Seed 57 local/staging loan dossiers across five currently modeled phases (17 KYC/savings, 10 in each later phase) and populate committee, offer, notary, and planned-disbursement registers; report the unmodeled debt-closure phase instead of fabricating repayment rows.
 - [ ] Add schema-backed stage uploads/decisions and a versioned seed manifest for supported finance stages.
 - [ ] Model credit contract/repayment lifecycle before seeding debt closure and release rows.
 - [x] Add metadata-only audit history and live governance/workflow/email readiness indicators, with capability-guarded list/card views.

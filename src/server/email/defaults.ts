@@ -176,6 +176,35 @@ export const DEFAULT_EMAIL_TEMPLATES: Record<string, EmailTemplateDefinition> = 
     ].join("\n"),
   },
 
+  BORROWER_INVITATION: {
+    code: "BORROWER_INVITATION",
+    label: "Invitation du nouvel emprunteur",
+    eventType: "BORROWER_INVITATION_SENT",
+    audience: "citizen",
+    variables: ["prenom", "nom", "duc", "reference", "lien", "date", "duree", "logo", "siege"],
+    subject: "Votre espace CFC Habitat est prêt — {{reference}}",
+    html: wrapHtml(
+      "Votre espace emprunteur est prêt",
+      [
+        "<p style=\"margin:0 0 12px 0;\">Bonjour {{prenom}} {{nom}},</p>",
+        "<p style=\"margin:0 0 12px 0;\">Le Guichet Unique a ouvert votre Dossier Unique Client (DUC {{duc}}). Votre demande sera suivie par un gestionnaire de votre région.</p>",
+        "<p style=\"margin:0 0 12px 0;\">Activez votre compte avec ce lien unique avant son expiration, puis connectez-vous pour compléter votre profil et déposer vos pièces KYC.</p>",
+        cta("Activer mon compte et compléter mon dossier", "{{lien}}"),
+        "<p style=\"margin:16px 0 0 0;font-size:12px;color:#6b7280;\">Si vous n’attendiez pas cette invitation, contactez votre agence CFC. Ne transférez pas ce lien.</p>",
+      ].join(""),
+    ),
+    text: [
+      "Bonjour {{prenom}} {{nom}},",
+      "",
+      "Le Guichet Unique a ouvert votre Dossier Unique Client (DUC {{duc}}). Votre demande sera suivie par un gestionnaire de votre région.",
+      "Complétez votre profil et déposez vos pièces KYC depuis le portail.",
+      "",
+      "Activez votre compte avant l’expiration du lien : {{lien}}",
+      "",
+      "Si vous n’attendiez pas cette invitation, contactez votre agence CFC et ne transférez pas le lien.",
+    ].join("\n"),
+  },
+
   RESET_PASSWORD: {
     code: "RESET_PASSWORD",
     label: "Réinitialisation du mot de passe",
