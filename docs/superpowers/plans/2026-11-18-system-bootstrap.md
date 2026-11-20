@@ -89,11 +89,11 @@ The current register pages only show persisted rows when a backing table exists.
 
 ## Workstream 6 — Reproducible system and release checks
 
-- [x] Run `npm run system:local` against the existing local database: apply pending migrations, refresh reference data, idempotently provision 14 local development accounts, and start Next.js. A clean reset/replay remains open.
-- [x] Run `npm run test:system` (40/40), the full Vitest suite (415 passed, 17 intentionally skipped), `npm run typecheck`, and `npm run lint`.
-- [x] Run `npm run build`; the optimized Next.js 15.5.25 production build completed without errors after removing the stale resolver-cache entry.
+- [x] Run `npm run system:local` against the existing local database: apply pending migrations, refresh reference data, idempotently provision the local/staging fixture set (16 staff accounts, 98 borrower accounts, 100 dossiers), and start Next.js. A clean reset/replay remains open.
+- [x] Run `npm run test:system` (47/47), the full Vitest suite (508 passed, 17 intentionally skipped), `npm run typecheck`, and `npm run lint` (verified 2026-11-20).
+- [x] Run `npm run build`; the optimized Next.js 15.5.25 production build completed without errors (verified 2026-11-20).
 - [x] Apply migration `20261118190000_staff_assignment_validity.sql` and run local pgTAP (14/14).
-- [x] Restart `system:local` after a clean Next output rebuild; authenticated smoke checks across citizen, GESTIONNAIRE, GUICHET, notary, committee, and admin routes passed 76/76, including role-specific CRM visibility and database-backed analytics.
+- [x] Restart the local Next.js development server after a clean Next output rebuild; authenticated smoke checks across citizen, GESTIONNAIRE, GUICHET, NOTAIRE, COMITE, and ADMIN routes passed 77/77 (verified 2026-11-20), including role-specific CRM visibility, assigned-manager KYC access, and database-backed analytics.
 - [ ] Re-run local migration status and replay from an empty database; inspect only local Supabase advisors for changed policies/functions/indexes.
 - [ ] Confirm staging credentials name a distinct configured staging project before running `npm run system:staging`. Run hosted staging only when that explicit target exists.
 - [ ] Review the complete diff and secret scan. Keep production untouched until an explicit release review; the production command migrates only after its target and operator confirmation are verified.

@@ -41,6 +41,42 @@ export function buildDemoBorrowerIdentity(email) {
   };
 }
 
+/** Build a tiny, visibly synthetic PDF for local/staging document workflows. */
+export function buildDemoPdfBuffer({ ducCode, docTypeCode }) {
+  const escapeText = (value) => String(value)
+    .replace(/[^\x20-\x7E]/g, "?")
+    .replace(/[\\()]/g, "\\$&");
+  const lines = [
+    "CFC DEMO - NO LEGAL VALUE",
+    `Dossier: ${escapeText(ducCode)}`,
+    `Document type: ${escapeText(docTypeCode)}`,
+    "Synthetic fixture for local or staging review only.",
+  ];
+  const textCommands = lines.map((line, index) =>
+    `${index === 0 ? "/F1 16 Tf" : "/F1 10 Tf"} 0 -${index === 0 ? 0 : 28} Td (${line}) Tj`,
+  ).join("\n");
+  const contentStream = `BT\n72 720 Td\n${textCommands}\nET`;
+  const objects = [
+    "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj",
+    "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj",
+    "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj",
+    "4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj",
+    `5 0 obj << /Length ${Buffer.byteLength(contentStream, "ascii")} >> stream\n${contentStream}\nendstream endobj`,
+  ];
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (const object of objects) {
+    offsets.push(Buffer.byteLength(pdf, "ascii"));
+    pdf += `${object}\n`;
+  }
+  const xrefOffset = Buffer.byteLength(pdf, "ascii");
+  pdf += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
+  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer << /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, "ascii");
+}
+
 export function buildDemoSavingsLedger({ ducCode, totalAmount, monthlySavings, months, asOf }) {
   if (!Number.isInteger(months) || months <= 0) return [];
 
@@ -847,8 +883,10 @@ function buildSupplementalDemoCitizens() {
     const sequence = index + 28;
     const projectCost = 8_000_000 + index * 900_000;
     const monthlyIncome = 720_000 + index * 72_000;
-    const affiliation = scenario.priorClientCase === "premiere_fois" ? "first_time" : "cfc_existing";
     const isDiaspora = scenario.diaspora === true;
+    const affiliation = isDiaspora
+      ? "non_resident"
+      : scenario.priorClientCase === "premiere_fois" ? "first_time" : "cfc_existing";
     const familyName = SUPPLEMENTAL_FAMILY_NAMES[index % SUPPLEMENTAL_FAMILY_NAMES.length];
     const firstName = SUPPLEMENTAL_FIRST_NAMES[Math.floor(index / SUPPLEMENTAL_FAMILY_NAMES.length) % SUPPLEMENTAL_FIRST_NAMES.length];
 

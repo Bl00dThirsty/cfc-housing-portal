@@ -10,10 +10,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { type ClientItem } from "@/domain/entities/client";
+import type { AssignedNameCorrectionRequest } from "@/domain/entities/profile";
 import { ClientBarcodeWidget } from "./client-barcode-widget";
 import { ClientInfoTable } from "./client-info-table";
 import { DossierAssignmentPanel, type AssignmentControl } from "./dossier-assignment-panel";
 import { ClientDucManager } from "../../_components/client-duc-manager";
+import { NameCorrectionReviewPanel } from "@/components/profile/name-correction-review-panel";
 
 const phaseBadgeColors: Record<ClientItem["phase"], string> = {
   "Épargne & KYC": "bg-blue-500/10 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 border-transparent",
@@ -35,9 +37,15 @@ const statusBadgeColors: Record<ClientItem["status"], string> = {
 export function ClientDetailView({
   initialClient,
   assignmentControl,
+  correctionRequests = [],
+  correctionRequestError,
+  canDecideNameCorrection = false,
 }: {
   initialClient: ClientItem;
   assignmentControl?: AssignmentControl;
+  correctionRequests?: AssignedNameCorrectionRequest[];
+  correctionRequestError?: string | null;
+  canDecideNameCorrection?: boolean;
 }) {
   const client = initialClient;
   const [activeTab, setActiveTab] = React.useState<"info" | "docs" | "finance" | "history">("info");
@@ -110,6 +118,20 @@ export function ClientDetailView({
           assignment={assignmentControl}
         />
       ) : null}
+
+      {correctionRequestError ? (
+        <section role="alert" className="rounded-lg border border-destructive/30 bg-card p-4">
+          <h2 className="text-sm font-semibold">Demandes de correction KYC indisponibles</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{correctionRequestError}</p>
+        </section>
+      ) : correctionRequests.map((request) => (
+        <NameCorrectionReviewPanel
+          key={request.id}
+          currentName={client.name}
+          request={request}
+          canDecide={canDecideNameCorrection}
+        />
+      ))}
 
       {/* 3. Underlined Horizontal Tabs & Edit Button (Style Nike Air Max) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/30 pb-px">

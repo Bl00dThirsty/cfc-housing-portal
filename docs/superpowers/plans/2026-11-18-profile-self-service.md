@@ -42,26 +42,26 @@
 **Files:** migration, pgTAP file.
 
 - [ ] Add a failing pgTAP ownership matrix covering client owner, assigned GESTIONNAIRE, unassigned GESTIONNAIRE, another client, same-agency staff, and wrong-region staff.
-- [ ] Add `actor_profile_media` with `actor_id` FK/PK, private object path, and audit timestamps; enable and force RLS.
-- [ ] Add the private `profile-avatars` bucket with raster MIME allowlist and bounded upload size.
-- [ ] Add Storage insert/update/delete policies for the owner path and read policy using the same actor-visibility predicates as profile data.
-- [ ] Add correction-request table with status/reviewer fields, RLS, and a partial unique index permitting one pending request per citizen.
-- [ ] Add narrow self-profile and correction-request database functions. Derive actor from `auth.uid()`; use a restricted search path; grant only required execution.
-- [ ] Add a database guard that rejects direct client legal-name changes after KYC submission, including changes through `saveKycDraftAction`.
-- [ ] Add a confirmed Auth email synchronization trigger for citizen profile and non-deleted dossier email copies.
-- [ ] Run the migration and pgTAP file against the local Supabase stack only. Do not link or mutate staging/production.
+- [x] Add `actor_profile_media` with `actor_id` FK/PK, private object path, and audit timestamps; enable and force RLS.
+- [x] Add the private `profile-avatars` bucket with raster MIME allowlist and bounded upload size.
+- [x] Add Storage insert/update/delete policies for the owner path and read policy using the same actor-visibility predicates as profile data.
+- [x] Add correction-request table with status/reviewer fields, RLS, and a partial unique index permitting one pending request per citizen.
+- [x] Add narrow self-profile and correction-request database functions. Derive actor from `auth.uid()`; use a restricted search path; grant only required execution.
+- [x] Add a database guard that rejects direct client legal-name changes after KYC submission, including changes through `saveKycDraftAction`.
+- [x] Add a confirmed Auth email synchronization trigger for citizen profile and non-deleted dossier email copies.
+- [x] Run the migration and pgTAP file against the local Supabase stack only. Do not link or mutate staging/production.
 
 ## Task 2: Session-derived profile actions and auth projection
 
 **Files:** `src/server/actions/profile.ts`, action tests, `src/server/auth/profile.ts`, `src/lib/auth-data.ts`, `src/lib/auth-context.tsx`.
 
 - [ ] Write failing action tests for unauthorized session, staff/client self-update, forbidden role/agency fields, phone normalization, name correction eligibility, and pending email state.
-- [ ] Implement `updateOwnProfileAction(input: { fullName: string; phone: string })` with a discriminated result `{ ok: true; message: string } | { ok: false; error: string; fieldErrors?: Record<string, string> }`.
-- [ ] Implement create/read/decide actions for name correction; never accept the reviewer actor ID from the browser.
-- [ ] Implement avatar metadata set/remove actions; validate object path belongs to current actor and let Storage RLS enforce object access.
-- [ ] Use Supabase Auth's authenticated email update flow; show a pending confirmation result and do not write the proposed email into profile/dossier tables.
-- [ ] Extend `AuthProfile` and `AdminUser` with `avatarUrl: string | null`; resolve only the current actor's own photo in the auth context using Storage RLS and a short-lived URL.
-- [ ] Refresh server and browser profile state after successful edits; do not cache signed URLs as durable records.
+- [x] Implement `updateOwnProfileAction(input: { fullName: string; phone: string })` with a discriminated result `{ ok: true; message: string } | { ok: false; error: string; fieldErrors?: Record<string, string> }`.
+- [x] Implement create/read/decide actions for name correction; never accept the reviewer actor ID from the browser.
+- [x] Implement avatar metadata set/remove actions; validate object path belongs to current actor and let Storage RLS enforce object access.
+- [x] Use Supabase Auth's authenticated email update flow; show a pending confirmation result and do not write the proposed email into profile/dossier tables.
+- [x] Extend `AuthProfile` and `AdminUser` with `avatarUrl: string | null`; resolve only the current actor's own photo in the auth context using Storage RLS and a short-lived URL.
+- [x] Refresh server and browser profile state after successful edits; do not cache signed URLs as durable records.
 
 ## Task 3: Shared profile editor and account photos
 
@@ -69,9 +69,9 @@
 
 - [ ] Write failing component cases for save/cancel, accessible field errors, photo fallback, pending email confirmation, and staff authorization fields remaining read-only.
 - [ ] Call `npx shadcn@latest docs avatar field input dialog` before changing UI composition; reuse existing installed components.
-- [ ] Add a keyboard-accessible editor with name/phone fields, image preview/progress/replace/remove, and explicit save feedback.
-- [ ] Display email confirmation state without replacing the current Auth email early.
-- [ ] Display submitted client legal name as read-only and show the request form, pending status, reviewer result, and history.
+- [x] Add a keyboard-accessible editor with name/phone fields, image preview/progress/replace/remove, and explicit save feedback.
+- [x] Display email confirmation state without replacing the current Auth email early.
+- [x] Display submitted client legal name as read-only and show the request form, pending status, reviewer result, and history.
 - [ ] Add `AvatarImage` to profile header, user menu, and staff sidebar, retaining the existing initials fallback.
 - [ ] Preserve the existing CFC styling and check mobile layout at narrow viewports.
 
@@ -89,11 +89,11 @@
 ## Task 5: Verification and documentation
 
 - [ ] Run targeted Vitest suites for profile actions, profile components, existing KYC draft flow, and affected client/staff avatar views.
-- [ ] Run `supabase test db --local` and confirm the profile ownership matrix passes.
-- [ ] Run `npm run typecheck` and `npm run lint`.
+- [x] Run `supabase test db --local` and confirm the profile ownership matrix passes (27 assertions, 2026-11-20).
+- [x] Run `npm run typecheck` and `npm run lint` (2026-11-20).
 - [ ] Review `git diff` and `git status` to ensure existing worktree changes and `.tmp-build-check` remain intact.
-- [ ] Update the feature spec with implementation status, migrations, verified commands, and any deployment-only Auth configuration note.
-- [ ] Do not deploy to, seed, or migrate any hosted project as part of this implementation.
+- [x] Update the feature spec with implementation status, migrations, verified commands, and any deployment-only Auth configuration note.
+- [x] Do not deploy to, seed, or migrate any hosted project as part of this implementation.
 
 ## Execution notes
 

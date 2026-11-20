@@ -209,7 +209,7 @@ npx vitest run src/lib/data-table.test.ts
 ```
 Attendu : échec, `Cannot find module '@/lib/data-table'`.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/lib/data-table.ts` :
 
@@ -512,7 +512,7 @@ export function buildFacets<T>(
 }
 `````````
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/lib/data-table.test.ts
@@ -618,7 +618,7 @@ npx vitest run src/stores/data-table-store.test.ts
 ```
 Attendu : échec, `Cannot find module '@/stores/data-table-store'`.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/stores/data-table-store.ts` :
 
@@ -708,7 +708,7 @@ export const useDataTableStore = create<TablesStore>((set) => ({
 }));
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/stores/data-table-store.test.ts
@@ -891,7 +891,7 @@ npx vitest run src/components/data-table/use-data-table.test.tsx
 ```
 Attendu : échec, `Cannot find module '@/components/data-table/use-data-table'`.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/components/data-table/types.ts` :
 
@@ -1217,7 +1217,7 @@ export function useDataTable<T>(input: UseDataTableInput<T>): UseDataTableResult
 export type { DataColumn };
 ``````
 
-- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
+- [x] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```
 npx vitest run src/components/data-table/use-data-table.test.tsx src/domain/entities/dates.test.ts
@@ -1357,7 +1357,7 @@ npx vitest run src/components/data-table/data-table.test.tsx
 ```
 Attendu : échec, `Cannot find module '@/components/data-table/data-table'`.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/components/data-table/data-table.tsx` :
 
@@ -1602,7 +1602,7 @@ export type { DataColumn };
 export default DataTable;
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/components/data-table/data-table.test.tsx
@@ -1709,7 +1709,7 @@ npx vitest run src/components/ui/data-table-toolbar.test.tsx
 ```
 Attendu : échec — la barre actuelle ne connaît ni `tableId` ni le regroupement.
 
-- [ ] **Étape 3 : réécrire la barre d'outils**
+- [x] **Étape 3 : réécrire la barre d'outils**
 
 Remplacer entièrement `src/components/ui/data-table-toolbar.tsx` :
 
@@ -1942,7 +1942,7 @@ export type FilterOption = FacetOption & {
 
 Le reste du fichier est inchangé.
 
-- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
+- [x] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```
 npx vitest run src/components/ui/data-table-toolbar.test.tsx src/components/clients/table/clients-table.test.tsx
@@ -2715,7 +2715,7 @@ Un commit par pôle.
 - Consomme : `DataTable`, `DataTableToolbar`.
 - Produit : les derniers tableaux pilotés par le moteur ; le kanban **explicitement** exclu et motivé dans son fichier.
 
-- [ ] **Étape 1 : migrer le carnet d'épargne**
+- [x] **Étape 1 : migrer le carnet d'épargne**
 
 `client-savings-passbook.tsx` porte des sous-totaux par page : le moteur ne les
 gère pas. La solution est de **calculer les sous-totaux dans les données** et de

@@ -28,7 +28,7 @@
 - Consumes: `ref.approval_threshold(code, effective_from, effective_to, deleted_at)`.
 - Produces: no active rows for `CGR_DELEGATION`, `CRC_ARBITRAGE`, or `PCA_INSTITUTIONNEL` until an approved catalogue replaces them.
 
-- [ ] **Step 1: Add the failing pgTAP assertion**
+- [x] **Step 1: Add the failing pgTAP assertion**
 
 ```sql
 begin;
@@ -54,25 +54,32 @@ rollback;
 Run: `npx supabase test db supabase/tests/unverified_approval_thresholds.test.sql`  
 Expected: one failed assertion reporting the current effective unverified seed rows.
 
-- [ ] **Step 3: Remove the unsupported rows from the repeatable seed**
+- [x] **Step 3: Remove the unsupported rows from the repeatable seed**
 
 Delete the `insert into ref.approval_threshold ...` block for those three codes in `supabase/seed.sql`. Keep the explanatory section heading so it is clear that no threshold catalogue is supplied yet.
 
-- [ ] **Step 4: Generate and add a forward-only migration**
+- [x] **Step 4: Generate and add a forward-only migration**
 
 Run: `npx supabase migration new retire_unverified_approval_thresholds`  
 In the generated file, mark only the three exact codes with `deleted_at = coalesce(deleted_at, now())` and `updated_at = now()` where `deleted_at is null`. Do not touch any other threshold row.
 
-- [ ] **Step 5: Verify the migration and seed boundary locally**
+- [x] **Step 5: Verify the migration and seed boundary locally**
 
 Run: `npx supabase migration up`  
 Run: `npx supabase test db supabase/tests/unverified_approval_thresholds.test.sql`  
 Expected: the migration applies to the local stack and the pgTAP assertion passes.
 
-- [ ] **Step 6: Check the patch**
+- [x] **Step 6: Check the patch**
 
 Run: `git diff --check`  
 Expected: no whitespace errors. Confirm the generated migration contains only exact-code retirement and `supabase/seed.sql` no longer inserts these three values.
+
+## Local verification audit — 2026-11-20
+
+- `supabase/seed.sql` contains no insert rows for the three unverified codes.
+- Migration `20261119115728_retire_unverified_approval_thresholds.sql` is applied to local Supabase.
+- `npx supabase test db supabase/tests/unverified_approval_thresholds.test.sql` passes (1/1 assertion).
+- The historical pre-migration failing run was not recorded, so Step 2 remains unchecked. `git diff --check` passed after this audit.
 
 ## Follow-up plans
 

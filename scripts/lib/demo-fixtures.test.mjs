@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildDemoBorrowerIdentity,
+  buildDemoPdfBuffer,
   buildDemoSavingsLedger,
   buildRegisterFixtures,
   DEMO_CITIZENS,
@@ -122,6 +123,19 @@ test("zero savings months produce an empty ledger", () => {
     months: 0,
     asOf: "2026-11-19",
   }), []);
+});
+
+test("synthetic document files are validly marked as non-legal PDF fixtures", () => {
+  const pdf = buildDemoPdfBuffer({ ducCode: "CFC-DEV-0001", docTypeCode: "CNI_BIOMETRIQUE" });
+  const contents = pdf.toString("ascii");
+
+  assert.ok(Buffer.isBuffer(pdf));
+  assert.ok(pdf.length > 200);
+  assert.ok(contents.startsWith("%PDF-1.4"));
+  assert.ok(contents.includes("CFC DEMO - NO LEGAL VALUE"));
+  assert.ok(contents.includes("CFC-DEV-0001"));
+  assert.ok(contents.includes("CNI_BIOMETRIQUE"));
+  assert.ok(contents.includes("startxref"));
 });
 
 test("register fixtures are deterministic and tagged", () => {

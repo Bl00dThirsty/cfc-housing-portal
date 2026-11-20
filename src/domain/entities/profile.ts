@@ -5,6 +5,14 @@ export type OwnProfileInput = {
   phone: string;
 };
 
+/** Minimal assigned-manager projection for one pending legal-name correction. */
+export interface AssignedNameCorrectionRequest {
+  id: string;
+  requestedFullName: string;
+  reason: string;
+  createdAtLabel: string;
+}
+
 export type ValidOwnProfile = {
   fullName: string;
   phone: string | null;

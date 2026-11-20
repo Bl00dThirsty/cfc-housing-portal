@@ -346,14 +346,22 @@ async function main() {
     assignmentDetails ? `status=${assignmentDetails.status}` : "dossier démo absent ou lecture refusée",
   );
 
-  const kyc = await fetchPage("/portail-cfc/actors/agency/kyc-validation", agent.cookie);
-  check("la file KYC est servie à l'agent", kyc.status === 200, `status=${kyc.status}`);
+  const kyc = await fetchPage("/portail-cfc/actors/agency/kyc-validation", manager.cookie);
+  check("la file KYC est servie au GESTIONNAIRE", kyc.status === 200, `status=${kyc.status}`);
   check(
     "la file KYC rend son contenu",
     kyc.body.includes("Validation des dossiers KYC"),
     kyc.body.includes("Validation des dossiers KYC")
       ? "marqueur « Validation des dossiers KYC » présent"
       : "marqueur « Validation des dossiers KYC » absent",
+  );
+  const guichetKyc = await fetchPage("/portail-cfc/actors/agency/kyc-validation", agent.cookie);
+  check(
+    "le GUICHET ne peut pas ouvrir la file KYC",
+    guichetKyc.status >= 300 &&
+      guichetKyc.status < 400 &&
+      (guichetKyc.location ?? "").includes("/portail-cfc/acces-refuse"),
+    `status=${guichetKyc.status} location=${guichetKyc.location ?? "—"}`,
   );
 
   // Le paramétrage est réservé à l'administrateur : un agent sans
@@ -413,8 +421,8 @@ async function checkRoleIsolation() {
     {
       email: "guichet@cfc.cm",
       label: "GUICHET",
-      allow: ["/portail-cfc/clients", "/portail-cfc/actors/agency"],
-      deny: ["/portail-cfc/analytics", "/portail-cfc/settings/catalogue", "/portail-cfc/kanban"],
+      allow: ["/portail-cfc/clients", "/portail-cfc/actors/agency", "/portail-cfc/analytics", "/portail-cfc/kanban"],
+      deny: ["/portail-cfc/settings/catalogue"],
     },
     {
       email: "notaire@cfc.cm",
@@ -425,8 +433,8 @@ async function checkRoleIsolation() {
     {
       email: "comite@cfc.cm",
       label: "COMITE",
-      allow: ["/portail-cfc/actors/credit-committees", "/portail-cfc/kanban"],
-      deny: ["/portail-cfc/analytics", "/portail-cfc/settings/catalogue"],
+      allow: ["/portail-cfc/actors/credit-committees", "/portail-cfc/kanban", "/portail-cfc/analytics"],
+      deny: ["/portail-cfc/settings/catalogue"],
     },
     {
       email: "emprunteur@cfc.cm",
@@ -467,9 +475,8 @@ async function checkRoleIsolation() {
  * rendu avec une session réelle, pas par une inspection visuelle.
  */
 async function checkCitizenJourney() {
-  // Un dossier **en attente d'orientation** n'affiche pas de graphiques :
-  // un tableau de bord vide serait un mensonge. On contrôle donc les deux
-  // états — celui qui dépose ses pièces, et celui qui attend son conseiller.
+  // Ce compte suit plusieurs demandes. Vérifier son premier DUC explicitement
+  // évite de tester le dossier le plus récent à la place de celui en attente.
   const citizen = await signIn("emprunteur.pieces@cfc.cm");
 
   const dashboard = await fetchPage("/portail-client", citizen.cookie);
@@ -481,13 +488,20 @@ async function checkCitizenJourney() {
   check("le tableau de bord porte ses graphiques", dashboard.body.includes("recharts"));
 
   const awaiting = await signIn("emprunteur@cfc.cm");
-  const waiting = await fetchPage("/portail-client", awaiting.cookie);
+  const { data: waitingDossier, error: waitingDossierError } = await awaiting.supabase
+    .from("dossiers")
+    .select("id")
+    .eq("duc_code", "CFC-DEV-0001")
+    .maybeSingle();
+  const waiting = waitingDossier?.id && !waitingDossierError
+    ? await fetchPage(`/portail-client/demandes/${waitingDossier.id}`, awaiting.cookie)
+    : { status: 0, body: "" };
   check(
-    "un dossier en attente d'orientation affiche l'écran d'attente",
+    "le DUC en attente d'orientation affiche l'écran d'attente",
     waiting.status === 200 &&
       waiting.body.includes("conseiller") &&
       !waiting.body.includes("recharts"),
-    "un dossier qui attend un conseiller ne montre pas de graphiques vides",
+    waitingDossierError ? "lecture de CFC-DEV-0001 refusée" : "la demande ciblée ne montre pas de graphiques vides",
   );
 
   const tracking = await fetchPage("/tracking", citizen.cookie);

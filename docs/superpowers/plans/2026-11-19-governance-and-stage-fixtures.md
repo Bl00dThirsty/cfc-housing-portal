@@ -33,14 +33,14 @@ Bring the existing CFC portal toward a complete, data-backed operating system: e
 
 ### 3. Phase-aware staff work
 
-1. Link each dossier phase to effective service-document requirements and receiving staff roles/assignments.
-2. Enforce the same phase, role, dossier assignment, chemise, and document-type rule in the upload action and database policy/RPC.
-3. Add phase-specific staff upload/validation/decision controls to GUICHET, GESTIONNAIRE, RISQUES_BET, COMITE, NOTAIRE, and disbursement workspaces according to approved capabilities.
-4. Persist decisions, reasons, audit events, and next-owner notifications; retain current KYC isolation.
+1. [x] Link each dossier phase to effective service-document requirements and receiving staff roles/assignments through the persisted document stage and role-policy catalogues.
+2. [x] Enforce the same phase, role, dossier assignment, chemise, and document-type rule in the upload action and database policy/RPC.
+3. [x] Show stage-eligible upload types and add validation/rejection controls to the shared DUC viewer only when the signed-in role, persisted capability, dossier scope, active phase, requirement, document state, and stage-role policy allow the action.
+4. [x] Persist decisions, rejection reasons, and dossier audit events through the atomic decision RPC; notify the borrower after the decision and retain current KYC isolation. Assignment changes already create an in-app notification for the newly assigned manager.
 
 ### 4. Local/staging workflow fixtures
 
-1. [~] Extend stable local/staging synthetic cases across KYC/épargne, BET, committee, notary, and disbursement stages. Add a formal versioned manifest and closing fixture after the credit lifecycle model is available.
+1. [~] Extend stable local/staging synthetic cases across KYC/épargne, BET, committee, notary, and disbursement stages. The current local run has 100 dossiers (20 per modeled phase) and 2,656 catalog-driven private synthetic PDFs. Add a formal versioned manifest and closing fixture after the credit lifecycle model is available.
 2. [~] Use real catalogues, assignments, savings ledger entries, committee rows, offers, notary instruments, and planned disbursement rows where the current schema supports them. Do not invent repayment or release rows without a credit-contract ledger.
 3. Make every fixture idempotent and tagged; print coverage and inserted/updated/skipped counts without exposing secrets.
 4. Verify re-seeding does not duplicate actors, assignments, ledger entries, notifications, or documents; verify production rejection.
@@ -61,8 +61,9 @@ Bring the existing CFC portal toward a complete, data-backed operating system: e
 - [x] Correct SYSTAC reconciliation filter; retain existing list/grid controls.
 - [x] Add effective permission management for all 12 typed staff roles with a complete capability catalogue, live navigation and route grants, RPC-only database writes, and audited revocations.
 - [x] Reconcile local/staging grants with least-privilege KYC, PMO, Audit, and system-administrator boundaries.
-- [x] Seed 57 local/staging loan dossiers across five currently modeled phases (17 KYC/savings, 10 in each later phase) and populate committee, offer, notary, and planned-disbursement registers; report the unmodeled debt-closure phase instead of fabricating repayment rows.
-- [ ] Add schema-backed stage uploads/decisions and a versioned seed manifest for supported finance stages.
+- [~] Seed 100 local dossiers across five currently modeled phases (20 per phase), with 98 borrower accounts, 16 staff accounts, 2,656 private synthetic PDF documents, savings ledgers, committee, offer, notary, and planned-disbursement registers. Local data was verified; hosted staging was not seeded in this audit. Report the unmodeled debt-closure phase instead of fabricating repayment rows.
+- [x] Add schema-backed stage-specific uploads and review decisions with a reasoned rejection UI; current-phase, requirement, capability, scope, and role policy checks are covered by unit/server-action/component tests and the existing atomic database RPC.
+- [ ] Add a versioned seed manifest for supported finance stages.
 - [ ] Model credit contract/repayment lifecycle before seeding debt closure and release rows.
 - [x] Add metadata-only audit history and live governance/workflow/email readiness indicators, with capability-guarded list/card views.
 - [ ] Add persisted external-party directories.

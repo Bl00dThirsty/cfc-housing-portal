@@ -248,7 +248,7 @@ npx vitest run src/domain/entities/kyc-profile.test.ts
 ```
 Attendu : échec, module introuvable.
 
-- [ ] **Étape 3 : écrire les types**
+- [x] **Étape 3 : écrire les types**
 
 Créer `src/domain/entities/kyc.ts` : les types `KycIdentity`, `KycResidence`,
 `KycEmployment`, `KycCompliance`, `KycProfile`, plus les listes
@@ -258,7 +258,7 @@ Créer `src/domain/entities/kyc.ts` : les types `KycIdentity`, `KycResidence`,
 
 Chaque liste est **readonly** et typée par son union — pas de `string[]`.
 
-- [ ] **Étape 4 : écrire les règles**
+- [x] **Étape 4 : écrire les règles**
 
 Créer `src/domain/entities/kyc-profile.ts` :
 
@@ -531,7 +531,7 @@ rg -n "create table.*public\.(dossiers|citizen_profiles|actors)" supabase/migrat
 `citizen_profiles` porte déjà `cni_raw` (et sa colonne générée `cni_normalised`,
 **unique**) : l'inscription s'y appuie, elle n'a pas à créer sa colonne.
 
-- [ ] **Étape 2 : écrire la migration du parcours**
+- [x] **Étape 2 : écrire la migration du parcours**
 
 Créer `supabase/migrations/20260101000022_kyc_onboarding.sql` :
 
@@ -710,7 +710,7 @@ create policy kyc_documents_write on public.kyc_documents for all to authenticat
   with check (citizen_id = (select auth.uid()));
 ```
 
-- [ ] **Étape 3 : appliquer et vérifier**
+- [x] **Étape 3 : appliquer et vérifier**
 
 ```
 supabase db reset --local
@@ -756,7 +756,7 @@ Le catalogue existe déjà : **on ne le recrée pas**, on l'étend. Vérifie
 notamment les colonnes réelles de `ref.product_rate` et de `ref.document_type`
 avant d'écrire les `insert`.
 
-- [ ] **Étape 2 : écrire la migration**
+- [x] **Étape 2 : écrire la migration**
 
 Dans `023` :
 
@@ -790,7 +790,7 @@ de dépôt ; emploie des codes en majuscules, sans accent, sans espace.
 ⚠️ Le CTD (prêt aux collectivités) **n'est pas** ajouté : il n'est pas
 destiné aux particuliers.
 
-- [ ] **Étape 3 : appliquer et vérifier**
+- [x] **Étape 3 : appliquer et vérifier**
 
 ```
 supabase db reset --local
@@ -1032,7 +1032,7 @@ et « envoyée » prolongent le vocabulaire des pièces."
 - Consomme : `src/domain/entities/kyc-profile.ts` (tâche 1), la migration 022.
 - Produit : `saveKycDraftAction`, `submitKycAction`, `getKycProfileQuery`.
 
-- [ ] **Étape 1 : le nouveau découpage des étapes**
+- [x] **Étape 1 : le nouveau découpage des étapes**
 
 Dans `src/domain/entities/onboarding.ts`, la liste `ONBOARDING_STEPS` devient :
 
@@ -1055,7 +1055,7 @@ coût du réalignement du parcours.
 L'**inscription** sort du parcours : elle a sa propre route `/inscription`.
 Le parcours commence au KYC.
 
-- [ ] **Étape 2 : les actions serveur**
+- [x] **Étape 2 : les actions serveur**
 
 Créer `src/server/actions/kyc-profile.ts` :
 
@@ -1073,7 +1073,7 @@ Créer `src/server/actions/kyc-profile.ts` :
 Créer `src/server/queries/kyc-profile.ts` : `getKycProfileQuery(citizenId)` —
 lit le profil, le dossier, l'état KYC et les pièces.
 
-- [ ] **Étape 3 : les quatre écrans**
+- [x] **Étape 3 : les quatre écrans**
 
 Chaque écran est un composant client qui lit le profil, propose ses champs,
 et appelle `saveKycDraftAction` en **auto-sauvegarde** (debounce ~600 ms).
@@ -1093,7 +1093,7 @@ et appelle `saveKycDraftAction` en **auto-sauvegarde** (debounce ~600 ms).
   attestation sur l'honneur (case, mention « Lu et approuvé », date et heure
   affichées).
 
-- [ ] **Étape 4 : l'assistant**
+- [x] **Étape 4 : l'assistant**
 
 `kyc-wizard.tsx` : barre de progression (« Écran 1 sur 4 » pour les quatre
 écrans du KYC), auto-sauvegarde, bouton « Précédent », bouton « Continuer »
@@ -1101,7 +1101,7 @@ et appelle `saveKycDraftAction` en **auto-sauvegarde** (debounce ~600 ms).
 reste à remplir, **récapitulatif final** avant validation, et **avertissement
 informatif** (non bloquant) pour une nationalité non camerounaise.
 
-- [ ] **Étape 5 : router la route**
+- [x] **Étape 5 : router la route**
 
 `src/app/onboarding/page.tsx` devient le **routeur** du parcours : selon
 `dossiers.onboarding_state`, il affiche le KYC, le choix du service, les
@@ -1134,7 +1134,7 @@ nationalité non camerounaise."
 - Consomme : `DocumentUploader` (`src/components/upload/document-uploader.tsx`), `markProvidedDocuments`.
 - Produit : l'écran des pièces facultatives du KYC.
 
-- [ ] **Étape 1 : l'écran**
+- [x] **Étape 1 : l'écran**
 
 CNI recto-verso, justificatif de domicile de moins de 3 mois, justificatif de
 revenus. Dépôt par **glisser-déposer**, par **appareil photo** (`capture`) ou
@@ -1147,7 +1147,7 @@ composant de dépôt. Ce que la simulation du cahier des charges demandait —
 « ne conserver que le nom, le type, la taille et la date » — est obtenu en
 écrivant ces métadonnées dans `kyc_documents`, **sans** dupliquer les octets.
 
-- [ ] **Étape 2 : le marquage « déjà fournie »**
+- [x] **Étape 2 : le marquage « déjà fournie »**
 
 La fonction `markProvidedDocuments` (tâche 3) marque les pièces déjà
 fournies ; le service les affiche alors « déjà fournie » et **ne les demande
@@ -1180,7 +1180,7 @@ la liste d'un service et n'est jamais demandée deux fois."
   `PRIOR_CLIENT_CASES`, `advisorForSequence` (tâche 1).
 - Produit : `chooseServiceAction`, `setPriorClientCaseAction`.
 
-- [ ] **Étape 1 : les cartes**
+- [x] **Étape 1 : les cartes**
 
 `service-picker.tsx` : une carte par service **lu de la base** (`listServices()`),
 complétée par `ref.service.audience`, `ref.product` (apport, durée) et
@@ -1189,7 +1189,7 @@ complétée par `ref.service.audience`, `ref.product` (apport, durée) et
 
 Le CTD **n'apparaît pas** : il n'est pas au catalogue.
 
-- [ ] **Étape 2 : la fenêtre à trois choix**
+- [x] **Étape 2 : la fenêtre à trois choix**
 
 À la sélection d'un service, une fenêtre demande la situation (les trois
 `PRIOR_CLIENT_CASES`). **Cas 3** (`deja_au_cfc`) : `onboarding_state` passe à
@@ -1202,7 +1202,7 @@ colonne existe), et met `onboarding_state = 'suspension'`.
 Le demandeur peut **revenir** sur son choix tant qu'il n'a pas transmis son
 dossier.
 
-- [ ] **Étape 3 : le tableau de bord d'attente**
+- [x] **Étape 3 : le tableau de bord d'attente**
 
 Quand `onboarding_state` est `suspension` ou `en_examen`, l'espace citoyen
 affiche un **tableau de bord vide, sans fonctionnalité**, avec un message
@@ -1241,7 +1241,7 @@ d'attente qui nomme le conseiller."
 - Consomme : `listServices()`, `markProvidedDocuments`, `advisorForSequence`.
 - Produit : `submitServiceApplicationAction`.
 
-- [ ] **Étape 1 : l'écran**
+- [x] **Étape 1 : l'écran**
 
 Liste des pièces du service **groupée par catégorie** (emprunteur, projet,
 programme, partenaires), avec l'état de chacune : **à fournir**, **déjà
@@ -1348,7 +1348,7 @@ décision d'éligibilité, réinitialisation des données."
 - Consomme : `src/domain/workflows/tracking.ts` (`IndexedStep`).
 - Produit : `STEP_RUPTURES`, `rupturesForStep(code)`.
 
-- [ ] **Étape 1 : le domaine**
+- [x] **Étape 1 : le domaine**
 
 Créer `src/domain/entities/ruptures.ts` : les **points de rupture** du
 diagramme en couloirs de la figure 7, associés aux étapes :
@@ -1376,7 +1376,7 @@ export function rupturesForStep(code: string): string[] {
 }
 ```
 
-- [ ] **Étape 2 : l'affichage**
+- [x] **Étape 2 : l'affichage**
 
 `rupture-points.tsx` : une ligne discrète sous l'étape, dans le ton
 `text-subtle`, qui nomme le point de rupture. Le suivi en affiche **un seul**
@@ -1408,7 +1408,7 @@ titre foncier, pas de l'instruction."
 - Consomme : le serveur de développement.
 - Produit : les règles du parcours.
 
-- [ ] **Étape 1 : ajouter les règles**
+- [x] **Étape 1 : ajouter les règles**
 
 Suivre le format des règles existantes :
 

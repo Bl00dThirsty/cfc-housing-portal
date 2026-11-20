@@ -97,7 +97,7 @@ npx vitest run src/config/rbac/role-header.test.ts
 ```
 Attendu : échec, module introuvable.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/config/rbac/role-header.ts` :
 
@@ -243,7 +243,7 @@ export function visibleQuickActions(role: AppRole): QuickAction[] {
 > rg -n "AppRole" src/lib/auth-data.ts
 > ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/config/rbac/role-header.test.ts
@@ -313,7 +313,7 @@ npx vitest run src/components/layout/portal-header.test.tsx
 ```
 Attendu : échec, module introuvable.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/components/layout/portal-header.tsx` :
 
@@ -377,7 +377,7 @@ export function PortalHeader({
 export default PortalHeader;
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/components/layout/portal-header.test.tsx
@@ -402,7 +402,7 @@ git commit -m "feat(header): la coque unique d'en-tête"
 - Consomme : `PortalHeader` (tâche 2).
 - Produit : `ClientHeader` — inchangé pour l'utilisateur, mais bâti sur la coque.
 
-- [ ] **Étape 1 : réécrire le composant**
+- [x] **Étape 1 : réécrire le composant**
 
 ```tsx
 "use client";
@@ -501,7 +501,7 @@ export function ClientHeader() {
 > (version `md:flex` et version `md:hidden` dans le même fichier) est
 > supprimée au profit d'une seule, portée par la coque.
 
-- [ ] **Étape 2 : vérifier**
+- [x] **Étape 2 : vérifier**
 
 ```bash
 npm run typecheck && npm run lint && npm test
@@ -525,7 +525,7 @@ git commit -m "refactor(header): l'en-tête citoyen devient une composition de l
 - Consomme : `PortalHeader`, `roleHeaderConfigFor`, `visibleQuickActions`.
 - Produit : un en-tête de console qui porte le pôle, la recherche scopée et les actions rapides du rôle.
 
-- [ ] **Étape 1 : lire le rôle disponible**
+- [x] **Étape 1 : lire le rôle disponible**
 
 `AdminShell` est un composant client ; le rôle vient de `AuthProvider`.
 `src/lib/auth-context.tsx` expose `useAuth()`, dont le profil porte le rôle :
@@ -538,7 +538,7 @@ const role = profile?.role ?? "CITIZEN";
 C'est le **même** chemin que celui de `admin-sidebar.tsx` — un seul accès à
 l'identité, jamais deux.
 
-- [ ] **Étape 2 : réécrire l'en-tête**
+- [x] **Étape 2 : réécrire l'en-tête**
 
 ```tsx
 "use client";
@@ -626,7 +626,7 @@ la cloche :
 ))}
 ```
 
-- [ ] **Étape 3 : vérifier**
+- [x] **Étape 3 : vérifier**
 
 ```bash
 npm run typecheck && npm run lint && npm test
@@ -650,7 +650,7 @@ git commit -m "feat(header): l'en-tête de la console porte le pôle, la recherc
 - Consomme : le serveur de développement.
 - Produit : deux règles supplémentaires.
 
-- [ ] **Étape 1 : ajouter les règles**
+- [x] **Étape 1 : ajouter les règles**
 
 Suivre le format des règles existantes :
 
@@ -672,7 +672,7 @@ Suivre le format des règles existantes :
 }
 ```
 
-- [ ] **Étape 2 : vérifier**
+- [x] **Étape 2 : vérifier**
 
 ```bash
 node scripts/smoke.mjs

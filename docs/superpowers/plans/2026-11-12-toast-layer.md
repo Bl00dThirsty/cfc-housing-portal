@@ -45,14 +45,14 @@
 - Consomme : rien.
 - Produit : `CfcToaster` — le toaster unique, thémé.
 
-- [ ] **Étape 1 : installer la dépendance**
+- [x] **Étape 1 : installer la dépendance**
 
 ```bash
 npm install sonner@^2.0.0
 ```
 Vérifier que `package.json` porte `"sonner": "^2.0.0"` dans `dependencies`.
 
-- [ ] **Étape 2 : créer le toaster**
+- [x] **Étape 2 : créer le toaster**
 
 Créer `src/components/ui/toaster.tsx` :
 
@@ -90,7 +90,7 @@ export function CfcToaster() {
 export default CfcToaster;
 ```
 
-- [ ] **Étape 3 : monter le toaster à la racine**
+- [x] **Étape 3 : monter le toaster à la racine**
 
 Dans `src/app/layout.tsx`, importer et rendre le toaster **à l'intérieur** de
 `ThemeProvider` et **à côté** de `ShellLayout` :
@@ -111,7 +111,7 @@ import { CfcToaster } from "@/components/ui/toaster";
         </ThemeProvider>
 ```
 
-- [ ] **Étape 4 : vérifier**
+- [x] **Étape 4 : vérifier**
 
 ```bash
 npm run typecheck && npm run lint
@@ -198,7 +198,7 @@ npx vitest run src/lib/action-feedback.test.ts
 ```
 Attendu : échec, module introuvable.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/lib/action-feedback.ts` :
 
@@ -236,7 +236,7 @@ export function reportError(error: string): void {
 }
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/lib/action-feedback.test.ts
@@ -301,7 +301,7 @@ import { reportAction } from "@/lib/action-feedback";
 Si l'action de déconnexion ne renvoie pas `{ ok, error }`, utiliser
 `reportError("Vous êtes déconnecté.")` après l'appel.
 
-- [ ] **Étape 4 : vérifier**
+- [x] **Étape 4 : vérifier**
 
 ```bash
 npm run typecheck && npm run lint && npm test
@@ -326,7 +326,7 @@ git commit -m "feat(toast): la connexion et la déconnexion se disent"
 - Consomme : `reportError` (tâche 2).
 - Produit : un toast quand une notification arrive ; un toast quand un message de support arrive.
 
-- [ ] **Étape 1 : faire sonner la cloche à la réception**
+- [x] **Étape 1 : faire sonner la cloche à la réception**
 
 Dans `src/components/notifications/notification-bell.tsx`, le canal realtime
 appelle `load()`. Il faut connaître **ce qui** vient d'arriver : la charge
@@ -354,7 +354,7 @@ par :
 
 avec l'import `import { toast } from "sonner";` en tête de fichier.
 
-- [ ] **Étape 2 : faire sonner le fil de support**
+- [x] **Étape 2 : faire sonner le fil de support**
 
 Dans `src/components/support/support-chat.tsx`, un message reçu par diffusion
 arrive dans `useRealtimeChat`. Le composant n'a pas de hook direct sur la
@@ -380,7 +380,7 @@ avec `import { toast } from "sonner";`.
 > l'expéditeur par Supabase ; si ce comportement change, il faut filtrer sur
 > `received.user.name !== username`.
 
-- [ ] **Étape 3 : vérifier**
+- [x] **Étape 3 : vérifier**
 
 ```bash
 npm run typecheck && npm run lint && npm test

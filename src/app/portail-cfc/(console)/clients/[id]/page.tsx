@@ -6,6 +6,7 @@ import { ClientDetailView } from "./_components/client-detail-view";
 import { getServerProfile } from "@/server/auth/profile";
 import { getRegionalManagersForDossier } from "@/server/queries/regional-managers";
 import { getOperationalDossiers } from "@/server/queries/operational-dossiers";
+import { getAssignedNameCorrectionRequests } from "@/server/queries/profile-corrections";
 import { getStaffDossiers } from "@/server/queries/staff-dossiers";
 
 function unavailable(message: string) {
@@ -28,7 +29,15 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
     const dossier = result.dossiers[0];
     if (!dossier) notFound();
     if (dossier.ownerUserId !== profile.actorId) return unavailable("Ce dossier n’appartient pas à votre portefeuille.");
-    return <ClientDetailView initialClient={dossier} />;
+    const corrections = await getAssignedNameCorrectionRequests(id);
+    return (
+      <ClientDetailView
+        initialClient={dossier}
+        correctionRequests={corrections.ok ? corrections.requests : []}
+        correctionRequestError={corrections.ok ? null : corrections.error}
+        canDecideNameCorrection={corrections.ok && corrections.canDecide}
+      />
+    );
   }
 
   // Every other role sees an allowlisted summary; ADMIN may only reassign it.

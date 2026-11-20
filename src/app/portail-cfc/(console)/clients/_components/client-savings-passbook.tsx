@@ -65,7 +65,7 @@ import {
 /* ── Helpers ────────────────────────────────────────────────────── */
 
 const channelConfig: Record<
-  SavingsChannel,
+  string,
   { icon: React.ReactNode; color: string }
 > = {
   "Guichet CFC": {
@@ -184,7 +184,11 @@ const SAVINGS_COLUMNS: DataColumn<SavingsTransaction>[] = [
     groupLabel: (value) => value.replace("Virement SWIFT (Diaspora)", "SWIFT"),
     facetLabel: (value) => value.replace("Virement SWIFT (Diaspora)", "SWIFT"),
     render: (row) => {
-      const chCfg = channelConfig[row.channel];
+      const chCfg = channelConfig[row.channel] ?? {
+        icon: <CreditCard className="size-3" />,
+        color:
+          "bg-slate-500/10 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300",
+      };
       return (
         <Badge
           variant="outline"

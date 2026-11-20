@@ -17,7 +17,7 @@ The administrator console is a control plane. It does not grant administrators u
 - Audit history is append-only metadata for administrative/configuration changes. It stores the actor, actor role, operation, table, safe entity key, and timestamp; it intentionally stores no row snapshots, email body/recipient, password/reset token, credentials, or KYC payload.
 - Email settings, delivery actions, and provider tests use email capabilities. SMTP/Resend values are read server-side; the admin page returns only non-secret connection metadata and booleans for credential presence.
 - `ref.role_capability` is the effective staff grant source. Server profiles and the middleware load the active grants; action guards, capability-gated navigation, route access, and RLS use that set. TypeScript retains a role/capability catalogue for validation and older pure-policy callers, never as a fallback when an authenticated staff profile has an empty or unreadable grant set.
-- The current fixture seeder provisions staff and three client dossiers at selected phases. It writes operational rows to Supabase rather than rendering mock records in components, but it does not yet demonstrate every workflow module.
+- The current local fixture seeder provisions 16 staff accounts, 98 borrower accounts, and 100 dossiers (20 in each of five modeled phases), with 2,656 catalog-driven private synthetic PDF files. It writes operational rows to Supabase rather than rendering mock records in components, but it does not yet demonstrate every workflow module or seed a versioned manifest.
 - Card/list controls already exist for the borrower register and DUC documents. The operational register and dossier queue also have view toggles. New work should retain and verify these controls, then add views only to screens where an alternate view materially helps.
 - The CFC seed includes approval-threshold rows and product values that conflict with the provided meeting notes or public CFC pages. These are unverified, not an executable policy. The source research documents the conflicts; do not replace them with guessed public thresholds.
 
@@ -326,7 +326,7 @@ classDiagram
 - A missing role/capability catalogue fails closed. The app cannot fall back to a TypeScript grant matrix when the database query fails.
 - An invalid or unapproved product/delegation catalogue blocks downstream eligibility or credit approval; it does not substitute demo values.
 - Staging and production project references must be distinct. Production command keeps its confirmation and never invokes fixture seeding or `db reset`.
-- The local seed now covers five of six phases with 57 dossiers and creates committee, accepted-offer, notary, and planned-disbursement rows linked to the seeded dossiers. `closing_release` stays unseeded until the schema has a credit-contract/repayment lifecycle; do not fabricate a paid loan or mortgage release.
+- The local seed now covers five of six phases with 100 dossiers (20 per modeled phase), 98 borrower accounts, and all 16 staff accounts. It creates 2,656 synthetic PDF documents from the active service requirements, stage catalogue, and upload policies in the private storage bucket; rows cover uploaded, under-review, validated, and rejected states. Linked savings, committee, offer, notary, and planned-disbursement records are also populated. `closing_release` stays unseeded until the schema has a credit-contract/repayment lifecycle; do not fabricate a paid loan or mortgage release.
 
 ## Acceptance criteria
 

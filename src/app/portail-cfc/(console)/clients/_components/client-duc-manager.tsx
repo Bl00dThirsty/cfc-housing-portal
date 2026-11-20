@@ -91,6 +91,11 @@ export function ClientDucManager({ client }: ClientDucManagerProps) {
     router.refresh();
   };
 
+  const handleDocumentDecision = () => {
+    setPreview(null);
+    router.refresh();
+  };
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -235,6 +240,7 @@ export function ClientDucManager({ client }: ClientDucManagerProps) {
         client={client}
         open={Boolean(preview)}
         onOpenChange={(open) => { if (!open) setPreview(null); }}
+        onDecisionComplete={handleDocumentDecision}
       />
     </section>
   );

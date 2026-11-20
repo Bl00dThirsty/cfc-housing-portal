@@ -31,10 +31,10 @@
 - Produce `BorrowerRequestStatus`, `BorrowerRequestCardModel`, `canWithdrawBorrowerRequest(state)`, and `selectAgencyForBorrower(agencies, region, isDiaspora, routableRegions)`.
 - Agency selection receives persisted agency/active-manager data; it must never invent an agency or advisor.
 
-- [ ] Write failing tests for a draft, paused, under-review, active, and closed request card; `canWithdrawBorrowerRequest` is true only for `kyc`, `service`, or `documents`; region normalization selects a real agency whose region has an active manager; no candidate returns `null`.
+- [x] Write tests for a draft, paused, under-review, active, and closed request card; `canWithdrawBorrowerRequest` is true only for `kyc`, `service`, or `documents`; region normalization selects a real agency whose region has an active manager; no candidate returns `null`.
 - [ ] Run `npx vitest run src/domain/entities/borrower-request.test.ts` and confirm failures are missing exports/behavior.
-- [ ] Implement the minimum domain types and deterministic mapping functions.
-- [ ] Re-run the focused test and confirm all lifecycle/routing cases pass.
+- [x] Implement the minimum domain types and deterministic mapping functions.
+- [x] Re-run the focused test and confirm all lifecycle/routing cases pass.
 
 ### Task 2: Add an RLS-scoped portfolio read model and tests
 
@@ -67,11 +67,11 @@
 - `withdrawBorrowRequestAction(dossierId)`
 - `loadOnboardingDraft(dossierId?: string)` and `loadOnboardingState(dossierId?: string)`
 
-- [ ] Write tests that authenticate through session-derived citizen ID, reject an unowned dossier, pass the exact dossier ID through each action, and reuse the initial incomplete KYC request while creating a distinct request for an already-KYC-submitted borrower.
+- [x] Write tests that authenticate through session-derived citizen ID, reject an unowned dossier, pass the exact dossier ID through each action, and reuse the initial incomplete KYC request while creating a distinct request for an already-KYC-submitted borrower.
 - [ ] Run focused tests and verify expected failures before implementation.
-- [ ] Implement safe request creation from owned profile/KYC data and a live agency/manager catalogue; preserve the CFC DUC sequence and return a controlled error if no regional assignment route exists.
-- [ ] Change onboarding query/mutation helpers to use the requested ID, never `order(...).limit(1)` when an explicit ID is given.
-- [ ] Run action tests and existing onboarding action tests.
+- [x] Implement safe request creation from owned profile/KYC data and a live agency/manager catalogue; preserve the CFC DUC sequence and return a controlled error if no regional assignment route exists.
+- [x] Change onboarding query/mutation helpers to use the requested ID, never `order(...).limit(1)` when an explicit ID is given.
+- [x] Run action tests and existing onboarding action tests.
 
 ### Task 4: Add explicit-target database transitions and pgTAP tests
 
@@ -85,11 +85,11 @@
 - Add an ownership-checked `withdraw_borrower_request(p_dossier_id uuid)` RPC that closes only a caller-owned draft and writes a `REQUEST_WITHDRAWN` dossier event atomically.
 - Retain `private.assign_dossier_to_manager(p_dossier_id)` for assignment, history, and in-app staff notification.
 
-- [ ] Add pgTAP assertions for multiple borrower dossiers, cross-owner denial, explicit-ID transitions, draft-only withdrawal, audit event retention, and notification/assignment behavior.
+- [x] Add pgTAP assertions for multiple borrower dossiers, cross-owner denial, explicit-ID transitions, draft-only withdrawal, audit event retention, and notification/assignment behavior.
 - [ ] Run the SQL test against the current local schema before adding migration changes and confirm it fails on the missing explicit-ID RPC behavior.
-- [ ] Generate the migration filename via the Supabase CLI; add secure SQL functions with `auth.uid()` ownership checks, `FOR UPDATE`, restricted grants, and no public security-definer API.
-- [ ] Run `npx supabase migration up --local` only after inspecting `npx supabase migration list --local`; do not run `db reset`.
-- [ ] Run the focused pgTAP suite using the command shown by `npx supabase test db --help` and verify expected access controls.
+- [x] Generate the migration filename via the Supabase CLI; add secure SQL functions with `auth.uid()` ownership checks, `FOR UPDATE`, restricted grants, and no public security-definer API.
+- [x] Inspect local migration history and confirm the borrower request migration is applied; do not run `db reset`.
+- [x] Run the focused pgTAP suite using the command shown by `npx supabase test db --help` and verify expected access controls.
 
 ### Task 5: Support repeat applications using verified KYC
 
@@ -106,11 +106,11 @@
 - The wizard omits the KYC step for previously submitted KYC and starts at service selection for a new request.
 - KYC mutations retain actor-level identity but write request-specific copies only to the explicit dossier when one is provided.
 
-- [ ] Add tests for a submitted KYC borrower resuming service selection without invoking KYC submission and an incomplete first request still opening the KYC wizard.
+- [x] Add tests for a submitted KYC borrower resuming service selection without invoking KYC submission and an incomplete first request still opening the KYC wizard.
 - [ ] Run the focused tests and observe failure.
-- [ ] Implement route parsing/ownership checks and the KYC-step filtering without allowing clients to override `kycSubmitted`.
-- [ ] Pass dossier IDs to service, prior-case, and submit actions and keep document uploads bound to that same ID.
-- [ ] Run focused tests, the existing onboarding component tests, and onboarding local integration tests.
+- [x] Implement route parsing/ownership checks and the KYC-step filtering without allowing clients to override `kycSubmitted`.
+- [x] Pass dossier IDs to service, prior-case, and submit actions and keep document uploads bound to that same ID.
+- [x] Run focused tests, the existing onboarding component tests, and onboarding local integration tests.
 
 ### Task 6: Build the client request portfolio and detail workspace
 
@@ -128,12 +128,12 @@
 - Detail route calls `getCitizenSpace(userId, id)`, returns not-found for unauthorized/missing IDs, and reuses request-aware dashboard, timeline, checklist, upload, and support components.
 - Existing `/portail-client` remains a landing/most-recent request view with a route to all requests.
 
-- [ ] Write component tests for zero state, multiple active cards, status badges, CTA destinations, and accessible progress labels.
+- [x] Write component tests for zero state, multiple active cards, status badges, CTA destinations, and accessible progress labels.
 - [ ] Run focused tests and confirm the components are missing.
-- [ ] Implement compact CFC-style cards with DUC, catalogue service label, persisted state, progress/phase, dates, and next action.
-- [ ] Add a request-specific workspace and details links; anchor support and document upload to its dossier ID.
-- [ ] Add an accessible confirmation dialog for draft withdrawal and explain that retained history remains available.
-- [ ] Run component tests and the local borrower E2E journey.
+- [x] Implement compact CFC-style cards with DUC, catalogue service label, persisted state, progress/phase, dates, and next action.
+- [x] Add a request-specific workspace and details links; anchor support and document upload to its dossier ID.
+- [x] Add an accessible confirmation dialog for draft withdrawal and explain that retained history remains available.
+- [x] Run component tests and the local borrower E2E journey.
 
 ### Task 7: Document, seed, and verify the end-to-end lifecycle
 
@@ -144,10 +144,10 @@
 - Modify/add: `src/server/actions/borrower-requests.e2e.local.test.ts`
 
 - [ ] Add local/staging database fixtures for first request, multiple concurrent requests, paused, submitted with missing pieces, active, and withdrawn cases without adding demo rows to production setup.
-- [ ] Run `npx vitest run` for changed features, `npm run typecheck`, and focused `npm run lint -- <changed files>`.
-- [ ] Run the complete local request journey against the running local Supabase stack without resetting its data.
+- [x] Run full Vitest (508 passed / 17 skipped), typecheck, and lint (2026-11-20).
+- [x] Run the complete local request journey against the running local Supabase stack without resetting its data.
 - [ ] Review `git diff --check`, verify no mock request/advisor fixture is imported into production UI, and update the spec/plan with executed results and remaining cross-cutting roadmap items.
-- [ ] Do not commit, push, or run production/staging migrations in this implementation pass.
+- [x] Do not commit, push, or run production/staging migrations in this implementation pass.
 
 ## Plan self-review
 
@@ -161,9 +161,9 @@
 - Local database tests: borrower request management, 21 assertions passed; profile self-service, 27 assertions passed.
 - Local Supabase E2E: `src/server/actions/onboarding.e2e.local.test.ts`, 2 tests passed. It exercises signup, exact request ID resume, KYC, service selection, prior-client state, event/notification persistence, and reload.
 - Request UI/action coverage: borrower request action tests, 6 passed; portfolio tests, 3 passed, including concurrent independent requests.
-- `npm test`: 448 passed, 17 intentionally skipped across local SMTP/Supabase-only suites. `npm run test:system`: 40 passed. `npm run typecheck`, `npm run lint`, and `npm run build` pass.
+- `npm test`: 508 passed, 17 intentionally skipped. `npm run test:system`: 47 passed. `npm run typecheck`, `npm run lint`, and `npm run build` passed on 2026-11-20. The authenticated local smoke passed 77/77 on 2026-11-20.
 - The pinned Next Google-font loader failed against Google's new query-based font URLs. The same Plus Jakarta Sans variable font is now self-hosted from the upstream WOFF2 subsets under its OFL license; production build passes without a build-time external font fetch.
-- `git diff --check` passes; only Git's existing LF-to-CRLF worktree notices remain. `.tmp-build-check` is absent.
+- `git diff --check` is being rechecked after the current documentation and smoke expectation audit; `.tmp-build-check` was confirmed absent on 2026-11-20.
 - No commit, push, hosted migration, or hosted seed was performed. `.tmp-build-check` is expected to remain absent and is checked during final cleanup verification.
 
 ## Status addendum — 2026-11-20

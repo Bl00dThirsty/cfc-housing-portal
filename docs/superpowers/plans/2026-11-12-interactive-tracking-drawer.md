@@ -108,7 +108,7 @@ npx vitest run src/domain/workflows/tracking.test.ts
 ```
 Attendu : échec, `eventsForStep is not a function`.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Dans `src/domain/workflows/tracking.ts`, ajouter en fin de fichier :
 
@@ -205,7 +205,7 @@ Ajouter l'import manquant en tête de `tracking.ts` :
 import type { DossierEvent } from "@/domain/entities/processes";
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/domain/workflows/tracking.test.ts
@@ -263,7 +263,7 @@ npx vitest run src/domain/workflows/tracking.test.ts
 ```
 Attendu : échec, `actorRoleLabel is not a function`.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Dans `src/domain/entities/processes.ts`, ajouter après `DOSSIER_EVENT_LABELS` :
 
@@ -295,7 +295,7 @@ export function actorRoleLabel(role: string | null): string {
 }
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/domain/workflows/tracking.test.ts
@@ -321,7 +321,7 @@ git commit -m "feat(tracking): le rôle de l'auteur, traduit en langage lisible"
 - Consomme : `getCitizenSpace` (déjà existant).
 - Produit : `CitizenTracking.events: DossierEvent[]`.
 
-- [ ] **Étape 1 : modifier le type**
+- [x] **Étape 1 : modifier le type**
 
 Dans `src/server/queries/citizen-space.ts`, ajouter au type `CitizenTracking` :
 
@@ -335,7 +335,7 @@ Dans `src/server/queries/citizen-space.ts`, ajouter au type `CitizenTracking` :
   events: DossierEvent[];
 ```
 
-- [ ] **Étape 2 : exposer les événements**
+- [x] **Étape 2 : exposer les événements**
 
 Dans `getCitizenTracking`, ajouter le champ dans l'objet retourné :
 
@@ -354,7 +354,7 @@ Dans `getCitizenTracking`, ajouter le champ dans l'objet retourné :
     };
 ```
 
-- [ ] **Étape 3 : passer les événements à la page**
+- [x] **Étape 3 : passer les événements à la page**
 
 Dans `src/app/tracking/page.tsx`, passer `tracking.events` au composant :
 
@@ -367,7 +367,7 @@ Dans `src/app/tracking/page.tsx`, passer `tracking.events` au composant :
 />
 ```
 
-- [ ] **Étape 4 : vérifier**
+- [x] **Étape 4 : vérifier**
 
 ```
 npm run typecheck
@@ -493,7 +493,7 @@ npx vitest run src/components/tracking/step-detail-drawer.test.tsx
 ```
 Attendu : échec, module introuvable.
 
-- [ ] **Étape 3 : écrire l'implémentation minimale**
+- [x] **Étape 3 : écrire l'implémentation minimale**
 
 Créer `src/components/tracking/step-detail-drawer.tsx` :
 
@@ -649,7 +649,7 @@ export function StepDetailDrawer({
 export default StepDetailDrawer;
 ```
 
-- [ ] **Étape 4 : lancer le test et vérifier qu'il passe**
+- [x] **Étape 4 : lancer le test et vérifier qu'il passe**
 
 ```
 npx vitest run src/components/tracking/step-detail-drawer.test.tsx
@@ -718,7 +718,7 @@ npx vitest run src/app/tracking/_components/tracking-stepper.test.tsx
 ```
 Attendu : échec — l'étape n'est pas un bouton.
 
-- [ ] **Étape 3 : rendre l'étape cliquable**
+- [x] **Étape 3 : rendre l'étape cliquable**
 
 Dans `src/app/tracking/_components/tracking-stepper.tsx` :
 
@@ -758,7 +758,7 @@ Dans `src/app/tracking/_components/tracking-stepper.tsx` :
 
 5. Importer `StepDetailDrawer` et `type DossierEvent`.
 
-- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
+- [x] **Étape 4 : lancer les tests et vérifier qu'ils passent**
 
 ```
 npx vitest run src/app/tracking/_components/tracking-stepper.test.tsx src/components/tracking/step-detail-drawer.test.tsx
@@ -783,7 +783,7 @@ git commit -m "feat(tracking): cliquer sur une étape ouvre son historique"
 - Consomme : le serveur de développement.
 - Produit : une règle supplémentaire.
 
-- [ ] **Étape 1 : ajouter la règle**
+- [x] **Étape 1 : ajouter la règle**
 
 Suivre le format des règles existantes de `scripts/smoke.mjs` :
 
@@ -797,7 +797,7 @@ Suivre le format des règles existantes de `scripts/smoke.mjs` :
 }
 ```
 
-- [ ] **Étape 2 : vérifier**
+- [x] **Étape 2 : vérifier**
 
 ```
 node scripts/smoke.mjs

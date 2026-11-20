@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import {
   buildDemoBorrowerIdentity,
+  buildDemoPdfBuffer,
   buildDemoSavingsLedger,
   DEMO_CITIZENS,
   DEMO_STAFF,
@@ -11,12 +13,6 @@ import {
 } from "./lib/local-supabase-env.mjs";
 import { loadLocalEnvironment } from "./lib/local-env-loading.mjs";
 import { resolveUserSeedConfig } from "./lib/seed-environment.mjs";
-
-// Le plan de financement est calculé par le **domaine** : les montants
-// affichés en démonstration sont donc ceux que la plateforme produirait
-// réellement, et non des chiffres écrits à la main.
-import { calculateHousingPlan } from "../src/domain/calculations/index.ts";
-import { SIGNUP_CONSENT_TEXT } from "../src/domain/entities/kyc-profile.ts";
 
 const SEED_TARGET = process.env.CFC_SEED_TARGET?.trim() || "local";
 if (SEED_TARGET === "local") {
@@ -39,6 +35,12 @@ try {
   console.error(error instanceof Error ? error.message : "Invalid user seed configuration.");
   process.exit(1);
 }
+
+// Load TypeScript domain code only after target and credentials are validated.
+// This keeps the security guard observable when this script is invoked with
+// plain `node` and without seed credentials, while the package command uses tsx.
+const { calculateHousingPlan } = await import("../src/domain/calculations/index.ts");
+const { SIGNUP_CONSENT_TEXT } = await import("../src/domain/entities/kyc-profile.ts");
 
 const SUPABASE_URL = seedConfig.supabaseUrl;
 const SERVICE_ROLE_KEY = seedConfig.serviceKey;
@@ -564,6 +566,162 @@ async function ensureDemoSavingsAccount(citizen, dossierId, managerId) {
   if (accountUpdateError) throw accountUpdateError;
 }
 
+function evaluateDemoRequirementCondition(conditionExpression, citizen) {
+  if (!conditionExpression) return true;
+  const match = String(conditionExpression).trim().match(/^citizen\.([a-z_][a-z0-9_]*)\s*(=|<>|!=)\s*'([^']*)'$/i);
+  if (!match) throw new Error(`Unsupported fixture condition in the live document catalogue: ${conditionExpression}`);
+
+  const [, field, operator, expected] = match;
+  const values = { ...citizen, affiliation_status: citizen.affiliation };
+  if (!(field in values)) throw new Error(`The demo profile does not supply condition field citizen.${field}.`);
+  const equal = String(values[field]) === expected;
+  return operator === "=" ? equal : !equal;
+}
+
+function plannedDemoDocuments(citizen, requirements, documentStagePhases, phaseRanks) {
+  const dossierRank = phaseRanks.get(citizen.phase);
+  if (dossierRank === undefined) throw new Error(`The live process catalogue is missing phase ${citizen.phase}.`);
+  const eligibleStages = new Set(documentStagePhases
+    .filter((stage) => (phaseRanks.get(stage.phase_code) ?? Number.POSITIVE_INFINITY) <= dossierRank)
+    .map((stage) => stage.stage_code));
+  const state = citizen.kycState ?? (citizen.diaspora ? "enhanced_due_diligence" : "identity_capture");
+
+  return requirements
+    .filter((requirement) => {
+      if (!eligibleStages.has(requirement.stage)) return false;
+      if (!evaluateDemoRequirementCondition(requirement.condition_expr, citizen)) return false;
+      const isApplicableAlternative = Boolean(requirement.alternative_group && requirement.condition_expr);
+      if (!requirement.required && !isApplicableAlternative) return false;
+      if (citizen.phase === "kyc_savings" && ["pre_boarding", "identity_capture"].includes(state)
+        && requirement.stage === "ONBOARDING") return false;
+      if (requirement.stage === "SAVINGS" && citizen.savingsMonthsPaid <= 0) return false;
+      return true;
+    })
+    .map((requirement) => ({ docTypeCode: requirement.doc_type_code, stageCode: requirement.stage }))
+    .sort((left, right) => left.stageCode.localeCompare(right.stageCode)
+      || left.docTypeCode.localeCompare(right.docTypeCode));
+}
+
+function documentStatus(citizen, stageCode, stagePhaseCode, dossierSequence, stageDocumentIndex, phaseRanks) {
+  if (phaseRanks.get(stagePhaseCode) < phaseRanks.get(citizen.phase)) return "validated";
+  if (citizen.phase === "kyc_savings") {
+    if (citizen.onboardingState === "documents") return "uploaded";
+    if (citizen.kycState === "approved" || citizen.kycState === "enhanced_due_diligence") return "validated";
+    return "under_review";
+  }
+  if (citizen.phase === "risk_bet" && stageCode === "CREDIT_FILE" && stageDocumentIndex === 0) {
+    if (dossierSequence % 9 === 0) return "rejected";
+    if (dossierSequence % 3 === 0) return "under_review";
+  }
+  return "validated";
+}
+
+function staffActorIdForRole(roleCode, managerId, staffIds) {
+  if (roleCode === "GESTIONNAIRE") return managerId;
+  const member = STAFF.find((candidate) => candidate.role === roleCode && candidate.active !== false);
+  return (member && staffIds.get(member.email)) ?? managerId;
+}
+
+function documentActorId({ action, stageCode, docType, citizenId, managerId, staffIds, documentPolicies }) {
+  if (action === "upload" && stageCode === "ONBOARDING" && docType.chemise_code === "C1") return citizenId;
+  if (action !== "upload" && docType.chemise_code === "C1") return managerId;
+
+  const policyRoles = documentPolicies
+    .filter((policy) => policy.stage_code === stageCode && policy.action === action && policy.enabled)
+    .map((policy) => policy.role_code);
+  const chosenRole = policyRoles.includes("GESTIONNAIRE") ? "GESTIONNAIRE" : policyRoles[0];
+  if (!chosenRole) throw new Error(`The live document policy has no ${action} role for ${stageCode}.`);
+  return staffActorIdForRole(chosenRole, managerId, staffIds);
+}
+
+/** Persist catalogue-driven synthetic files and rows so workflow stages exercise private storage. */
+async function ensureDemoDocuments(citizen, dossierId, citizenId, managerId, staffIds, requirements, documentTypes, documentStagePhases, phaseRanks, documentPolicies) {
+  const plannedDocuments = plannedDemoDocuments(citizen, requirements, documentStagePhases, phaseRanks);
+  const seeded = [];
+
+  for (const [stageDocumentIndex, plannedDocument] of plannedDocuments.entries()) {
+    const { docTypeCode, stageCode } = plannedDocument;
+    const docType = documentTypes.get(docTypeCode);
+    if (!docType?.chemise_code || !docType.accepted_mime?.includes("application/pdf")) {
+      throw new Error(`The active document type ${docTypeCode} cannot accept the synthetic PDF fixture.`);
+    }
+
+    const { data: existing, error: existingError } = await admin
+      .from("dossier_documents")
+      .select("id, original_filename")
+      .eq("dossier_id", dossierId)
+      .eq("doc_type_code", docTypeCode)
+      .is("deleted_at", null)
+      .order("uploaded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing && !existing.original_filename.startsWith("CFC-DEMO-")) continue;
+
+    const originalFilename = `CFC-DEMO-${citizen.ducCode}-${docTypeCode}.pdf`;
+    const timestamp = `${FIXTURE_AS_OF.toISOString().slice(0, 10).replaceAll("-", "")}-120000`;
+    const storagePath = `dossier/${dossierId}/${docTypeCode}/${timestamp}-${originalFilename.toLowerCase()}`;
+    const pdf = buildDemoPdfBuffer({ ducCode: citizen.ducCode, docTypeCode });
+    const checksum = createHash("sha256").update(pdf).digest("hex");
+    const { error: uploadError } = await admin.storage
+      .from("dossier-docs")
+      .upload(storagePath, pdf, { contentType: "application/pdf", upsert: true });
+    if (uploadError) throw uploadError;
+
+    const stagePhase = documentStagePhases.find((stage) => stage.stage_code === stageCode);
+    if (!stagePhase) throw new Error(`The live document catalogue is missing stage ${stageCode}.`);
+    const status = documentStatus(
+      citizen,
+      stageCode,
+      stagePhase.phase_code,
+      Number(citizen.ducCode.slice(-4)),
+      stageDocumentIndex,
+      phaseRanks,
+    );
+    const uploadedBy = documentActorId({
+      action: "upload", stageCode, docType, citizenId, managerId, staffIds, documentPolicies,
+    });
+    const reviewer = documentActorId({
+      action: "validate", stageCode, docType, citizenId, managerId, staffIds, documentPolicies,
+    });
+    const decided = ["validated", "rejected"].includes(status);
+    const values = {
+      dossier_id: dossierId,
+      doc_type_code: docTypeCode,
+      chemise_code: docType.chemise_code,
+      version: 1,
+      supersedes_id: null,
+      storage_path: storagePath,
+      original_filename: originalFilename,
+      mime_type: "application/pdf",
+      size_bytes: pdf.length,
+      checksum_sha256: checksum,
+      status,
+      valid_from: dateOffset(-30),
+      valid_until: null,
+      uploaded_by: uploadedBy,
+      uploaded_at: fixtureTimestamp(),
+      validated_by: decided ? reviewer : null,
+      validated_at: decided ? fixtureTimestamp() : null,
+      rejection_reason: status === "rejected" ? "Pièce synthétique à remplacer pour parcourir le circuit de correction." : null,
+      created_by: uploadedBy,
+      updated_by: decided ? reviewer : uploadedBy,
+      deleted_at: null,
+      deleted_by: null,
+    };
+
+    if (existing) {
+      const { error } = await admin.from("dossier_documents").update(values).eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await admin.from("dossier_documents").insert(values);
+      if (error) throw error;
+    }
+    seeded.push(docTypeCode);
+  }
+  return seeded;
+}
+
 function dateOffset(days) {
   return new Date(FIXTURE_AS_OF.getTime() + days * 86_400_000).toISOString().slice(0, 10);
 }
@@ -759,6 +917,50 @@ async function main() {  const { data: roles, error: rolesError } = await admin
   if (kycOptionError) throw kycOptionError;
   const kycOptions = kycOptionRows ?? [];
 
+  const { data: documentRequirementRows, error: documentRequirementError } = await admin
+    .schema("ref")
+    .from("service_document_requirement")
+    .select("stage, doc_type_code, required, alternative_group, condition_expr")
+    .eq("service_code", "PRET_FONCIER_CLASSIQUE_ORDINAIRE")
+    .is("deleted_at", null)
+    .lte("effective_from", FIXTURE_AS_OF.toISOString().slice(0, 10))
+    .or(`effective_to.is.null,effective_to.gt.${FIXTURE_AS_OF.toISOString().slice(0, 10)}`)
+    .order("stage", { ascending: true })
+    .order("doc_type_code", { ascending: true });
+  if (documentRequirementError) throw documentRequirementError;
+  const documentCodes = [...new Set((documentRequirementRows ?? []).map((row) => row.doc_type_code))];
+  const { data: documentTypeRows, error: documentTypeError } = await admin
+    .schema("ref")
+    .from("document_type")
+    .select("code, chemise_code, accepted_mime")
+    .in("code", documentCodes)
+    .is("deleted_at", null);
+  if (documentTypeError) throw documentTypeError;
+  const documentTypes = new Map((documentTypeRows ?? []).map((row) => [row.code, row]));
+
+  const { data: processPhaseRows, error: processPhaseError } = await admin
+    .schema("ref")
+    .from("process_phase")
+    .select("code, sort_order");
+  if (processPhaseError) throw processPhaseError;
+  const phaseRanks = new Map((processPhaseRows ?? []).map((row) => [row.code, row.sort_order]));
+
+  const { data: documentStagePhaseRows, error: documentStagePhaseError } = await admin
+    .schema("ref")
+    .from("document_stage_phase")
+    .select("stage_code, phase_code")
+    .is("deleted_at", null);
+  if (documentStagePhaseError) throw documentStagePhaseError;
+
+  const { data: documentPolicyRows, error: documentPolicyError } = await admin
+    .schema("ref")
+    .from("document_stage_role_policy")
+    .select("stage_code, role_code, action, enabled")
+    .eq("enabled", true)
+    .is("deleted_at", null)
+    .order("role_code", { ascending: true });
+  if (documentPolicyError) throw documentPolicyError;
+
   const created = [];
   const staffIds = new Map();
   /** Région → agents GESTIONNAIRE actifs, en ordre stable pour les fixtures. */
@@ -883,6 +1085,18 @@ async function main() {  const { data: roles, error: rolesError } = await admin
     await ensureDemoKycProfile(citizen, userId, citizenAgency, borrowerIdentity, kycOptions, dossier.advisorId);
     await ensureDemoSavingsAccount(citizen, dossier.dossierId, dossier.advisorId);
     const stageRegisters = await ensureOperationalStageFixture(citizen, dossier.dossierId, staffIds);
+    const documentRegisters = await ensureDemoDocuments(
+      citizen,
+      dossier.dossierId,
+      userId,
+      dossier.advisorId,
+      staffIds,
+      documentRequirementRows ?? [],
+      documentTypes,
+      documentStagePhaseRows ?? [],
+      phaseRanks,
+      documentPolicyRows ?? [],
+    );
 
     created.push({
       type: "emprunteur",
@@ -891,7 +1105,7 @@ async function main() {  const { data: roles, error: rolesError } = await admin
       affiliation: citizen.affiliation,
       phase: citizen.phase,
       dossier: citizen.ducCode,
-      registers: ["profil", "KYC", "DUC", "épargne", ...stageRegisters].join(", "),
+      registers: ["profil", "KYC", "DUC", "épargne", ...stageRegisters, ...(documentRegisters.length ? [`${documentRegisters.length} pièce(s)`] : [])].join(", "),
     });
   }
 

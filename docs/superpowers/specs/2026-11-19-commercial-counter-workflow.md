@@ -158,7 +158,7 @@ Une défaillance de création du DUC supprime l'identité Auth créée pendant c
 
 ### Données de démonstration locales et staging
 
-Le seed local/staging provisionne 16 comptes du personnel, 56 comptes emprunteur et 57 demandes réparties sur les cinq phases actuellement alimentées (17, 10, 10, 10, 10). Il fournit des profils KYC et des identifiants synthétiques stables à partir des comptes de démonstration; les choix fermés sont lus dans `ref.kyc_option`. Les versements d'épargne sont datés et rapprochés des soldes, et les tranches de déblocage restent planifiées tant qu'aucun décaissement réel n'est enregistré. Les fixtures de clôture restent absentes tant que le modèle ne porte pas le cycle de contrat et de remboursement décrit plus haut.
+Le seed local/staging provisionne 16 comptes du personnel, 98 comptes emprunteur et 100 demandes réparties également sur les cinq phases actuellement alimentées (20 par phase). Il fournit des profils KYC et des identifiants synthétiques stables à partir des comptes de démonstration; les choix fermés sont lus dans `ref.kyc_option`. Les 2 656 pièces PDF de démonstration sont produites à partir des exigences de service, des étapes et des politiques d'envoi actives, puis stockées dans le coffre privé Supabase. Elles couvrent les états téléversé, en revue, validé et rejeté. Les versements d'épargne sont datés et rapprochés des soldes, et les tranches de déblocage restent planifiées tant qu'aucun décaissement réel n'est enregistré. Les scénarios incluent plusieurs demandes pour un même compte et des dossiers diaspora. Les fixtures de clôture restent absentes tant que le modèle ne porte pas le cycle de contrat et de remboursement décrit plus haut.
 
 ## Machine à états proposée
 

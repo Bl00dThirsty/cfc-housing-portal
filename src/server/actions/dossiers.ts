@@ -27,10 +27,136 @@ import { createServerSupabaseClient } from "@/server/supabase/server";
 import { referenceView } from "@/server/queries/reference";
 import { notifyBusinessEvent } from "@/server/notifications/notify";
 import { hasCapability } from "@/domain/policies/permissions";
+import { isInScope, resolveScope } from "@/domain/policies/scope";
+import { resolveDocumentDecisionOptions } from "@/domain/policies/document-workflow";
 
 export type DossierDecisionResult =
   | { ok: true; message: string; eventType: string }
   | { ok: false; error: string };
+
+export interface DossierDocumentDecisionOptions {
+  canValidate: boolean;
+  canReject: boolean;
+}
+
+export type DossierDocumentDecisionOptionsResult =
+  | { ok: true; options: DossierDocumentDecisionOptions }
+  | { ok: false; error: string };
+
+const NO_DOCUMENT_DECISIONS: DossierDocumentDecisionOptions = {
+  canValidate: false,
+  canReject: false,
+};
+
+/** Resolve stage-specific document decisions for the current authenticated actor. */
+export async function getDossierDocumentDecisionOptionsAction(
+  documentId: string,
+): Promise<DossierDocumentDecisionOptionsResult> {
+  const profile = await getServerProfile();
+  if (!profile) return { ok: false, error: "Session requise." };
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(documentId)) {
+    return { ok: true, options: NO_DOCUMENT_DECISIONS };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { data: document, error: documentError } = await supabase
+    .from("dossier_documents")
+    .select("id, dossier_id, doc_type_code, chemise_code, status")
+    .eq("id", documentId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (documentError) return { ok: false, error: "La pièce ne peut pas être vérifiée." };
+  if (!document) return { ok: true, options: NO_DOCUMENT_DECISIONS };
+
+  const { data: dossier, error: dossierError } = await supabase
+    .from("dossiers")
+    .select("service_code, current_phase, owner_user_id, agency_id, is_diaspora")
+    .eq("id", document.dossier_id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (dossierError) return { ok: false, error: "Le circuit du dossier ne peut pas être vérifié." };
+  if (!dossier) return { ok: true, options: NO_DOCUMENT_DECISIONS };
+
+  const dossierInScope = isInScope(
+    resolveScope(profile.role),
+    {
+      ownerUserId: profile.actorId,
+      agencyId: profile.agencyId,
+      isDiaspora: profile.role === "DIASPORA",
+    },
+    {
+      owner_user_id: dossier.owner_user_id,
+      agency_id: dossier.agency_id,
+      is_diaspora: dossier.is_diaspora ?? false,
+    },
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: stageRows, error: stageError }, { data: type, error: typeError }, { data: policies, error: policyError }] = await Promise.all([
+    supabase
+      .from("cfc_document_stage_phase")
+      .select("stage_code, phase_code")
+      .eq("phase_code", dossier.current_phase ?? ""),
+    supabase
+      .from(referenceView("document_type"))
+      .select("code, chemise_code")
+      .eq("code", document.doc_type_code)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    supabase
+      .from("cfc_document_stage_role_policy")
+      .select("stage_code, role_code, action, enabled, deleted_at")
+      .eq("role_code", profile.role)
+      .in("action", ["validate", "reject"]),
+  ]);
+  if (stageError || typeError || policyError) {
+    return { ok: false, error: "Les règles documentaires ne peuvent pas être vérifiées." };
+  }
+  if (!stageRows?.length || !type) return { ok: true, options: NO_DOCUMENT_DECISIONS };
+
+  const stageCodes = stageRows.map((row) => row.stage_code);
+  const { data: requirements, error: requirementError } = await supabase
+    .from(referenceView("service_document_requirement"))
+    .select("service_code, stage, doc_type_code, effective_from, effective_to, deleted_at")
+    .eq("service_code", dossier.service_code ?? "")
+    .eq("doc_type_code", document.doc_type_code)
+    .in("stage", stageCodes)
+    .lte("effective_from", today)
+    .or(`effective_to.is.null,effective_to.gte.${today}`);
+  if (requirementError) return { ok: false, error: "Les exigences documentaires ne peuvent pas être vérifiées." };
+
+  return {
+    ok: true,
+    options: resolveDocumentDecisionOptions({
+      role: profile.role,
+      capabilities: profile.capabilities ?? [],
+      documentStatus: document.status,
+      chemiseCode: document.chemise_code,
+      documentTypeChemiseCode: type.chemise_code,
+      documentTypeCode: document.doc_type_code,
+      dossierServiceCode: dossier.service_code,
+      currentPhaseCode: dossier.current_phase,
+      dossierInScope,
+      today,
+      stages: (stageRows ?? []).map((row) => ({ stageCode: row.stage_code, phaseCode: row.phase_code })),
+      requirements: (requirements ?? []).map((row) => ({
+        serviceCode: row.service_code,
+        stageCode: row.stage,
+        docTypeCode: row.doc_type_code,
+        effectiveFrom: row.effective_from,
+        effectiveTo: row.effective_to,
+        deletedAt: row.deleted_at,
+      })),
+      policies: (policies ?? []).map((row) => ({
+        stageCode: row.stage_code,
+        roleCode: row.role_code,
+        action: row.action,
+        enabled: row.enabled,
+        deletedAt: row.deleted_at,
+      })),
+    }),
+  };
+}
 
 /** Un dossier qui attend une décision de l'agent. */
 export interface DossierToOrient {

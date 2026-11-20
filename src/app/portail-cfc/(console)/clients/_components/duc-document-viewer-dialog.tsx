@@ -13,19 +13,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ClientDocument, ClientItem } from "@/domain/entities/client";
+import { getDossierDocumentDecisionOptionsAction } from "@/server/actions/dossiers";
 import { getSignedDownloadUrlAction } from "@/server/storage/actions";
+import { DucDocumentDecisionActions } from "./duc-document-decision-actions";
 
 interface DucDocumentViewerDialogProps {
   file: ClientDocument | null;
   client: ClientItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDecisionComplete: () => void;
 }
 
-export function DucDocumentViewerDialog({ file, client, open, onOpenChange }: DucDocumentViewerDialogProps) {
+export function DucDocumentViewerDialog({
+  file,
+  client,
+  open,
+  onOpenChange,
+  onDecisionComplete,
+}: DucDocumentViewerDialogProps) {
   const [signedUrl, setSignedUrl] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [decisionOptions, setDecisionOptions] = React.useState<{ canValidate: boolean; canReject: boolean } | null>(null);
+  const [decisionError, setDecisionError] = React.useState<string | null>(null);
+  const [decisionLoading, setDecisionLoading] = React.useState(false);
 
   React.useEffect(() => {
     if (!open || !file) return;
@@ -33,11 +45,28 @@ export function DucDocumentViewerDialog({ file, client, open, onOpenChange }: Du
     setSignedUrl(null);
     setError(null);
     setLoading(true);
-    void getSignedDownloadUrlAction({ documentId: file.id }).then((result) => {
+    setDecisionOptions(null);
+    setDecisionError(null);
+    setDecisionLoading(true);
+    void Promise.all([
+      getSignedDownloadUrlAction({ documentId: file.id }),
+      getDossierDocumentDecisionOptionsAction(file.id),
+    ]).then(([downloadResult, decisionResult]) => {
       if (cancelled) return;
-      if (result.ok) setSignedUrl(result.data.url);
-      else setError(result.error.message);
-      setLoading(false);
+      if (downloadResult.ok) setSignedUrl(downloadResult.data.url);
+      else setError(downloadResult.error.message);
+      if (decisionResult.ok) setDecisionOptions(decisionResult.options);
+      else setDecisionError(decisionResult.error);
+    }).catch(() => {
+      if (!cancelled) {
+        setError("La pièce n’a pas pu être chargée. Réessayez.");
+        setDecisionError("Les actions documentaires sont temporairement indisponibles.");
+      }
+    }).finally(() => {
+      if (!cancelled) {
+        setLoading(false);
+        setDecisionLoading(false);
+      }
     });
     return () => { cancelled = true; };
   }, [file, open]);
@@ -102,6 +131,23 @@ export function DucDocumentViewerDialog({ file, client, open, onOpenChange }: Du
             </div>
           ) : null}
         </div>
+
+        {decisionOptions && (decisionOptions.canValidate || decisionOptions.canReject) ? (
+          <DucDocumentDecisionActions
+            documentId={file.id}
+            canValidate={decisionOptions.canValidate}
+            canReject={decisionOptions.canReject}
+            onComplete={onDecisionComplete}
+          />
+        ) : decisionLoading ? (
+          <p role="status" className="border-t px-6 py-3 text-xs text-muted-foreground">
+            Vérification des décisions disponibles…
+          </p>
+        ) : decisionError ? (
+          <p role="status" className="border-t px-6 py-3 text-xs text-muted-foreground">
+            {decisionError}
+          </p>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
