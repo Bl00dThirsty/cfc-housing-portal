@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildDemoBorrowerIdentity,
   buildDemoSavingsLedger,
+  buildRegisterFixtures,
   DEMO_CITIZENS,
   DEMO_STAFF,
 } from "./demo-fixtures.mjs";
@@ -121,4 +122,12 @@ test("zero savings months produce an empty ledger", () => {
     months: 0,
     asOf: "2026-11-19",
   }), []);
+});
+
+test("register fixtures are deterministic and tagged", () => {
+  const first = buildRegisterFixtures("demo");
+  const second = buildRegisterFixtures("demo");
+  assert.deepEqual(first, second);
+  assert.ok(first.every((row) => row.fixture_tag === "2026-11-20-registers"));
+  assert.equal(new Set(first.map((row) => row.table)).size, 5);
 });

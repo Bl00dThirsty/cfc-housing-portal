@@ -888,3 +888,15 @@ export const DEMO_CITIZENS = [
   ...BASE_DEMO_CITIZENS,
   ...buildSupplementalDemoCitizens(),
 ];
+
+export function buildRegisterFixtures(seed = "demo") {
+  const tag = "2026-11-20-registers";
+  const rows = [
+    ["registers_promoters", { code: "PROM-DEMO-1", label: "Promotion Démonstration", region: "Centre", status: "active" }],
+    ["registers_bet_experts", { label: "BET Démonstration", firm_name: "BET Delta", region: "Centre", status: "active" }],
+    ["registers_notary_offices", { label: "Étude Notariale Démonstration", city: "Yaoundé", region: "Centre", status: "active" }],
+    ["registers_subsidies", { code: "SUB-DEMO-1", label: "Subvention Démonstration", funding_source: "État", amount: 500000, status: "active" }],
+    ["registers_recovery_cases", { case_code: "REC-DEMO-1", label: "Arriéré Démonstration", arrears_stage: "relance", amount_due: 150000, status: "active" }],
+  ];
+  return rows.map(([table, values]) => ({ table, fixture_tag: tag, seed, values }));
+}
