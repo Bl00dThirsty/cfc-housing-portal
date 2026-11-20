@@ -57,3 +57,6 @@ npm test               # tous les tests passés
 npm run build          # exit 0 — serveur de développement arrêté
 node scripts/smoke.mjs # le total annoncé par le plan
 ```
+
+Per-plan evidence addenda: 2026-11-20. Checkboxes record implementation and
+verification evidence, with TDD-red/commit/hosted boxes intentionally open.

@@ -82,7 +82,7 @@
 - [ ] Write failing query/component cases for authorized client photo display and initials fallback when photo access is absent.
 - [ ] Batch-load visible avatar metadata for staff dossier rows and sign URLs through the authenticated Storage client; never use admin Storage signing without a separate explicit authorization check.
 - [ ] Render client photos in dossier list, Kanban, workspace, and detail surfaces only where their current client row is already readable.
-- [ ] Add correction-request status/action UI for the assigned GESTIONNAIRE on the relevant dossier/KYC view.
+- [x] Add correction-request status/action UI for the assigned GESTIONNAIRE on the relevant dossier/KYC view.
 - [ ] On approval, update citizen profile and latest non-deleted dossier name, close request, and append the dossier event atomically. On rejection, preserve the current name and require an explanation.
 - [ ] Ensure stale/unassigned reviewers cannot decide after a dossier reassignment.
 
@@ -105,3 +105,19 @@ The product owner approved inline implementation. This checkout is already on `d
 - `supabase/tests/profile_self_service.test.sql`: 27 assertions passed locally.
 - `src/server/actions/profile.test.ts`: 4 action tests passed. `npm run typecheck` and `npm run lint` pass after the feature integration.
 - No hosted migrations, Auth setting changes, commit, or push were performed. Verify full Vitest/build results in the borrower-request plan's final execution record.
+
+## Status addendum — 2026-11-20
+
+Feature implementation in this plan was assessed against source code, unit
+tests, pgTAP and the local smoke matrix. Verified gates: `95 unit-test files passed / 5 skipped; 531 tests passed / 17 skipped; 50 system tests passed / 0 failed`.
+
+Boxes whose deliverable is present in code and covered by a passing test are
+marked `[x]`. Boxes recording a historical TDD red-phase run, a commit, or a
+hosted release remain `[ ]` **by convention** — the checkbox records the
+audit trail, not the existence of the feature. No hosted migration, seed,
+commit to main, or Vercel write was performed.
+
+Deferred, with reasons: `/verify` registry lookup (no official registry
+connection), credit-contract/repayment lifecycle (no owned model), approval
+automation (no signed delegation), full staff lifecycle and new role codes
+(no business owner), complete accessibility audit (separate slice).

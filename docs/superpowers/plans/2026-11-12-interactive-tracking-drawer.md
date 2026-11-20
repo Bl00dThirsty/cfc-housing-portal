@@ -822,3 +822,19 @@ npm test
 npm run build
 node scripts/smoke.mjs
 ```
+
+## Status addendum — 2026-11-20
+
+Feature implementation in this plan was assessed against source code, unit
+tests, pgTAP and the local smoke matrix. Verified gates: `95 unit-test files passed / 5 skipped; 531 tests passed / 17 skipped; 50 system tests passed / 0 failed`.
+
+Boxes whose deliverable is present in code and covered by a passing test are
+marked `[x]`. Boxes recording a historical TDD red-phase run, a commit, or a
+hosted release remain `[ ]` **by convention** — the checkbox records the
+audit trail, not the existence of the feature. No hosted migration, seed,
+commit to main, or Vercel write was performed.
+
+Deferred, with reasons: `/verify` registry lookup (no official registry
+connection), credit-contract/repayment lifecycle (no owned model), approval
+automation (no signed delegation), full staff lifecycle and new role codes
+(no business owner), complete accessibility audit (separate slice).
