@@ -455,7 +455,15 @@ insert into ref.product_rate (product_code, rate_code, label, annual_rate, durat
   ('PFC_PROMO_15',  'TAUX_STANDARD', 'Taux standard', 6.25, 15, 3.00, date '2026-11-19'),
   ('PFC_LOT_10',    'TAUX_STANDARD', 'Taux standard', 6.00, 10, 3.50, date '2026-11-19'),
   ('PFC_SOLIDAIRE', 'TAUX_SOLIDAIRE','Taux solidaire',5.00, 15, 4.00, date '2026-11-19')
-on conflict (product_code, rate_code, duration_years, valid_from) where deleted_at is null do nothing;
+on conflict (product_code, rate_code, coalesce(duration_years, -1)) where deleted_at is null and valid_to is null
+do update set
+  label = excluded.label,
+  annual_rate = excluded.annual_rate,
+  savings_rate = excluded.savings_rate,
+  valid_from = excluded.valid_from,
+  updated_at = now(),
+  deleted_at = null,
+  deleted_by = null;
 
 -- ---------------------------------------------------------------------------
 -- Exigences documentaires par service et par étape
