@@ -55,6 +55,8 @@ export type Capability =
   | "recovery:manage"
   | "catalogue:read"
   | "catalogue:write"
+  | "register:read"
+  | "register:write"
   | "email:read"
   | "email:send"
   | "email:manage"
@@ -180,6 +182,8 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
   "recovery:manage",
   "catalogue:read",
   "catalogue:write",
+  "register:read",
+  "register:write",
   "email:read",
   "email:send",
   "email:manage",

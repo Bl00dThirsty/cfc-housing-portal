@@ -63,6 +63,8 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "savings:validate",
     "catalogue:read",
     "analytics:read",
+    "register:read",
+    "register:write",
   ],
 
   // Exploitation & Portefeuille Crédit : instruction, suivi de l'épargne
@@ -87,6 +89,8 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "savings:reverse",
     "committee:read",
     "analytics:read",
+    "register:read",
+    "register:write",
   ],
 
   // G3 — Direction des Risques & Ingénierie : contre-expertise BET, solvabilité,
@@ -100,6 +104,8 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "savings:read",
     "committee:read",
     "analytics:read",
+    "register:read",
+    "register:write",
   ],
 
   // G8 — Notariat & Affaires Juridiques : conventions, hypothèque 1er rang,
@@ -117,6 +123,8 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "notary:release",
     "committee:read",
     "catalogue:read",
+    "register:read",
+    "register:write",
   ],
 
   // G6 — Direction Générale & Arbitrage : comités CGR/CRC, offres de prêt,
@@ -139,6 +147,8 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "recovery:manage",
     "analytics:read",
     "analytics:export",
+    "register:read",
+    "register:write",
   ],
 
   // Cellule Diaspora & Non-Résidents : dossiers des Camerounais de l'étranger,
@@ -169,6 +179,8 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "email:read",
     "email:send",
     "email:manage",
+    "register:read",
+    "register:write",
   ],
 
   ANALYSTE: [
@@ -204,6 +216,8 @@ const STAFF_CAPABILITIES: Record<StaffRole, readonly Capability[]> = {
     "message:send",
     "email:read",
     "email:send",
+    "register:read",
+    "register:write",
   ],
 
   ARCHIVISTE: [
