@@ -41,9 +41,11 @@ These were posed as a questionnaire that **timed out**; the recommended option o
 | D1 | Stack baseline | Next 16 + Tailwind v4, aligned with `guichet-unque-cfc` so primitives copy unchanged | Medium — a styling/token migration, but do it once, early |
 | D2 | Identity model | One `auth.users`, `actor_type` separates borrower from staff | Low now, high later — re-partitioning identities is a data migration |
 | D3 | Supabase project | `yyqfqsmsfaccsstwlpog` (the ref from your command) | Trivial — one URL |
-| D4 | Root route | `/` becomes the **login**; public marketing moves to `/accueil` | Low — one redirect |
+| D4 | Root route | `/` becomes the **login**; the public vitrine at `/accueil` was considered and dropped (not in MVP) | Low — one redirect |
 
 > **Note on D3.** `guichet-unque-cfc/.mcp.json` points at a *different* project (`noolofgfrxeoajyozkkg`). Two Supabase projects now exist in the setup. If the intent was one shared project, D3 is wrong and the MCP URL must be re-pointed. See OQ-1.
+
+> **D4 — public surface (corrected 2026-11-20).** The public surface consists of `/simulator` (financing simulator), `/faq`, `/tracking` (own-dossier tracking) and `/verify` (registry lookup not yet connected). A public marketing vitrine at `/accueil` was considered and dropped; it is not part of the MVP. No `/accueil` route exists.
 
 ### 0.4 What is deliberately **not** in this document
 
@@ -300,7 +302,7 @@ cfc-housing-portal/
 │     └─ private.sql                   # helper functions — NEVER exposed via API
 ├─ src/
 │  ├─ app/
-│  │  ├─ (public)/                    # marketing — /accueil, /simulator
+│  │  ├─ (public)/                    # public surface — /simulator, /faq, /tracking, /verify (no /accueil vitrine)
 │  │  ├─ (auth)/                      # /login, /reset-password, /verify-email
 │  │  ├─ onboarding/                  # citizen onboarding wizard
 │  │  ├─ portal/                      # citizen Guichet Unique
@@ -624,9 +626,9 @@ create policy dossiers_update on public.dossiers
 
 ### 3.6 The journeys
 
-**3.6.1 `/` becomes the login (D4).** Public marketing moves to `/accueil`. The root renders a single login screen that handles **both** actor classes: an email + password field, a magic-link option, and a "I already have a CFC account" path. After authentication the server reads `actors.actor_type` and redirects — citizen → `/portal`, staff → `LANDING_BY_ROLE[role]`.
+**3.6.1 `/` becomes the login (D4).** The public vitrine at `/accueil` was considered and dropped; it is not part of the MVP. The root renders a single login screen that handles **both** actor classes: an email + password field, a magic-link option, and a "I already have a CFC account" path. After authentication the server reads `actors.actor_type` and redirects — citizen → `/portal`, staff → `LANDING_BY_ROLE[role]`.
 
-> **D4 consequence:** the current `/` showcase and the simulator must move to `/accueil` and `/simulator` respectively (the simulator route already exists). The `/admin/login` route is deleted — there is **one** login, not two. The demo persona picker is replaced by a **seeded demo mode** enabled only by an env flag, never in production.
+> **D4 consequence:** the simulator stays at `/simulator` (the route already exists); the `/accueil` vitrine was dropped and no such route is added. The `/admin/login` route is deleted — there is **one** login, not two. The demo persona picker is replaced by a **seeded demo mode** enabled only by an env flag, never in production.
 
 **3.6.2 Email service.** Supabase Auth with a custom SMTP provider (the default Supabase SMTP is rate-limited and unsuitable for institutional volume). Configuration belongs in the dashboard; the reset-password email template must be institutional (French, CFC branding, `nexteight`/route names). Email delivery must be observable — a `public.email_deliveries` log, because "the client says they never got the reset link" is otherwise unanswerable.
 
@@ -1189,7 +1191,7 @@ Every feature that exists today is listed with its verdict. **STATIC MOCK** = ha
 | Feature | Route | Verdict | Target |
 |---|---|---|---|
 | Staff apport & scoring | `/admin/actors/agency/simulator` | INTERACTIVE | Uses the **pure** `domain/calculations` + the product catalogue |
-| Public simulator | `/simulator`, `/` | INTERACTIVE | Moves to `/accueil` + `/simulator`; rates from the catalogue |
+| Public simulator | `/simulator`, `/` | INTERACTIVE | Stays at `/simulator`; the `/accueil` vitrine was dropped; rates from the catalogue |
 
 ### D. DUC & documents
 
@@ -1524,7 +1526,7 @@ create index dossier_documents_type_idx   on public.dossier_documents (doc_type_
 
 | Current | Target | Change |
 |---|---|---|
-| `/` | `/accueil` | Marketing moves; `/` becomes the login (D4) |
+| `/` | `/login` | `/accueil` vitrine dropped; `/` becomes the login (D4) |
 | `/simulator` | `/simulator` | Unchanged; rates from the catalogue |
 | `/onboarding` | `/onboarding` | 4-step wizard, persisted |
 | `/portal` | `/portal` | Real data; requirement-driven checklist |
@@ -1701,7 +1703,7 @@ Part 0–11 describe the **target**. This part records what has **actually been 
 | **RLS proof** | Policies validated against a **live local Postgres** with real Supabase auth sessions — cross-pole denial confirmed (G1 ≠ G8 on C3, G3 blocked on C1, citizen blocked on staff dossiers, `ref` read-only to `authenticated`, events append-only) | local Supabase stack, 5 sessions |
 | **Auth** | The fake auth is **gone**: `loginAsUser`, `SEEDED_ADMIN_USERS`, `DEFAULT_USER`, `void password` and the silent `DEFAULT_USER` fallback all removed. Real Supabase email+password, magic link, and password reset behind `/login`. The live **role switcher in the admin chrome is deleted** — that was the self-escalation hole. | grep returns no matches; `src/app/login/**`, `src/lib/auth-context.tsx` |
 | **Session** | Root `middleware.ts` refreshes the session on every request and redirects unauthenticated `/admin/**` → `/login`; an authenticated user on `/login` is sent to their **real** landing, derived from `public.staff_assignments` (never hardcoded) | `src/server/auth/landing.ts` |
-| **Root route (D4)** | `/` now **redirects to `/login`**; the public vitrine moved to `/accueil`. One login for citizens and agents, each routed to their own console afterwards | `src/app/page.tsx`, `src/app/accueil/page.tsx` |
+| **Root route (D4)** | `/` now **redirects to `/login`**; the public vitrine at `/accueil` was considered and dropped (not in MVP). One login for citizens and agents, each routed to their own console afterwards | `src/app/page.tsx`, `src/middleware.ts` |
 | **RBAC model** | `src/domain/policies/{capabilities,permissions,scope,chemise}.ts` — capability matrix replacing role-string comparisons; scopes (`OWN_AGENCY`, `OWN_PORTFOLIO`, `ALL`, `OWN_FILES`, `DIASPORA_FILES`) | `src/domain/policies/**` |
 | **State** | Zustand 5 stores — the store holds **UI intent only**; every derived list is a pure function memoised in the component | `src/stores/clients-store.ts`, `src/lib/clients-filters.ts` |
 | **Design tokens** | The kit's token *architecture* lifted onto CFC's palette and Tailwind v3 (so the code is v4-ready without the migration): 13 role tokens in light + dark, the GSAP power easing set, the `.<role>-style` type companions as **opt-in** (`@layer components`, so no existing page changes) | `src/app/globals.css`, `tailwind.config.ts` |

@@ -42,6 +42,11 @@ Un emprunteur qui ouvre la porte agent est renvoyé vers la sienne, et
 réciproquement. La décision est prise dans `middleware.ts`, avant tout rendu :
 une page masquée du menu n'est jamais une protection.
 
+The public surface consists of `/simulator` (financing simulator), `/faq`,
+`/tracking` (own-dossier tracking) and `/verify` (registry lookup not yet
+connected). A public marketing vitrine at `/accueil` was considered and
+dropped; it is not part of the MVP.
+
 ## Technologies
 
 - Next.js 15 (App Router) et React 19
