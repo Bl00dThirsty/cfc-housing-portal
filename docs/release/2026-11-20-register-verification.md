@@ -10,16 +10,23 @@ diffusion de notifications par rôle. Local + prêt pour PR uniquement : aucun
 npx supabase migration up --local
 ```
 
-- `20261120131000_active_notification_recipients.sql` (PR-4) — appliquée.
-- `20261120132000_active_notification_recipients_fix.sql` (PR-6) — appliquée.
-  Correction propulsion décrite plus bas. Les migrations déjà appliquées
-  n'ont pas été modifiées.
+Liste complète et ordonnée des six migrations de la branche, appliquées en local
+(aucune migration déjà appliquée n'a été modifiée) :
+
+1. `20261120120000_revoke_anon_definer_execute.sql`
+2. `20261120121000_index_audit_foreign_keys.sql`
+3. `20261120130000_register_tables.sql`
+4. `20261120131000_active_notification_recipients.sql` (PR-4)
+5. `20261120132000_active_notification_recipients_fix.sql` (PR-6) — correction
+   propulsion décrite plus bas.
+6. `20261120133000_active_notification_recipients_rls_alignment.sql` — correction
+   de revue décrite plus bas (divergence de rôle avec RLS).
 
 ## Résultats des portes de vérification
 
 | Commande | Résultat exact |
 | --- | --- |
-| `npx supabase test db --local` (pgTAP) | **PASS** — `Files=17, Tests=148`, 0 échec. `20261120_register_rls.test.sql` : ok. |
+| `npx supabase test db --local` (pgTAP) | **PASS** — `Files=18, Tests=151`, 0 échec. `20261120_register_rls.test.sql` et `20261120_notification_recipient_rls_alignment.test.sql` : ok. |
 | `npm run test:system` | **PASS** — `tests 50`, `suites 13`, `pass 50`, `fail 0`, `skipped 0`. |
 | `npm test` | **PASS** — `Test Files 95 passed | 5 skipped (100)` ; `Tests 530 passed | 17 skipped (547)`. |
 | `npm run typecheck` | **PASS** — `tsc --noEmit`, sortie vide, code 0. |
@@ -112,6 +119,20 @@ ni libellé de fiche), y compris dans la clé d'idempotence.
    `label` pour les autres (aucune fuite en clé). Une notification par
    écriture, idempotence conservée au retry. Détails dans
    `.superpowers/sdd/pr-4-6-report.md`, section 8.
+5. **Post-revue — divergence du gate de rôle avec RLS (role-safe).** Le
+   `has_register_read` du RPC `20261120132000_..._fix.sql` choisissait le rôle
+   par `starts_at desc` et testait la capacité sans filtre `rc.deleted_at is
+   null`. Un acteur multi-rôles dont le rôle effectif RLS (le plus récemment
+   créé) n'a pas `register:read`, ou dont la subvention a été supprimée
+   logiquement, recevait tout de même une charge utile scopée (libellé + lien
+   profond) alors que RLS l'aurait refusé. Nouvelle migration propulsion
+   `20261120133000_active_notification_recipients_rls_alignment.sql` : le gate
+   reproduit désormais exactement `private.current_role()` (`created_at desc`,
+   sans fenêtre de validité) et `private.has_capability()` (`rc.deleted_at is
+   null`), paramétrés par acteur. `SECURITY INVOKER`, `service_role` uniquement,
+   aucune fonction `SECURITY DEFINER` ajoutée. Test de régression
+   `supabase/tests/20261120_notification_recipient_rls_alignment.test.sql` :
+   rouge (2 échecs sur 3 avant migration) puis vert (3/3 après).
 
 ## Dirty worktree préservé
 
