@@ -14,6 +14,8 @@ export interface RegisterEventInput {
   recordId: string;
   label: string;
   operation: "create" | "update" | "delete";
+  /** Identité unique de l'écriture : une notification par écriture, sans doublon sur retry. */
+  eventId: string;
 }
 
 export interface RegisterNotificationPayload {
@@ -29,7 +31,7 @@ export interface RegisterNotificationPayload {
  */
 function opaqueIdentity(input: RegisterEventInput): string {
   return createHash("sha256")
-    .update(`${input.recordId}:${input.label}`)
+    .update(`${input.recordId}:${input.label}:${input.eventId}`)
     .digest("hex")
     .slice(0, 24);
 }
@@ -45,10 +47,10 @@ export function buildRegisterNotificationPayload(
       ? `Une fiche a été ${verb} : ${input.label || input.recordId}.`
       : "Une fiche a été modifiée dans un registre CFC.",
     actionUrl: input.canReadRegister
-      ? `/portail-cfc/actors/agency/${input.registerKey}/${input.recordId}`
+      ? `/portail-cfc/registres/${input.registerKey}/${input.recordId}`
       : null,
     dedupeKey: input.canReadRegister
-      ? `register:${input.registerKey}:${input.recordId}:${input.operation}:${input.label}`
+      ? `register:${input.registerKey}:${input.recordId}:${input.operation}:${input.label}:${input.eventId}`
       : `register:${input.registerKey}:${input.operation}:${opaqueIdentity(input)}`,
   };
 }

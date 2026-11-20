@@ -100,6 +100,18 @@ ni libellé de fiche), y compris dans la clé d'idempotence.
    `SECURITY DEFINER` ajoutée ; `SECURITY INVOKER`, `service_role` uniquement.
 3. **Avertissement ESLint préexistant** dans `src/server/queries/registers.ts`
    (PR-3) : laissé tel quel pour ne pas modifier une tâche déjà livrée.
+4. **Post-revue — lien et dédup de notification.** Le lien des lecteurs
+   autorisés pointait vers `/portail-cfc/actors/agency/...` (route
+   `promoters` seulement) : remplacé par la route canonique PR-5
+   `/portail-cfc/registres/<registerKey>/<recordId>` pour les cinq clés ;
+   les lecteurs non autorisés restent à `actionUrl: null`. La clé de dédup
+   n'incluait pas l'identité de l'écriture, si bien que deux mises à jour
+   identiques étaient absorbées par l'`ignoreDuplicates` de `notify()`.
+   Ajout de `eventId` (`randomUUID()` par écriture dans les actions) dans les
+   deux branches de clé : brute pour les autorisés, hachée avec `recordId` et
+   `label` pour les autres (aucune fuite en clé). Une notification par
+   écriture, idempotence conservée au retry. Détails dans
+   `.superpowers/sdd/pr-4-6-report.md`, section 8.
 
 ## Dirty worktree préservé
 
@@ -107,3 +119,17 @@ Les commits PR-4, PR-5 et PR-6 n'ont été créés qu'avec les fichiers de leur
 tâche. Les modifications antérieures (PDF de démonstration, affiliation
 diaspora, écrans clients, etc.) sont restées non indexées / non suivies dans
 l'arbre de travail. Aucun `git reset`, aucun force-push, aucune perte de WIP.
+
+## Re-vérification après correctifs de revue (2026-11-20)
+
+| Commande | Résultat |
+| --- | --- |
+| `npx vitest run src/server/notifications/register-notifications.test.ts src/server/actions/registers.test.ts` | **PASS** — 2 fichiers, **5 tests** (dont 3 sur la charge utile de registre). |
+| `npm test` | **PASS** — **95 fichiers / 100** (5 ignorés), **531 tests / 548** (17 ignorés). |
+| `npm run typecheck` | **PASS** — sortie vide, code 0. |
+| `npm run lint` | **PASS** — 0 erreur, 1 avertissement préexistant inchangé. |
+| `npm run build` | **PASS** — compilé en 22,9 s, 11/11 pages statiques, code 0. |
+
+La séquence TDD est documentée dans `.superpowers/sdd/pr-4-6-report.md` §8 :
+rouge (2 échecs sur 5 : `actionUrl` et clé de dédup) puis vert (5/5). Aucune
+écriture distante (Supabase hébergé, Vercel) ; WIP préservé.

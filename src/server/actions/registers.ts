@@ -1,5 +1,7 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+
 import { REGISTER_LABELS, validateRegisterInput, type RegisterInput, type RegisterKey } from "@/domain/entities/registers";
 import { notifyRegisterEvent } from "@/server/notifications/register-notifications";
 import { createServerSupabaseClient } from "@/server/supabase/server";
@@ -44,6 +46,7 @@ export async function saveRegisterRecord(
     recordId: String(data?.id ?? id ?? ""),
     label: validation.value.label as string,
     operation: id ? "update" : "create",
+    eventId: randomUUID(),
   });
 
   return {
@@ -61,6 +64,6 @@ export async function deleteRegisterRecord(key: RegisterKey, id: string): Promis
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return { ok: false, error: "La suppression a été refusée dans votre périmètre." };
-  await notifyRegisterEvent({ registerKey: key, recordId: id, label: "", operation: "delete" });
+  await notifyRegisterEvent({ registerKey: key, recordId: id, label: "", operation: "delete", eventId: randomUUID() });
   return { ok: true, message: "La fiche a été retirée du registre." };
 }
