@@ -29,3 +29,13 @@ apply pass described above. Locally the pgTAP assertion moved from RED
 (`have: 8, want: 0`) to GREEN (`0`); the hosted/local before delta (10 vs 8)
 reflects migration parity, not a partial fix. Authenticated and service-role
 EXECUTE grants were preserved (61 and 62 definer functions respectively).
+
+## FK index coverage — 2026-11-20
+
+Local catalog count of public foreign keys lacking a leading-column index:
+124 before, 0 after migration `20261120121000_index_audit_foreign_keys.sql`.
+The hosted advisor reports 194 unindexed FKs (different count granularity);
+no hosted command was run in this pass. Verified locally with
+`npx supabase test db --local` (3/3 assertions in
+`supabase/tests/20261120_revoke_anon_definer_execute.test.sql`) and
+`npm run test:system` (49/49).
