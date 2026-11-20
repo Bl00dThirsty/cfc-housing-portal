@@ -322,6 +322,24 @@ create table if not exists public.registers_recovery_cases (
   status text not null default 'active' check (status in ('active','inactive','suspended'))
 );
 
+-- attach_audit_trigger() only fires private.audit_columns(); it does NOT add
+-- columns. Add the standard audit columns explicitly before attaching it.
+do $$
+declare t text;
+begin
+  for t in
+    select table_name from information_schema.tables
+    where table_schema = 'public' and table_name like 'registers_%'
+  loop
+    execute format('alter table public.%I add column if not exists created_at timestamptz not null default now()', t);
+    execute format('alter table public.%I add column if not exists created_by uuid references auth.users(id) on delete set null', t);
+    execute format('alter table public.%I add column if not exists updated_at timestamptz not null default now()', t);
+    execute format('alter table public.%I add column if not exists updated_by uuid references auth.users(id) on delete set null', t);
+    execute format('alter table public.%I add column if not exists deleted_at timestamptz', t);
+    execute format('alter table public.%I add column if not exists deleted_by uuid references auth.users(id) on delete set null', t);
+  end loop;
+end $$;
+
 -- Reference data: the two new capabilities and their least-privilege grants.
 insert into ref.capability (code, label, group_label, description, sort_order)
 values

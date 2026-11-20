@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Documentation only; no application or database change in this plan.
+- Documentation only: no application behaviour or database change. The one comment-only correction in `src/app/page.tsx` is permitted.
 - Source of truth order: current source code + passing tests → dated status audit → reference docs.
 - Next.js 15.5.25, React 19, Tailwind 4 (from `package.json`).
 - The old `/dev/demo` panel does not exist; guarded DB-seeded local/staging fixtures superseded it.
